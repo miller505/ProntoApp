@@ -1,0 +1,8 @@
+{
+  "name": "RedDelivery iOS Style",
+  "description": "Una plataforma completa de delivery con roles de Master, Tienda, Cliente y Repartidor. Diseño minimalista estilo iOS.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
