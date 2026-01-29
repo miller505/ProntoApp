@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // En desarrollo local usamos localhost:5000. 
 // Cuando despliegues en Vercel, deberás cambiar esto por la URL de Render.
-const API_URL = 'https://prontoapp-backend.onrender.com';
+const API_URL = 'https://prontoapp-backend.onrender.com/api';
 
 export const api = axios.create({
   baseURL: API_URL,
