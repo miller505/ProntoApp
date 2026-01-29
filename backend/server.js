@@ -1,9 +1,11 @@
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const cloudinary = require('cloudinary').v2;
-const { User, Product, Order, Colony } = require('./models');
+import dotenv from 'dotenv';
+dotenv.config();
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import { v2 as cloudinary } from 'cloudinary';
+import bcrypt from 'bcryptjs';
+import { User, Product, Order, Colony } from './models.js';
 
 const app = express();
 app.use(cors());
@@ -80,9 +82,6 @@ app.post('/api/admin/reset', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-const bcrypt = require('bcryptjs'); // Added bcrypt
-// ... existing imports ...
 
 // 2. Autenticación
 app.post('/api/auth/login', async (req, res) => {

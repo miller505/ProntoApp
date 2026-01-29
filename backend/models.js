@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
   role: { type: String, required: true, enum: ['MASTER', 'STORE', 'DELIVERY', 'CLIENT'] },
@@ -60,9 +60,7 @@ const ColonySchema = new mongoose.Schema({
   deliveryFee: { type: Number, required: true }
 });
 
-module.exports = {
-  User: mongoose.model('User', UserSchema),
-  Product: mongoose.model('Product', ProductSchema),
-  Order: mongoose.model('Order', OrderSchema),
-  Colony: mongoose.model('Colony', ColonySchema)
-};
+export const User = mongoose.model('User', UserSchema);
+export const Product = mongoose.model('Product', ProductSchema);
+export const Order = mongoose.model('Order', OrderSchema);
+export const Colony = mongoose.model('Colony', ColonySchema);
