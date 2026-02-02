@@ -35,7 +35,7 @@ export const Login = () => {
           <img
             src="/logo.svg"
             alt="Logo"
-            className="w-20 h-20 mx-auto mb-4 object-contain"
+            className="w-40 h-40 mx-auto mb-4 object-contain"
           />
           <p className="text-gray-400 text-sm">Ingresa a tu cuenta</p>
         </div>
