@@ -1,30 +1,32 @@
 import { Colony, User, UserRole, StoreProfile, SubscriptionType } from './types';
 
 // Icons
-import { 
-  ShoppingBag, 
-  MapPin, 
-  User as UserIcon, 
-  Menu, 
-  Search, 
-  Plus, 
-  Trash2, 
-  Check, 
-  X, 
-  ChevronRight, 
-  ChevronUp, 
-  ChevronDown, 
-  Home, 
-  Settings, 
-  LogOut, 
-  Clock, 
-  DollarSign, 
+import {
+  ShoppingBag,
+  MapPin,
+  User as UserIcon,
+  Menu,
+  Search,
+  Plus,
+  Trash2,
+  Check,
+  X,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  Home,
+  Settings,
+  LogOut,
+  Clock,
+  DollarSign,
   Bike,
   Store,
   CreditCard,
   Edit2,
   Camera,
-  Filter
+  Filter,
+  Mail,
+  Phone
 } from 'lucide-react';
 
 export const Icons = {
@@ -50,7 +52,9 @@ export const Icons = {
   CreditCard,
   Edit2,
   Camera,
-  Filter
+  Filter,
+  Mail,
+  Phone
 };
 
 export const MOCK_COLONIES: Colony[] = [

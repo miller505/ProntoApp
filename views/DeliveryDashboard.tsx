@@ -6,10 +6,11 @@ import { OrderStatus, StoreProfile } from '../types';
 
 export const DeliveryDashboard = () => {
   const { orders, currentUser, updateOrderStatus, users, logout } = useApp();
-  const [activeTab, setActiveTab] = useState<'available' | 'mine'>('available');
+  const [activeTab, setActiveTab] = useState<'available' | 'mine' | 'profile'>('available');
 
   const availableOrders = orders.filter(o => o.status === OrderStatus.READY && !o.driverId);
   const myDeliveries = orders.filter(o => o.driverId === currentUser?.id && o.status !== OrderStatus.DELIVERED);
+  const myCompletedDeliveries = orders.filter(o => o.driverId === currentUser?.id && o.status === OrderStatus.DELIVERED);
 
   const handleClaim = (orderId: string) => {
     // Check if still available (simulation)
@@ -40,6 +41,9 @@ export const DeliveryDashboard = () => {
            </button>
            <button onClick={() => setActiveTab('mine')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'mine' ? 'bg-white text-primary' : 'bg-primary-dark text-white/70 border border-white/20'}`}>
              Mis Entregas ({myDeliveries.length})
+           </button>
+           <button onClick={() => setActiveTab('profile')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'profile' ? 'bg-white text-primary' : 'bg-primary-dark text-white/70 border border-white/20'}`}>
+             Perfil
            </button>
         </div>
       </header>
@@ -121,6 +125,39 @@ export const DeliveryDashboard = () => {
                )
              })}
            </>
+        )}
+        
+        {activeTab === 'profile' && (
+          <div>
+            <Card className="mb-6">
+              <h3 className="font-bold text-lg mb-2">Mi Perfil</h3>
+              <p>Nombre: {currentUser?.firstName} {currentUser?.lastName}</p>
+              <p>Teléfono: {currentUser?.phone}</p>
+            </Card>
+            
+            <h3 className="font-bold text-lg mb-2">Historial de Entregas</h3>
+            {myCompletedDeliveries.length === 0 && <p className="text-center text-gray-400 mt-10">No has completado ninguna entrega.</p>}
+            {myCompletedDeliveries.map(order => {
+              const store = users.find(u => u.id === order.storeId) as StoreProfile;
+              return (
+                <Card key={order.id} className="opacity-80 mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-mono text-gray-500 text-xs">#{order.id.slice(-4)}</span>
+                    <Badge color="green">ENTREGADO</Badge>
+                  </div>
+                  <div className="mb-2">
+                    <h3 className="font-bold text-md">{store.storeName}</h3>
+                  </div>
+                  <div className="flex justify-between items-center border-t pt-2 mt-2">
+                     <div className="text-sm">
+                        <p className="font-bold text-primary">${order.deliveryFee} ganancia</p>
+                     </div>
+                     <p className="text-sm text-gray-500">${order.total}</p>
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
         )}
       </div>
     </div>

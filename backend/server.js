@@ -142,9 +142,51 @@ app.post('/api/auth/register', async (req, res) => {
 // 3. Gestión Usuarios
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const updated = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    // Fetch current user to preserve Master-controlled fields
+    const currentUser = await User.findById(req.params.id);
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // List of fields that ONLY the Master can modify
+    // Store owners should NOT be able to change these fields
+    const masterOnlyFields = ['subscription', 'subscriptionPriority', 'approved'];
+
+    // Prepare update data
+    const updateData = { ...req.body };
+
+    // CRITICAL: Preserve Master-controlled fields from database
+    // This prevents store owners from accidentally overwriting these fields
+    // with stale values from their localStorage session
+    masterOnlyFields.forEach(field => {
+      if (currentUser.role === 'STORE' && req.body[field] !== undefined) {
+        // Store owner is trying to update a Master-controlled field
+        // Preserve the current value from database instead
+        updateData[field] = currentUser[field];
+        console.log(`🔒 Protected field "${field}" - keeping DB value:`, currentUser[field]);
+      }
+    });
+
+    // Check if password is being updated
+    if (updateData.password) {
+      if (updateData.password.trim() === '') {
+        delete updateData.password; // Don't update if empty
+      } else {
+        // Hash the new password
+        const salt = await bcrypt.genSalt(10);
+        updateData.password = await bcrypt.hash(updateData.password, salt);
+        console.log('🔒 Password updated and hashed');
+      }
+    }
+
+    const updated = await User.findByIdAndUpdate(req.params.id, updateData, { new: true });
+
+    console.log('✅ User updated successfully');
     res.json(updated);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+  } catch (error) {
+    console.error('❌ Error updating user:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.delete('/api/users/:id', async (req, res) => {
