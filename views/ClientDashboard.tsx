@@ -1,13 +1,14 @@
 import React, { useState, useMemo } from "react";
 import { useApp } from "../AppContext";
-import { Button, Card, Input, Badge, Modal } from "../components/UI";
+import { Button, Card, Input, Badge } from "../components/UI";
 import { Icons } from "../constants";
 import { StoreProfile, SubscriptionType, Product, OrderStatus } from "../types";
 import {
   getOrderStatusLabel,
   getOrderStatusColor,
 } from "../src/orderStatusTranslations";
-export const ClientDashboard = () => {
+
+const ClientDashboard = () => {
   const {
     users,
     products,
@@ -25,7 +26,6 @@ export const ClientDashboard = () => {
   const [view, setView] = useState<"home" | "cart" | "orders" | "profile">(
     "home",
   );
-  const [search, setSearch] = useState("");
   const [selectedStore, setSelectedStore] = useState<StoreProfile | null>(null);
 
   // Logic to separate stores
@@ -60,12 +60,223 @@ export const ClientDashboard = () => {
   // Other Stores (Premium first, then Standard, both in random order within their tier)
   const otherStores = [...premiumStores, ...standardStores];
 
-  // Search Logic
+  if (selectedStore) {
+    return (
+      <StoreView
+        store={selectedStore}
+        onBack={() => setSelectedStore(null)}
+        onGoToCart={() => {
+          setSelectedStore(null);
+          setView("cart");
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-secondary">
+      {/* Content Area */}
+      {view === "home" && (
+        <HomeView
+          stores={stores}
+          ultraStores={ultraStores}
+          otherStores={otherStores}
+          products={products}
+          onStoreSelect={setSelectedStore}
+        />
+      )}
+      {view === "cart" && <CartView setView={setView} />}
+      {view === "orders" && <OrdersView />}
+      {view === "profile" && <ProfileView />}
+
+      {/* Bottom Nav */}
+      <nav className="fixed bottom-0 w-full bg-white/90 backdrop-blur-lg border-t border-gray-200 pb-safe pt-2 px-6 flex justify-between z-40">
+        <NavBtn
+          icon={<Icons.Home />}
+          label="Inicio"
+          active={view === "home"}
+          onClick={() => setView("home")}
+        />
+        <NavBtn
+          icon={<Icons.ShoppingBag />}
+          label="Pedidos"
+          active={view === "orders"}
+          onClick={() => setView("orders")}
+        />
+        <div className="relative">
+          <NavBtn
+            icon={<Icons.ShoppingCart />}
+            label="Carrito"
+            active={view === "cart"}
+            onClick={() => setView("cart")}
+          />
+          {cart.length > 0 && (
+            <span className="absolute -top-1 right-2 w-5 h-5 bg-primary text-white text-[10px] flex items-center justify-center rounded-full font-bold">
+              {cart.reduce((a, b) => a + b.quantity, 0)}
+            </span>
+          )}
+        </div>
+        <NavBtn
+          icon={<Icons.User />}
+          label="Perfil"
+          active={view === "profile"}
+          onClick={() => setView("profile")}
+        />
+      </nav>
+    </div>
+  );
+};
+
+// --- Sub-View Components (Defined outside to prevent re-renders/focus loss) ---
+
+const StoreView = ({
+  store,
+  onBack,
+  onGoToCart,
+}: {
+  store: StoreProfile;
+  onBack: () => void;
+  onGoToCart: () => void;
+}) => {
+  const { products, addToCart, cart } = useApp();
+  const [activeCategory, setActiveCategory] = useState("ALL");
+
+  const storeProducts = products.filter((p) => p.storeId === store.id);
+  const categories = ["ALL", ...new Set(storeProducts.map((p) => p.category))];
+  const filteredProducts =
+    activeCategory === "ALL"
+      ? storeProducts
+      : storeProducts.filter((p) => p.category === activeCategory);
+
+  return (
+    <div className="min-h-screen bg-white pb-24">
+      {/* Header Image */}
+      <div className="relative h-48">
+        <img
+          src={store.coverImage}
+          className="w-full h-full object-cover"
+          alt="Cover"
+        />
+        <div className="absolute inset-0 bg-black/20"></div>
+        <button
+          onClick={onBack}
+          className="absolute top-4 left-4 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors"
+        >
+          <Icons.ChevronDown className="rotate-90" size={24} />
+        </button>
+        <button
+          onClick={onGoToCart}
+          className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors"
+        >
+          <Icons.ShoppingCart size={24} />
+          {cart.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
+              {cart.reduce((a, b) => a + b.quantity, 0)}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Store Info */}
+      <div className="px-6 -mt-10 relative z-10">
+        <div className="bg-white rounded-3xl p-5 shadow-lg border border-gray-50">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">
+                {store.storeName}
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">{store.description}</p>
+            </div>
+            <img
+              src={store.logo}
+              className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-100 bg-gray-50"
+              alt="Logo"
+            />
+          </div>
+          <div className="mt-4 flex items-center gap-4 text-sm text-gray-500">
+            <span className="flex items-center gap-1">
+              <Icons.Clock size={16} /> {store.prepTime || "30m"}
+            </span>
+            <span className="flex items-center gap-1">
+              <Icons.MapPin size={16} /> {store.storeAddress.street}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Categories Nav */}
+      <div className="sticky top-0 bg-white z-20 py-4 px-6 shadow-sm mt-4 overflow-x-auto no-scrollbar">
+        <div className="flex gap-3">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeCategory === cat ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-gray-100 text-gray-500"}`}
+            >
+              {cat === "ALL" ? "Todo" : cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Products List */}
+      <div className="px-6 py-4 space-y-4">
+        {filteredProducts.map((p) => (
+          <div
+            key={p.id}
+            className="flex gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm"
+          >
+            <img
+              src={p.image}
+              className="w-24 h-24 rounded-xl object-cover bg-gray-100"
+              alt={p.name}
+            />
+            <div className="flex-1 flex flex-col justify-between">
+              <div>
+                <h3 className="font-bold text-gray-800">{p.name}</h3>
+                <p className="text-xs text-gray-500 line-clamp-2">
+                  {p.description}
+                </p>
+              </div>
+              <div className="flex justify-between items-center mt-2">
+                <span className="font-bold text-primary">${p.price}</span>
+                <button
+                  onClick={() => {
+                    addToCart(p);
+                    alert("Agregado al carrito");
+                  }}
+                  className="p-2 bg-primary text-white rounded-xl shadow-lg shadow-primary/30 active:scale-95 transition-transform"
+                >
+                  <Icons.Plus size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {filteredProducts.length === 0 && (
+          <p className="text-center text-gray-400 py-10">
+            No hay productos en esta categoría.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const HomeView = ({
+  stores,
+  ultraStores,
+  otherStores,
+  products,
+  onStoreSelect,
+}: any) => {
+  const [search, setSearch] = useState("");
+
   const filteredStores = useMemo(() => {
     if (!search) return [];
-    return stores.filter((s) => {
+    return stores.filter((s: StoreProfile) => {
       const hasProduct = products.some(
-        (p) =>
+        (p: Product) =>
           p.storeId === s.id &&
           p.name.toLowerCase().includes(search.toLowerCase()),
       );
@@ -76,12 +287,10 @@ export const ClientDashboard = () => {
     });
   }, [search, stores, products]);
 
-  // --- Sub-View Components ---
-
-  const HomeView = () => (
-    <div className="space-y-6 pb-24">
+  return (
+    <div className="space-y-2 pb-24">
       {/* Search Bar */}
-      <div className="sticky top-0 z-20 bg-secondary pt-4 pb-2 px-4">
+      <div className="sticky top-0 z-20 bg-secondary pt-2 pb-2 px-4">
         <div className="relative">
           <Icons.Search
             className="absolute left-4 top-3.5 text-gray-400"
@@ -101,11 +310,7 @@ export const ClientDashboard = () => {
         <div className="px-4 space-y-4">
           <h2 className="font-bold text-lg">Resultados</h2>
           {filteredStores.map((s) => (
-            <StoreCard
-              key={s.id}
-              store={s}
-              onClick={() => setSelectedStore(s)}
-            />
+            <StoreCard key={s.id} store={s} onClick={() => onStoreSelect(s)} />
           ))}
           {filteredStores.length === 0 && (
             <p className="text-gray-400 text-center">
@@ -118,12 +323,12 @@ export const ClientDashboard = () => {
           {/* Ultra Section */}
           {ultraStores.length > 0 && (
             <div className="pl-4">
-              <h2 className="font-bold text-lg mb-3 flex items-center gap-2">
+              <h2 className="font-bold text-lg mb-2 flex items-center gap-2">
                 <Icons.Store className="text-primary" size={20} /> La mejor
                 opción
               </h2>
               <div
-                className="flex overflow-x-auto gap-4 pb-4 pr-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-primary/30 scrollbar-track-transparent"
+                className="flex overflow-x-auto gap-3 pb-2 pr-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-primary/30 scrollbar-track-transparent"
                 style={{
                   WebkitOverflowScrolling: "touch",
                   scrollbarWidth: "thin",
@@ -134,15 +339,24 @@ export const ClientDashboard = () => {
                 {ultraStores.map((s) => (
                   <div
                     key={s.id}
-                    onClick={() => setSelectedStore(s)}
+                    onClick={() => onStoreSelect(s)}
                     className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card relative cursor-pointer active:scale-95 transition-transform"
                   >
                     <img
                       src={s.coverImage}
                       className="w-full h-32 object-cover"
                     />
+                    {/* Logo Overlay for Ultra Stores */}
+                    <div className="absolute top-2 right-2 bg-white p-1 rounded-xl shadow-sm">
+                      <img
+                        src={s.logo}
+                        className="w-10 h-10 rounded-lg object-cover"
+                      />
+                    </div>
                     <div className="p-4">
-                      <h3 className="font-bold text-lg">{s.storeName}</h3>
+                      <h3 className="font-bold text-lg line-clamp-1">
+                        {s.storeName}
+                      </h3>
                       <p className="text-xs text-gray-500 line-clamp-1">
                         {s.description}
                       </p>
@@ -160,13 +374,13 @@ export const ClientDashboard = () => {
 
           {/* Vertical Feed */}
           <div className="px-4 pb-20">
-            <h2 className="font-bold text-lg mb-4">Para ti</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <h2 className="font-bold text-lg mb-2 mt-1">Para ti</h2>
+            <div className="grid grid-cols-2 gap-3">
               {otherStores.map((s) => (
                 <StoreCard
                   key={s.id}
                   store={s}
-                  onClick={() => setSelectedStore(s)}
+                  onClick={() => onStoreSelect(s)}
                 />
               ))}
             </div>
@@ -175,245 +389,284 @@ export const ClientDashboard = () => {
       )}
     </div>
   );
+};
 
-  const CartView = () => {
-    const [addressStep, setAddressStep] = useState(false);
-    const [newAddress, setNewAddress] = useState({
-      street: "",
-      number: "",
-      colonyId: "",
-      reference: "",
+const CartView = ({ setView }: { setView: (view: any) => void }) => {
+  const {
+    cart,
+    removeFromCart,
+    addToCart,
+    currentUser,
+    colonies,
+    cartTotal,
+    placeOrder,
+    updateUser,
+  } = useApp();
+  const [addressStep, setAddressStep] = useState(false);
+  const [newAddress, setNewAddress] = useState({
+    street: "",
+    number: "",
+    colonyId: "",
+    reference: "",
+  });
+  const [saveAddress, setSaveAddress] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
+  const [payMethod, setPayMethod] = useState<"CARD" | "CASH">("CARD");
+
+  const handleCheckout = async () => {
+    if (!selectedAddressId && !addressStep) {
+      setAddressStep(true);
+      return;
+    }
+
+    let finalAddress = currentUser?.addresses?.find(
+      (a) => a.id === selectedAddressId,
+    );
+
+    if (addressStep) {
+      // Validate new address
+      if (!newAddress.colonyId) return alert("Selecciona una colonia");
+      const colony = colonies.find((c) => c.id === newAddress.colonyId);
+      finalAddress = { id: Date.now().toString(), ...newAddress } as any;
+
+      if (saveAddress) {
+        const currentAddresses = currentUser?.addresses || [];
+        if (currentAddresses.length < 3) {
+          await updateUser({
+            ...currentUser,
+            addresses: [...currentAddresses, finalAddress],
+          } as any);
+        } else {
+          alert(
+            "Solo puedes guardar un máximo de 3 direcciones. Esta dirección se usará para el pedido actual pero no se guardará.",
+          );
+        }
+      }
+    }
+
+    if (!finalAddress) return alert("Dirección requerida");
+    const colony = colonies.find((c) => c.id === finalAddress?.colonyId);
+    const fee = colony ? colony.deliveryFee : 0;
+
+    placeOrder({
+      id: Date.now().toString(),
+      customerId: currentUser!.id,
+      storeId: cart[0].product.storeId,
+      items: cart,
+      status: OrderStatus.PENDING,
+      total: cartTotal + fee,
+      deliveryFee: fee,
+      paymentMethod: payMethod,
+      deliveryAddress: finalAddress!,
+      createdAt: Date.now(),
     });
-    const [selectedAddressId, setSelectedAddressId] = useState<string>("");
-    const [payMethod, setPayMethod] = useState<"CARD" | "CASH">("CARD");
+    alert("¡Pedido realizado con éxito!");
+    setView("orders");
+  };
 
-    const handleCheckout = () => {
-      if (!selectedAddressId && !addressStep) {
-        setAddressStep(true);
-        return;
-      }
-
-      let finalAddress = currentUser?.addresses?.find(
-        (a) => a.id === selectedAddressId,
-      );
-
-      if (addressStep) {
-        // Validate new address
-        if (!newAddress.colonyId) return alert("Selecciona una colonia");
-        const colony = colonies.find((c) => c.id === newAddress.colonyId);
-        finalAddress = { id: Date.now().toString(), ...newAddress } as any;
-        // Optionally save to profile here
-      }
-
-      if (!finalAddress) return alert("Dirección requerida");
-      const colony = colonies.find((c) => c.id === finalAddress?.colonyId);
-      const fee = colony ? colony.deliveryFee : 0;
-
-      placeOrder({
-        id: Date.now().toString(),
-        customerId: currentUser!.id,
-        storeId: cart[0].product.storeId,
-        items: cart,
-        status: OrderStatus.PENDING,
-        total: cartTotal + fee,
-        deliveryFee: fee,
-        paymentMethod: payMethod,
-        deliveryAddress: finalAddress!,
-        createdAt: Date.now(),
-      });
-      alert("¡Pedido realizado con éxito!");
-      setView("orders");
-    };
-
-    if (cart.length === 0)
-      return (
-        <div className="h-full flex flex-col items-center justify-center text-gray-400">
-          <Icons.ShoppingBag size={48} className="mb-4 opacity-20" />
-          <p>Tu carrito está vacío</p>
-        </div>
-      );
-
-    const colony =
-      addressStep && newAddress.colonyId
-        ? colonies.find((c) => c.id === newAddress.colonyId)
-        : null;
-    const deliveryFee = colony ? colony.deliveryFee : 0; // Simplified logic, real logic would pull from saved address too
-
+  if (cart.length === 0)
     return (
-      <div className="px-4 pt-6 pb-24 max-w-lg mx-auto">
-        <h2 className="text-2xl font-bold mb-6">Tu Pedido</h2>
+      <div className="h-full flex flex-col items-center justify-center text-gray-400">
+        <Icons.ShoppingCart size={48} className="mb-4 opacity-20" />
+        <p>Tu carrito está vacío</p>
+      </div>
+    );
 
-        <div className="space-y-4 mb-6">
-          {cart.map((item, i) => (
-            <div
-              key={i}
-              className="flex justify-between items-center bg-white p-3 rounded-2xl"
-            >
-              <div className="flex gap-3 items-center">
-                <div className="bg-gray-100 rounded-lg w-8 h-8 flex items-center justify-center font-bold text-sm">
-                  {item.quantity}x
-                </div>
-                <div>
-                  <p className="font-bold text-sm">{item.product.name}</p>
-                  <p className="text-xs text-gray-500">
-                    ${item.product.price * item.quantity}
-                  </p>
-                </div>
+  const colony =
+    addressStep && newAddress.colonyId
+      ? colonies.find((c) => c.id === newAddress.colonyId)
+      : null;
+  const deliveryFee = colony ? colony.deliveryFee : 0; // Simplified logic, real logic would pull from saved address too
+
+  return (
+    <div className="px-4 pt-6 pb-24 max-w-lg mx-auto">
+      <h2 className="text-2xl font-bold mb-6">Tu Pedido</h2>
+
+      <div className="space-y-4 mb-6">
+        {cart.map((item, i) => (
+          <div
+            key={i}
+            className="flex justify-between items-center bg-white p-3 rounded-2xl"
+          >
+            <div className="flex gap-3 items-center">
+              <div className="bg-gray-100 rounded-lg w-8 h-8 flex items-center justify-center font-bold text-sm">
+                {item.quantity}x
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => removeFromCart(item.product.id)}
-                  className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
-                >
-                  -
-                </button>
-                <button
-                  onClick={() => addToCart(item.product)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center"
-                >
-                  +
-                </button>
+              <div>
+                <p className="font-bold text-sm">{item.product.name}</p>
+                <p className="text-xs text-gray-500">
+                  ${item.product.price * item.quantity}
+                </p>
               </div>
             </div>
-          ))}
-        </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => removeFromCart(item.product.id)}
+                className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
+              >
+                -
+              </button>
+              <button
+                onClick={() => addToCart(item.product)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
 
-        {!addressStep ? (
-          <div className="space-y-4">
-            <h3 className="font-bold">Dirección de Entrega</h3>
-            {(currentUser?.addresses || []).length > 0 ? (
-              <div className="space-y-2">
-                {currentUser?.addresses?.map((addr) => (
-                  <div
-                    key={addr.id}
-                    onClick={() => setSelectedAddressId(addr.id)}
-                    className={`p-4 rounded-2xl border-2 cursor-pointer ${selectedAddressId === addr.id ? "border-primary bg-red-50" : "border-transparent bg-white"}`}
-                  >
-                    <p className="font-bold">
-                      {addr.street} #{addr.number}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {colonies.find((c) => c.id === addr.colonyId)?.name}
-                    </p>
-                  </div>
-                ))}
-                <Button
-                  variant="secondary"
-                  onClick={() => setAddressStep(true)}
-                  className="w-full py-2 text-sm"
+      {!addressStep ? (
+        <div className="space-y-4">
+          <h3 className="font-bold">Dirección de Entrega</h3>
+          {(currentUser?.addresses || []).length > 0 ? (
+            <div className="space-y-2">
+              {currentUser?.addresses?.map((addr) => (
+                <div
+                  key={addr.id}
+                  onClick={() => setSelectedAddressId(addr.id)}
+                  className={`p-4 rounded-2xl border-2 cursor-pointer ${selectedAddressId === addr.id ? "border-primary bg-red-50" : "border-transparent bg-white"}`}
                 >
-                  + Nueva Dirección
-                </Button>
-              </div>
-            ) : (
+                  <p className="font-bold">
+                    {addr.street} #{addr.number}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {colonies.find((c) => c.id === addr.colonyId)?.name}
+                  </p>
+                </div>
+              ))}
               <Button
                 variant="secondary"
                 onClick={() => setAddressStep(true)}
-                className="w-full py-4 border-dashed border-2 border-gray-300"
+                className="w-full py-2 text-sm"
               >
-                Agregar Dirección
+                + Nueva Dirección
               </Button>
-            )}
-          </div>
-        ) : (
-          <div className="bg-white p-4 rounded-3xl space-y-3 shadow-sm">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="font-bold">Nueva Dirección</h3>
-              <button
-                onClick={() => setAddressStep(false)}
-                className="text-xs text-red-500"
-              >
-                Cancelar
-              </button>
             </div>
+          ) : (
+            <Button
+              variant="secondary"
+              onClick={() => setAddressStep(true)}
+              className="w-full py-4 border-dashed border-2 border-gray-300"
+            >
+              Agregar Dirección
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="bg-white p-4 rounded-3xl space-y-3 shadow-sm">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold">Nueva Dirección</h3>
+            <button
+              onClick={() => setAddressStep(false)}
+              className="text-xs text-red-500"
+            >
+              Cancelar
+            </button>
+          </div>
+          <Input
+            label="Calle"
+            value={newAddress.street}
+            onChange={(e: any) =>
+              setNewAddress({ ...newAddress, street: e.target.value })
+            }
+          />
+          <div className="flex gap-2">
             <Input
-              label="Calle"
-              value={newAddress.street}
+              label="Número"
+              value={newAddress.number}
               onChange={(e: any) =>
-                setNewAddress({ ...newAddress, street: e.target.value })
+                setNewAddress({ ...newAddress, number: e.target.value })
               }
             />
-            <div className="flex gap-2">
-              <Input
-                label="Número"
-                value={newAddress.number}
-                onChange={(e: any) =>
-                  setNewAddress({ ...newAddress, number: e.target.value })
+            <div className="w-full">
+              <label className="text-xs text-gray-500 ml-1">Colonia</label>
+              <select
+                className="w-full p-3 bg-gray-100 rounded-2xl mt-1"
+                value={newAddress.colonyId}
+                onChange={(e) =>
+                  setNewAddress({ ...newAddress, colonyId: e.target.value })
                 }
-              />
-              <div className="w-full">
-                <label className="text-xs text-gray-500 ml-1">Colonia</label>
-                <select
-                  className="w-full p-3 bg-gray-100 rounded-2xl mt-1"
-                  value={newAddress.colonyId}
-                  onChange={(e) =>
-                    setNewAddress({ ...newAddress, colonyId: e.target.value })
-                  }
-                >
-                  <option value="">Selecciona</option>
-                  {colonies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              >
+                <option value="">Selecciona</option>
+                {colonies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
-            <Input
-              label="Referencias"
-              value={newAddress.reference}
-              onChange={(e: any) =>
-                setNewAddress({ ...newAddress, reference: e.target.value })
-              }
+          </div>
+          <Input
+            label="Referencias"
+            value={newAddress.reference}
+            onChange={(e: any) =>
+              setNewAddress({ ...newAddress, reference: e.target.value })
+            }
+          />
+          <div className="flex items-center gap-2 mt-2">
+            <input
+              type="checkbox"
+              id="saveAddress"
+              checked={saveAddress}
+              onChange={(e) => setSaveAddress(e.target.checked)}
+              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
             />
-          </div>
-        )}
-
-        <div className="mt-6 bg-white p-4 rounded-3xl space-y-3">
-          <div className="flex justify-between">
-            <span>Subtotal</span>
-            <span>${cartTotal}</span>
-          </div>
-          <div className="flex justify-between text-gray-500">
-            <span>Envío</span>
-            <span>
-              ${addressStep && colony ? colony.deliveryFee : "Calculando..."}
-            </span>
-          </div>
-          <div className="flex justify-between font-bold text-xl pt-2 border-t">
-            <span>Total</span>
-            <span>
-              ${cartTotal + (addressStep && colony ? colony.deliveryFee : 0)}
-            </span>
+            <label htmlFor="saveAddress" className="text-sm text-gray-600">
+              Guardar dirección para futuros pedidos
+            </label>
           </div>
         </div>
+      )}
 
-        <div className="mt-4 flex gap-2">
-          <button
-            onClick={() => setPayMethod("CARD")}
-            className={`flex-1 py-3 rounded-2xl flex items-center justify-center gap-2 ${payMethod === "CARD" ? "bg-gray-800 text-white" : "bg-white"}`}
-          >
-            <Icons.CreditCard size={18} /> Tarjeta
-          </button>
-          <button
-            onClick={() => setPayMethod("CASH")}
-            className={`flex-1 py-3 rounded-2xl flex items-center justify-center gap-2 ${payMethod === "CASH" ? "bg-green-600 text-white" : "bg-white"}`}
-          >
-            <Icons.DollarSign size={18} /> Efectivo
-          </button>
+      <div className="mt-6 bg-white p-4 rounded-3xl space-y-3">
+        <div className="flex justify-between">
+          <span>Subtotal</span>
+          <span>${cartTotal}</span>
         </div>
-
-        <Button
-          className="w-full mt-6 shadow-xl shadow-red-500/30"
-          onClick={handleCheckout}
-        >
-          Realizar Pedido
-        </Button>
+        <div className="flex justify-between text-gray-500">
+          <span>Envío</span>
+          <span>
+            ${addressStep && colony ? colony.deliveryFee : "Calculando..."}
+          </span>
+        </div>
+        <div className="flex justify-between font-bold text-xl pt-2 border-t">
+          <span>Total</span>
+          <span>
+            ${cartTotal + (addressStep && colony ? colony.deliveryFee : 0)}
+          </span>
+        </div>
       </div>
-    );
-  };
 
-  const OrdersView = () => (
+      <div className="mt-4 flex gap-2">
+        <button
+          onClick={() => setPayMethod("CARD")}
+          className={`flex-1 py-3 rounded-2xl flex items-center justify-center gap-2 ${payMethod === "CARD" ? "bg-gray-800 text-white" : "bg-white"}`}
+        >
+          <Icons.CreditCard size={18} /> Tarjeta
+        </button>
+        <button
+          onClick={() => setPayMethod("CASH")}
+          className={`flex-1 py-3 rounded-2xl flex items-center justify-center gap-2 ${payMethod === "CASH" ? "bg-green-600 text-white" : "bg-white"}`}
+        >
+          <Icons.DollarSign size={18} /> Efectivo
+        </button>
+      </div>
+
+      <Button
+        className="w-full mt-6 shadow-xl shadow-red-500/30"
+        onClick={handleCheckout}
+      >
+        Realizar Pedido
+      </Button>
+    </div>
+  );
+};
+
+const OrdersView = () => {
+  const { orders, currentUser, users } = useApp();
+  return (
     <div className="px-4 py-6 pb-24 space-y-4">
       <h2 className="text-2xl font-bold mb-6">Mis Pedidos</h2>
       {orders
@@ -465,181 +718,90 @@ export const ClientDashboard = () => {
         ))}
     </div>
   );
+};
 
+const ProfileView = () => {
+  const { currentUser, colonies, logout } = useApp();
   return (
-    <div className="min-h-screen bg-secondary">
-      {/* Content Area */}
-      {view === "home" && <HomeView />}
-      {view === "cart" && <CartView />}
-      {view === "orders" && <OrdersView />}
-      {view === "profile" && (
-        <div className="p-6 pb-24">
-          <Card className="flex flex-col items-center py-10 space-y-4">
-            <div className="w-24 h-24 bg-gray-200 rounded-full mb-2 flex items-center justify-center text-3xl text-gray-400">
-              <Icons.User />
-            </div>
+    <div className="p-6 pb-24">
+      <Card className="flex flex-col items-center py-10 space-y-4">
+        <div className="w-24 h-24 bg-gray-200 rounded-full mb-2 flex items-center justify-center text-3xl text-gray-400">
+          <Icons.User />
+        </div>
 
-            <div className="text-center w-full">
-              <h2 className="text-2xl font-bold text-iosText">
-                {currentUser?.firstName} {currentUser?.lastName}
-              </h2>
-              <p className="text-gray-500 font-medium">
-                {currentUser?.role === "CLIENT" ? "Cliente" : "Usuario"}
+        <div className="text-center w-full">
+          <h2 className="text-2xl font-bold text-iosText">
+            {currentUser?.firstName} {currentUser?.lastName}
+          </h2>
+          <p className="text-gray-500 font-medium">
+            {currentUser?.role === "CLIENT" ? "Cliente" : "Usuario"}
+          </p>
+        </div>
+
+        <div className="w-full space-y-3 mt-4 text-left">
+          <div className="bg-gray-50 p-3 rounded-2xl flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-primary shadow-sm">
+              <Icons.Mail size={16} />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-semibold">Correo</p>
+              <p className="font-medium text-gray-800">{currentUser?.email}</p>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 p-3 rounded-2xl flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-primary shadow-sm">
+              <Icons.Phone size={16} />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-semibold">Teléfono</p>
+              <p className="font-medium text-gray-800">
+                {currentUser?.phone || "Sin registrar"}
               </p>
             </div>
-
-            <div className="w-full space-y-3 mt-4 text-left">
-              <div className="bg-gray-50 p-3 rounded-2xl flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-primary shadow-sm">
-                  <Icons.Mail size={16} />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 font-semibold">Correo</p>
-                  <p className="font-medium text-gray-800">
-                    {currentUser?.email}
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-3 rounded-2xl flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-primary shadow-sm">
-                  <Icons.Phone size={16} />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 font-semibold">
-                    Teléfono
-                  </p>
-                  <p className="font-medium text-gray-800">
-                    {currentUser?.phone || "Sin registrar"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {currentUser?.addresses && currentUser.addresses.length > 0 && (
-              <div className="w-full mt-6 text-left">
-                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                  <Icons.MapPin size={18} className="text-primary" /> Mis
-                  Direcciones
-                </h3>
-                <div className="space-y-2">
-                  {currentUser.addresses.map((addr, idx) => {
-                    const col = colonies.find((c) => c.id === addr.colonyId);
-                    return (
-                      <div
-                        key={idx}
-                        className="bg-white border border-gray-100 p-3 rounded-2xl shadow-sm"
-                      >
-                        <p className="font-bold text-sm">
-                          {addr.street} #{addr.number}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {col ? col.name : "Colonia desconocida"}
-                        </p>
-                        {addr.reference && (
-                          <p className="text-xs text-gray-400 mt-1 italic">
-                            "{addr.reference}"
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <Button
-              variant="danger"
-              className="mt-8 w-full py-3 rounded-xl font-bold"
-              onClick={logout}
-            >
-              Cerrar Sesión
-            </Button>
-          </Card>
+          </div>
         </div>
-      )}
 
-      {/* Store Modal */}
-      <Modal
-        isOpen={!!selectedStore}
-        onClose={() => setSelectedStore(null)}
-        title={selectedStore?.storeName || ""}
-      >
-        {selectedStore && (
-          <div className="pb-10">
-            <img
-              src={selectedStore.coverImage}
-              className="w-full h-40 object-cover rounded-2xl mb-4"
-            />
-            <p className="text-gray-500 mb-4">{selectedStore.description}</p>
-            <h3 className="font-bold text-lg mb-3">Menú</h3>
-            <div className="space-y-4">
-              {products
-                .filter((p) => p.storeId === selectedStore.id)
-                .map((p) => (
+        {currentUser?.addresses && currentUser.addresses.length > 0 && (
+          <div className="w-full mt-6 text-left">
+            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+              <Icons.MapPin size={18} className="text-primary" /> Mis
+              Direcciones
+            </h3>
+            <div className="space-y-2">
+              {currentUser.addresses.map((addr, idx) => {
+                const col = colonies.find((c) => c.id === addr.colonyId);
+                return (
                   <div
-                    key={p.id}
-                    className="flex justify-between items-center border-b border-gray-100 pb-3"
+                    key={idx}
+                    className="bg-white border border-gray-100 p-3 rounded-2xl shadow-sm"
                   >
-                    <div>
-                      <p className="font-bold">{p.name}</p>
-                      <p className="text-xs text-gray-500 mb-1">
-                        {p.description}
+                    <p className="font-bold text-sm">
+                      {addr.street} #{addr.number}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {col ? col.name : "Colonia desconocida"}
+                    </p>
+                    {addr.reference && (
+                      <p className="text-xs text-gray-400 mt-1 italic">
+                        "{addr.reference}"
                       </p>
-                      <p className="font-semibold text-primary">${p.price}</p>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      className="px-3 py-1 text-xs"
-                      onClick={() => {
-                        addToCart(p);
-                        setSelectedStore(null);
-                        alert("Agregado al carrito");
-                      }}
-                    >
-                      <Icons.Plus size={16} />
-                    </Button>
+                    )}
                   </div>
-                ))}
+                );
+              })}
             </div>
           </div>
         )}
-      </Modal>
 
-      {/* Bottom Nav */}
-      <nav className="fixed bottom-0 w-full bg-white/90 backdrop-blur-lg border-t border-gray-200 pb-safe pt-2 px-6 flex justify-between z-40">
-        <NavBtn
-          icon={<Icons.Home />}
-          label="Inicio"
-          active={view === "home"}
-          onClick={() => setView("home")}
-        />
-        <NavBtn
-          icon={<Icons.ShoppingBag />}
-          label="Pedidos"
-          active={view === "orders"}
-          onClick={() => setView("orders")}
-        />
-        <div className="relative">
-          <NavBtn
-            icon={<Icons.Bike />}
-            label="Carrito"
-            active={view === "cart"}
-            onClick={() => setView("cart")}
-          />
-          {cart.length > 0 && (
-            <span className="absolute -top-1 right-2 w-5 h-5 bg-primary text-white text-[10px] flex items-center justify-center rounded-full font-bold">
-              {cart.reduce((a, b) => a + b.quantity, 0)}
-            </span>
-          )}
-        </div>
-        <NavBtn
-          icon={<Icons.User />}
-          label="Perfil"
-          active={view === "profile"}
-          onClick={() => setView("profile")}
-        />
-      </nav>
+        <Button
+          variant="danger"
+          className="mt-8 w-full py-3 rounded-xl font-bold"
+          onClick={logout}
+        >
+          Cerrar Sesión
+        </Button>
+      </Card>
     </div>
   );
 };
@@ -689,3 +851,5 @@ const NavBtn = ({ icon, label, active, onClick }: any) => (
     <span className="text-[10px] font-medium mt-1">{label}</span>
   </button>
 );
+
+export { ClientDashboard };

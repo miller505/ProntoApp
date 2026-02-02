@@ -53,8 +53,6 @@ export const MasterDashboard = () => {
     updateUser({ ...store, subscription: sub, isMasterUpdate: true } as any);
   };
 
-
-
   const handleEditClick = (user: User | StoreProfile) => {
     setEditingUser(user);
     setEditFormData({
@@ -115,7 +113,7 @@ export const MasterDashboard = () => {
               label: "Solicitudes",
               count: pendingUsers.length,
             },
-            { id: "users", label: "Usuarios y Tiendas", count: 0 },
+            { id: "users", label: "Usuarios", count: 0 },
             { id: "colonies", label: "Colonias", count: 0 },
           ].map((tab) => (
             <button

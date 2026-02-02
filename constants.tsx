@@ -1,8 +1,15 @@
-import { Colony, User, UserRole, StoreProfile, SubscriptionType } from './types';
+import {
+  Colony,
+  User,
+  UserRole,
+  StoreProfile,
+  SubscriptionType,
+} from "./types";
 
 // Icons
 import {
   ShoppingBag,
+  ShoppingCart,
   MapPin,
   User as UserIcon,
   Menu,
@@ -26,11 +33,12 @@ import {
   Camera,
   Filter,
   Mail,
-  Phone
-} from 'lucide-react';
+  Phone,
+} from "lucide-react";
 
 export const Icons = {
   ShoppingBag,
+  ShoppingCart,
   MapPin,
   User: UserIcon,
   Menu,
@@ -54,87 +62,92 @@ export const Icons = {
   Camera,
   Filter,
   Mail,
-  Phone
+  Phone,
 };
 
 export const MOCK_COLONIES: Colony[] = [
-  { id: '1', name: 'Centro', deliveryFee: 25 },
-  { id: '2', name: 'Polanco', deliveryFee: 40 },
-  { id: '3', name: 'Roma Norte', deliveryFee: 35 },
-  { id: '4', name: 'Condesa', deliveryFee: 35 },
-  { id: '5', name: 'Del Valle', deliveryFee: 30 },
+  { id: "1", name: "Centro", deliveryFee: 25 },
+  { id: "2", name: "Polanco", deliveryFee: 40 },
+  { id: "3", name: "Roma Norte", deliveryFee: 35 },
+  { id: "4", name: "Condesa", deliveryFee: 35 },
+  { id: "5", name: "Del Valle", deliveryFee: 30 },
 ];
 
-export const ALLOWED_EMAILS = ['@gmail.com', '@hotmail.com', '@outlook.com', '@yahoo.com'];
+export const ALLOWED_EMAILS = [
+  "@gmail.com",
+  "@hotmail.com",
+  "@outlook.com",
+  "@yahoo.com",
+];
 
 export const INITIAL_USERS: (User | StoreProfile)[] = [
   {
-    id: 'master-1',
+    id: "master-1",
     role: UserRole.MASTER,
-    firstName: 'Admin',
-    lastName: 'System',
-    phone: '5512345678',
-    email: 'admin@red.com',
-    password: '123', // Simplified for demo
-    approved: true
+    firstName: "Admin",
+    lastName: "System",
+    phone: "5512345678",
+    email: "admin@red.com",
+    password: "123", // Simplified for demo
+    approved: true,
   },
   {
-    id: 'store-1',
+    id: "store-1",
     role: UserRole.STORE,
-    firstName: 'Juan',
-    lastName: 'Perez',
-    phone: '5587654321',
-    email: 'pizza@gmail.com',
-    password: '123',
+    firstName: "Juan",
+    lastName: "Perez",
+    phone: "5587654321",
+    email: "pizza@gmail.com",
+    password: "123",
     approved: true,
     storeName: "Luigi's Pizza",
-    storeAddress: { street: 'Av. Principal', number: '123', colonyId: '1' },
+    storeAddress: { street: "Av. Principal", number: "123", colonyId: "1" },
     subscription: SubscriptionType.ULTRA,
     subscriptionPriority: 1,
     isOpen: true,
     description: "Las mejores pizzas de leña.",
     prepTime: "25 min",
     logo: "https://picsum.photos/id/1080/200/200",
-    coverImage: "https://picsum.photos/id/292/800/300"
+    coverImage: "https://picsum.photos/id/292/800/300",
   } as StoreProfile,
   {
-    id: 'store-2',
+    id: "store-2",
     role: UserRole.STORE,
-    firstName: 'Maria',
-    lastName: 'Lopez',
-    phone: '5511223344',
-    email: 'sushi@gmail.com',
-    password: '123',
+    firstName: "Maria",
+    lastName: "Lopez",
+    phone: "5511223344",
+    email: "sushi@gmail.com",
+    password: "123",
     approved: true,
     storeName: "Sushi Master",
-    storeAddress: { street: 'Calle Japonesa', number: '45', colonyId: '2' },
+    storeAddress: { street: "Calle Japonesa", number: "45", colonyId: "2" },
     subscription: SubscriptionType.PREMIUM,
     subscriptionPriority: 0,
     isOpen: true,
     description: "Sushi fresco y auténtico.",
     prepTime: "40 min",
     logo: "https://picsum.photos/id/225/200/200",
-    coverImage: "https://picsum.photos/id/493/800/300"
+    coverImage: "https://picsum.photos/id/493/800/300",
   } as StoreProfile,
   {
-    id: 'client-1',
+    id: "client-1",
     role: UserRole.CLIENT,
-    firstName: 'Carlos',
-    lastName: 'Cliente',
-    phone: '5599887766',
-    email: 'carlos@gmail.com',
-    password: '123',
+    firstName: "Carlos",
+    lastName: "Cliente",
+    phone: "5599887766",
+    email: "carlos@gmail.com",
+    password: "123",
     approved: true,
-    addresses: []
+    addresses: [],
   },
   {
-    id: 'driver-1',
+    id: "driver-1",
     role: UserRole.DELIVERY,
-    firstName: 'Beto',
-    lastName: 'Veloz',
-    phone: '5544332211',
-    email: 'beto@gmail.com',
-    password: '123',
-    approved: true
-  }
+    firstName: "Beto",
+    lastName: "Veloz",
+    phone: "5544332211",
+    email: "beto@gmail.com",
+    password: "123",
+    approved: true,
+  },
 ];
