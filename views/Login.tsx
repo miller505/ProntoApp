@@ -33,11 +33,10 @@ export const Login = () => {
       <Card className="w-full max-w-md shadow-2xl z-10">
         <div className="text-center mb-8">
           <img
-            src="/logo.png"
+            src="/logo.svg"
             alt="Logo"
-            className="w-20 h-20 mx-auto mb-4 rounded-3xl object-contain shadow-lg shadow-red-500/30"
+            className="w-20 h-20 mx-auto mb-4 object-contain"
           />
-          <h1 className="text-3xl font-bold text-iosText mb-1">RedDelivery</h1>
           <p className="text-gray-400 text-sm">Ingresa a tu cuenta</p>
         </div>
 
