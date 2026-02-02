@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 dotenv.config();
 import express from 'express';
 import mongoose from 'mongoose';
@@ -18,13 +20,29 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Conexión MongoDB
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB Conectado Exitosamente'))
-  .catch(err => {
-    console.error('❌ Error conectando a MongoDB:', err.message);
-    console.error('CONSEJO: Verifica que hayas reemplazado <password> en el archivo .env por tu contraseña real de Atlas.');
-  });
+// 6. Conexión y Server
+const PORT = process.env.PORT || 5000;
+
+// Cargar variables de entorno robustamente
+// Intentar cargar desde backend/.env también por si acaso (usuario custom setup)
+try {
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  // Root (default) se cargó arriba, intentamos cargar backend/.env
+  dotenv.config({ path: path.join(currentDir, '.env') });
+} catch (e) { console.log('Info: No extra .env in backend dir'); }
+
+const MONGO_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  console.error("❌ Error de configuración: No se encontró MONGODB_URI ni MONGO_URI en el archivo .env");
+  console.error("   Asegúrate de que el archivo .env tenga la variable definida.");
+} else {
+  mongoose.connect(MONGO_URI)
+    .then(() => console.log('✅ Connected to MongoDB'))
+    .catch(err => console.error('❌ Error conectando a MongoDB:', err.message));
+}
+
+app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
 
 // --- RUTAS ---
 
@@ -142,51 +160,9 @@ app.post('/api/auth/register', async (req, res) => {
 // 3. Gestión Usuarios
 app.put('/api/users/:id', async (req, res) => {
   try {
-    // Fetch current user to preserve Master-controlled fields
-    const currentUser = await User.findById(req.params.id);
-    if (!currentUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // List of fields that ONLY the Master can modify
-    // Store owners should NOT be able to change these fields
-    const masterOnlyFields = ['subscription', 'subscriptionPriority', 'approved'];
-
-    // Prepare update data
-    const updateData = { ...req.body };
-
-    // CRITICAL: Preserve Master-controlled fields from database
-    // This prevents store owners from accidentally overwriting these fields
-    // with stale values from their localStorage session
-    masterOnlyFields.forEach(field => {
-      if (currentUser.role === 'STORE' && req.body[field] !== undefined) {
-        // Store owner is trying to update a Master-controlled field
-        // Preserve the current value from database instead
-        updateData[field] = currentUser[field];
-        console.log(`🔒 Protected field "${field}" - keeping DB value:`, currentUser[field]);
-      }
-    });
-
-    // Check if password is being updated
-    if (updateData.password) {
-      if (updateData.password.trim() === '') {
-        delete updateData.password; // Don't update if empty
-      } else {
-        // Hash the new password
-        const salt = await bcrypt.genSalt(10);
-        updateData.password = await bcrypt.hash(updateData.password, salt);
-        console.log('🔒 Password updated and hashed');
-      }
-    }
-
-    const updated = await User.findByIdAndUpdate(req.params.id, updateData, { new: true });
-
-    console.log('✅ User updated successfully');
+    const updated = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(updated);
-  } catch (error) {
-    console.error('❌ Error updating user:', error);
-    res.status(500).json({ error: error.message });
-  }
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.delete('/api/users/:id', async (req, res) => {
@@ -251,5 +227,4 @@ app.delete('/api/colonies/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));

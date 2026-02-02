@@ -28,7 +28,6 @@ export const ClientDashboard = () => {
   const [search, setSearch] = useState("");
   const [selectedStore, setSelectedStore] = useState<StoreProfile | null>(null);
 
-
   // Logic to separate stores
   const stores = users.filter(
     (u) => u.role === "STORE" && (u as StoreProfile).isOpen && u.approved,
@@ -46,21 +45,20 @@ export const ClientDashboard = () => {
 
   // Ultra Stores (Random order within ULTRA tier)
   const ultraStores = shuffleArray(
-    stores.filter((s) => s.subscription === SubscriptionType.ULTRA)
+    stores.filter((s) => s.subscription === SubscriptionType.ULTRA),
   );
 
   // Separate Premium and Standard stores
   const premiumStores = shuffleArray(
-    stores.filter((s) => s.subscription === SubscriptionType.PREMIUM)
+    stores.filter((s) => s.subscription === SubscriptionType.PREMIUM),
   );
 
   const standardStores = shuffleArray(
-    stores.filter((s) => s.subscription === SubscriptionType.STANDARD)
+    stores.filter((s) => s.subscription === SubscriptionType.STANDARD),
   );
 
   // Other Stores (Premium first, then Standard, both in random order within their tier)
   const otherStores = [...premiumStores, ...standardStores];
-
 
   // Search Logic
   const filteredStores = useMemo(() => {
@@ -127,16 +125,17 @@ export const ClientDashboard = () => {
               <div
                 className="flex overflow-x-auto gap-4 pb-4 pr-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-primary/30 scrollbar-track-transparent"
                 style={{
-                  WebkitOverflowScrolling: 'touch',
-                  scrollbarWidth: 'thin',
-                  scrollbarColor: 'rgba(var(--primary-rgb, 59, 130, 246), 0.3) transparent'
+                  WebkitOverflowScrolling: "touch",
+                  scrollbarWidth: "thin",
+                  scrollbarColor:
+                    "rgba(var(--primary-rgb, 59, 130, 246), 0.3) transparent",
                 }}
               >
                 {ultraStores.map((s) => (
                   <div
                     key={s.id}
                     onClick={() => setSelectedStore(s)}
-                    className="snap-center shrink-0 w-72 bg-white rounded-3xl overflow-hidden shadow-ios-card relative cursor-pointer active:scale-95 transition-transform"
+                    className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card relative cursor-pointer active:scale-95 transition-transform"
                   >
                     <img
                       src={s.coverImage}
@@ -160,15 +159,17 @@ export const ClientDashboard = () => {
           )}
 
           {/* Vertical Feed */}
-          <div className="px-4 space-y-4">
-            <h2 className="font-bold text-lg">Restaurantes</h2>
-            {otherStores.map((s) => (
-              <StoreCard
-                key={s.id}
-                store={s}
-                onClick={() => setSelectedStore(s)}
-              />
-            ))}
+          <div className="px-4 pb-20">
+            <h2 className="font-bold text-lg mb-4">Para ti</h2>
+            <div className="grid grid-cols-2 gap-4">
+              {otherStores.map((s) => (
+                <StoreCard
+                  key={s.id}
+                  store={s}
+                  onClick={() => setSelectedStore(s)}
+                />
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -422,15 +423,16 @@ export const ClientDashboard = () => {
           <Card key={o.id}>
             <div className="flex justify-between mb-2">
               <span className="font-bold text-primary">
-                {(users.find((u) => u.id === o.storeId) as StoreProfile)?.storeName ||
-                  "Tienda"}
+                {(users.find((u) => u.id === o.storeId) as StoreProfile)
+                  ?.storeName || "Tienda"}
               </span>
               <Badge color={getOrderStatusColor(o.status)}>
                 {getOrderStatusLabel(o.status)}
               </Badge>
             </div>
             <p className="text-sm text-gray-500 mb-2">
-              ID: #{o.id.slice(-4)} • {new Date(o.createdAt).toLocaleDateString()} • {o.items.length}{" "}
+              ID: #{o.id.slice(-4)} •{" "}
+              {new Date(o.createdAt).toLocaleDateString()} • {o.items.length}{" "}
               productos
             </p>
             <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
@@ -481,7 +483,9 @@ export const ClientDashboard = () => {
               <h2 className="text-2xl font-bold text-iosText">
                 {currentUser?.firstName} {currentUser?.lastName}
               </h2>
-              <p className="text-gray-500 font-medium">{currentUser?.role === 'CLIENT' ? 'Cliente' : 'Usuario'}</p>
+              <p className="text-gray-500 font-medium">
+                {currentUser?.role === "CLIENT" ? "Cliente" : "Usuario"}
+              </p>
             </div>
 
             <div className="w-full space-y-3 mt-4 text-left">
@@ -491,7 +495,9 @@ export const ClientDashboard = () => {
                 </div>
                 <div>
                   <p className="text-xs text-gray-400 font-semibold">Correo</p>
-                  <p className="font-medium text-gray-800">{currentUser?.email}</p>
+                  <p className="font-medium text-gray-800">
+                    {currentUser?.email}
+                  </p>
                 </div>
               </div>
 
@@ -500,8 +506,12 @@ export const ClientDashboard = () => {
                   <Icons.Phone size={16} />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 font-semibold">Teléfono</p>
-                  <p className="font-medium text-gray-800">{currentUser?.phone || "Sin registrar"}</p>
+                  <p className="text-xs text-gray-400 font-semibold">
+                    Teléfono
+                  </p>
+                  <p className="font-medium text-gray-800">
+                    {currentUser?.phone || "Sin registrar"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -509,16 +519,28 @@ export const ClientDashboard = () => {
             {currentUser?.addresses && currentUser.addresses.length > 0 && (
               <div className="w-full mt-6 text-left">
                 <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                  <Icons.MapPin size={18} className="text-primary" /> Mis Direcciones
+                  <Icons.MapPin size={18} className="text-primary" /> Mis
+                  Direcciones
                 </h3>
                 <div className="space-y-2">
                   {currentUser.addresses.map((addr, idx) => {
-                    const col = colonies.find(c => c.id === addr.colonyId);
+                    const col = colonies.find((c) => c.id === addr.colonyId);
                     return (
-                      <div key={idx} className="bg-white border border-gray-100 p-3 rounded-2xl shadow-sm">
-                        <p className="font-bold text-sm">{addr.street} #{addr.number}</p>
-                        <p className="text-xs text-gray-500">{col ? col.name : 'Colonia desconocida'}</p>
-                        {addr.reference && <p className="text-xs text-gray-400 mt-1 italic">"{addr.reference}"</p>}
+                      <div
+                        key={idx}
+                        className="bg-white border border-gray-100 p-3 rounded-2xl shadow-sm"
+                      >
+                        <p className="font-bold text-sm">
+                          {addr.street} #{addr.number}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {col ? col.name : "Colonia desconocida"}
+                        </p>
+                        {addr.reference && (
+                          <p className="text-xs text-gray-400 mt-1 italic">
+                            "{addr.reference}"
+                          </p>
+                        )}
                       </div>
                     );
                   })}
@@ -526,7 +548,11 @@ export const ClientDashboard = () => {
               </div>
             )}
 
-            <Button variant="danger" className="mt-8 w-full py-3 rounded-xl font-bold" onClick={logout}>
+            <Button
+              variant="danger"
+              className="mt-8 w-full py-3 rounded-xl font-bold"
+              onClick={logout}
+            >
               Cerrar Sesión
             </Button>
           </Card>
@@ -624,27 +650,30 @@ const StoreCard: React.FC<{ store: StoreProfile; onClick: () => void }> = ({
 }) => (
   <div
     onClick={onClick}
-    className="bg-white p-3 rounded-3xl flex gap-3 shadow-ios-card cursor-pointer active:scale-95 transition-transform"
+    className="bg-white p-3 rounded-3xl flex flex-col gap-3 shadow-ios-card cursor-pointer active:scale-95 transition-transform h-full"
   >
-    <img
-      src={store.logo}
-      className="w-20 h-20 rounded-2xl object-cover bg-gray-100"
-    />
-    <div className="flex-1">
-      <div className="flex justify-between items-start">
-        <h3 className="font-bold text-iosText">{store.storeName}</h3>
-        {store.subscription === SubscriptionType.PREMIUM && (
-          <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold">
-            RECOMENDADO
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+    <div className="relative w-full h-24">
+      <img
+        src={store.logo}
+        className="w-full h-full rounded-2xl object-cover bg-gray-100"
+      />
+      {store.subscription === SubscriptionType.PREMIUM && (
+        <span className="absolute top-2 right-2 text-[8px] bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full font-bold shadow-sm">
+          RECOMENDADO
+        </span>
+      )}
+    </div>
+
+    <div className="flex-1 flex flex-col">
+      <h3 className="font-bold text-iosText text-sm line-clamp-1">
+        {store.storeName}
+      </h3>
+      <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 flex-1">
         {store.description}
       </p>
-      <div className="mt-2 flex gap-3 text-xs text-gray-400">
-        <span className="flex items-center gap-1">
-          <Icons.Clock size={12} /> {store.prepTime || "30m"}
+      <div className="mt-2 flex gap-3 text-xs text-gray-400 items-center">
+        <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg">
+          <Icons.Clock size={10} /> {store.prepTime || "30m"}
         </span>
       </div>
     </div>

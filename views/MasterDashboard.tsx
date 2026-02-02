@@ -43,14 +43,14 @@ export const MasterDashboard = () => {
   });
 
   const handleApprove = (u: User | StoreProfile) => {
-    updateUser({ ...u, approved: true });
+    updateUser({ ...u, approved: true, isMasterUpdate: true } as any);
   };
 
   const handleChangeSubscription = (
     store: StoreProfile,
     sub: SubscriptionType,
   ) => {
-    updateUser({ ...store, subscription: sub });
+    updateUser({ ...store, subscription: sub, isMasterUpdate: true } as any);
   };
 
 
@@ -78,6 +78,7 @@ export const MasterDashboard = () => {
     const updatedUser: any = {
       ...editingUser,
       ...editFormData,
+      isMasterUpdate: true,
     };
 
     // If password is empty string, remove it so it doesn't get sent/processed
