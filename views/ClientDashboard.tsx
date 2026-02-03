@@ -141,7 +141,9 @@ const StoreView = ({
   const { products, addToCart, cart } = useApp();
   const [activeCategory, setActiveCategory] = useState("ALL");
 
-  const storeProducts = products.filter((p) => p.storeId === store.id);
+  const storeProducts = products.filter(
+    (p) => p.storeId === store.id && (p as any).isVisible !== false,
+  );
   const categories = ["ALL", ...new Set(storeProducts.map((p) => p.category))];
   const filteredProducts =
     activeCategory === "ALL"
@@ -278,7 +280,8 @@ const HomeView = ({
       const hasProduct = products.some(
         (p: Product) =>
           p.storeId === s.id &&
-          p.name.toLowerCase().includes(search.toLowerCase()),
+          p.name.toLowerCase().includes(search.toLowerCase()) &&
+          (p as any).isVisible !== false,
       );
       const matchesName = s.storeName
         .toLowerCase()
@@ -413,21 +416,33 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [payMethod, setPayMethod] = useState<"CARD" | "CASH">("CARD");
 
+  const submitOrder = (address: any) => {
+    if (!address) return alert("Dirección requerida");
+    const colony = colonies.find((c) => c.id === address.colonyId);
+    const fee = colony ? colony.deliveryFee : 0;
+
+    placeOrder({
+      id: Date.now().toString(),
+      customerId: currentUser!.id,
+      storeId: cart[0].product.storeId,
+      items: cart,
+      status: OrderStatus.PENDING,
+      total: cartTotal + fee,
+      deliveryFee: fee,
+      paymentMethod: payMethod,
+      deliveryAddress: address,
+      createdAt: Date.now(),
+    });
+    alert("¡Pedido realizado con éxito!");
+    setView("orders");
+  };
+
   const handleCheckout = async () => {
-    if (!selectedAddressId && !addressStep) {
-      setAddressStep(true);
-      return;
-    }
-
-    let finalAddress = currentUser?.addresses?.find(
-      (a) => a.id === selectedAddressId,
-    );
-
+    // 1. Flujo de Nueva Dirección
     if (addressStep) {
-      // Validate new address
       if (!newAddress.colonyId) return alert("Selecciona una colonia");
-      const colony = colonies.find((c) => c.id === newAddress.colonyId);
-      finalAddress = { id: Date.now().toString(), ...newAddress } as any;
+
+      const finalAddress = { id: Date.now().toString(), ...newAddress } as any;
 
       if (saveAddress) {
         const currentAddresses = currentUser?.addresses || [];
@@ -442,26 +457,26 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
           );
         }
       }
+
+      submitOrder(finalAddress);
+      return;
     }
 
-    if (!finalAddress) return alert("Dirección requerida");
-    const colony = colonies.find((c) => c.id === finalAddress?.colonyId);
-    const fee = colony ? colony.deliveryFee : 0;
+    // 2. Flujo de Dirección Guardada
+    if (selectedAddressId) {
+      const savedAddr = currentUser?.addresses?.find(
+        (a) => (a.id || (a as any)._id) === selectedAddressId,
+      );
+      if (savedAddr) {
+        submitOrder(savedAddr);
+      } else {
+        alert("Error: La dirección seleccionada no es válida.");
+      }
+      return;
+    }
 
-    placeOrder({
-      id: Date.now().toString(),
-      customerId: currentUser!.id,
-      storeId: cart[0].product.storeId,
-      items: cart,
-      status: OrderStatus.PENDING,
-      total: cartTotal + fee,
-      deliveryFee: fee,
-      paymentMethod: payMethod,
-      deliveryAddress: finalAddress!,
-      createdAt: Date.now(),
-    });
-    alert("¡Pedido realizado con éxito!");
-    setView("orders");
+    // 3. Si no hay nada seleccionado, forzar nueva dirección
+    setAddressStep(true);
   };
 
   if (cart.length === 0)
@@ -472,11 +487,16 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
       </div>
     );
 
+  const selectedSavedAddress = currentUser?.addresses?.find(
+    (a) => (a.id || (a as any)._id) === selectedAddressId,
+  );
+
   const colony =
     addressStep && newAddress.colonyId
       ? colonies.find((c) => c.id === newAddress.colonyId)
-      : null;
-  const deliveryFee = colony ? colony.deliveryFee : 0; // Simplified logic, real logic would pull from saved address too
+      : selectedSavedAddress
+        ? colonies.find((c) => c.id === selectedSavedAddress.colonyId)
+        : null;
 
   return (
     <div className="px-4 pt-6 pb-24 max-w-lg mx-auto">
@@ -522,23 +542,34 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
           <h3 className="font-bold">Dirección de Entrega</h3>
           {(currentUser?.addresses || []).length > 0 ? (
             <div className="space-y-2">
-              {currentUser?.addresses?.map((addr) => (
-                <div
-                  key={addr.id}
-                  onClick={() => setSelectedAddressId(addr.id)}
-                  className={`p-4 rounded-2xl border-2 cursor-pointer ${selectedAddressId === addr.id ? "border-primary bg-red-50" : "border-transparent bg-white"}`}
-                >
-                  <p className="font-bold">
-                    {addr.street} #{addr.number}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {colonies.find((c) => c.id === addr.colonyId)?.name}
-                  </p>
-                </div>
-              ))}
+              {currentUser?.addresses?.map((addr) => {
+                const addrId = addr.id || (addr as any)._id;
+                return (
+                  <div
+                    key={addrId}
+                    onClick={() => setSelectedAddressId(addrId)}
+                    className={`p-4 rounded-2xl border-2 cursor-pointer flex justify-between items-center ${selectedAddressId === addrId ? "border-primary bg-red-50" : "border-transparent bg-white"}`}
+                  >
+                    <div>
+                      <p className="font-bold">
+                        {addr.street} #{addr.number}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {colonies.find((c) => c.id === addr.colonyId)?.name}
+                      </p>
+                    </div>
+                    {selectedAddressId === addrId && (
+                      <Icons.Check className="text-primary" size={20} />
+                    )}
+                  </div>
+                );
+              })}
               <Button
                 variant="secondary"
-                onClick={() => setAddressStep(true)}
+                onClick={() => {
+                  setAddressStep(true);
+                  setSelectedAddressId(""); // Limpiar selección al crear nueva
+                }}
                 className="w-full py-2 text-sm"
               >
                 + Nueva Dirección
@@ -627,15 +658,11 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
         </div>
         <div className="flex justify-between text-gray-500">
           <span>Envío</span>
-          <span>
-            ${addressStep && colony ? colony.deliveryFee : "Calculando..."}
-          </span>
+          <span>${colony ? colony.deliveryFee : "Calculando..."}</span>
         </div>
         <div className="flex justify-between font-bold text-xl pt-2 border-t">
           <span>Total</span>
-          <span>
-            ${cartTotal + (addressStep && colony ? colony.deliveryFee : 0)}
-          </span>
+          <span>${cartTotal + (colony ? colony.deliveryFee : 0)}</span>
         </div>
       </div>
 
@@ -665,7 +692,7 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
 };
 
 const OrdersView = () => {
-  const { orders, currentUser, users } = useApp();
+  const { orders, currentUser, users, updateOrderStatus } = useApp();
   return (
     <div className="px-4 py-6 pb-24 space-y-4">
       <h2 className="text-2xl font-bold mb-6">Mis Pedidos</h2>
@@ -685,9 +712,25 @@ const OrdersView = () => {
             </div>
             <p className="text-sm text-gray-500 mb-2">
               ID: #{o.id.slice(-4)} •{" "}
-              {new Date(o.createdAt).toLocaleDateString()} • {o.items.length}{" "}
-              productos
+              {new Date(o.createdAt).toLocaleDateString()}
             </p>
+            <div className="space-y-1 mb-3 bg-gray-50 p-3 rounded-xl">
+              {o.items.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex justify-between text-xs text-gray-600"
+                >
+                  <span>
+                    {item.quantity}x {item.product.name}
+                  </span>
+                  <span>${item.product.price * item.quantity}</span>
+                </div>
+              ))}
+              <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between font-bold text-sm">
+                <span>Total</span>
+                <span>${o.total}</span>
+              </div>
+            </div>
             <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
               <div
                 className={`h-full bg-primary transition-all duration-1000`}
@@ -704,16 +747,33 @@ const OrdersView = () => {
               ></div>
             </div>
             <p className="text-xs text-right mt-1 text-gray-400">
-              {o.status === "PENDING"
+              {o.status === OrderStatus.PENDING
                 ? "Enviado"
-                : o.status === "PREPARING"
+                : o.status === OrderStatus.PREPARING
                   ? "Preparando"
-                  : o.status === "READY"
+                  : o.status === OrderStatus.READY
                     ? "Esperando Repartidor"
-                    : o.status === "ON_WAY"
+                    : o.status === OrderStatus.ON_WAY
                       ? "En camino"
-                      : "Entregado"}
+                      : o.status === OrderStatus.DELIVERED
+                        ? "Entregado"
+                        : "Cancelado"}
             </p>
+            {o.status === OrderStatus.PENDING && (
+              <Button
+                variant="danger"
+                className="w-full mt-3 py-2 text-sm"
+                onClick={() => {
+                  if (
+                    window.confirm("¿Seguro que deseas cancelar el pedido?")
+                  ) {
+                    updateOrderStatus(o.id, OrderStatus.REJECTED);
+                  }
+                }}
+              >
+                Cancelar Pedido
+              </Button>
+            )}
           </Card>
         ))}
     </div>

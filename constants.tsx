@@ -34,6 +34,8 @@ import {
   Filter,
   Mail,
   Phone,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export const Icons = {
@@ -63,6 +65,8 @@ export const Icons = {
   Filter,
   Mail,
   Phone,
+  Eye,
+  EyeOff,
 };
 
 export const MOCK_COLONIES: Colony[] = [

@@ -41,6 +41,8 @@ export const StoreDashboard = () => {
   // Products filtering and sorting
   const [prodSearchTerm, setProdSearchTerm] = useState("");
   const [prodFilterCategory, setProdFilterCategory] = useState<string>("ALL");
+  const [prodFilterVisibility, setProdFilterVisibility] =
+    useState<string>("ALL");
   const [prodSortBy, setProdSortBy] = useState<string>("name-asc");
 
   // Helper function to extract number from "X min" format
@@ -82,7 +84,14 @@ export const StoreDashboard = () => {
         .includes(prodSearchTerm.toLowerCase());
       const matchesCategory =
         prodFilterCategory === "ALL" || p.category === prodFilterCategory;
-      return matchesSearch && matchesCategory;
+
+      const isHidden = (p as any).isVisible === false;
+      const matchesVisibility =
+        prodFilterVisibility === "ALL" ||
+        (prodFilterVisibility === "VISIBLE" && !isHidden) ||
+        (prodFilterVisibility === "HIDDEN" && isHidden);
+
+      return matchesSearch && matchesCategory && matchesVisibility;
     })
     .sort((a, b) => {
       switch (prodSortBy) {
@@ -115,6 +124,13 @@ export const StoreDashboard = () => {
     if (!ok) return;
     deleteProduct(id);
     setSaveFeedback("Producto eliminado");
+    setTimeout(() => setSaveFeedback(""), 2500);
+  };
+
+  const handleToggleProductVisibility = (p: Product) => {
+    const isHidden = (p as any).isVisible === false;
+    updateProduct({ ...p, isVisible: isHidden } as any);
+    setSaveFeedback(isHidden ? "Producto visible" : "Producto oculto");
     setTimeout(() => setSaveFeedback(""), 2500);
   };
 
@@ -153,6 +169,7 @@ export const StoreDashboard = () => {
       price: priceNum,
       category: category.trim(),
       image: prodForm.image || "https://picsum.photos/200",
+      isVisible: editingProduct ? (editingProduct as any).isVisible : true,
     };
 
     if (editingProduct) updateProduct(payload);
@@ -292,10 +309,11 @@ export const StoreDashboard = () => {
         <div className="flex gap-2">
           <button
             onClick={handleToggleOpen}
-            className={`px-4 py-2 rounded-xl transition-colors flex items-center gap-2 font-medium text-sm ${store.isOpen
-              ? "bg-red-100 text-red-700 hover:bg-red-200"
-              : "bg-green-100 text-green-700 hover:bg-green-200"
-              }`}
+            className={`px-4 py-2 rounded-xl transition-colors flex items-center gap-2 font-medium text-sm ${
+              store.isOpen
+                ? "bg-red-100 text-red-700 hover:bg-red-200"
+                : "bg-green-100 text-green-700 hover:bg-green-200"
+            }`}
           >
             <Icons.Store size={18} />
             {store.isOpen ? "Cerrar Tienda" : "Abrir Tienda"}
@@ -345,10 +363,10 @@ export const StoreDashboard = () => {
                 o.status !== OrderStatus.DELIVERED &&
                 o.status !== OrderStatus.REJECTED,
             ).length === 0 && (
-                <div className="text-center py-10 text-gray-400">
-                  No hay pedidos activos
-                </div>
-              )}
+              <div className="text-center py-10 text-gray-400">
+                No hay pedidos activos
+              </div>
+            )}
             {myOrders
               .filter(
                 (o) =>
@@ -433,10 +451,10 @@ export const StoreDashboard = () => {
                 o.status === OrderStatus.DELIVERED ||
                 o.status === OrderStatus.REJECTED,
             ).length === 0 && (
-                <div className="text-center py-10 text-gray-400">
-                  No hay pedidos en el historial
-                </div>
-              )}
+              <div className="text-center py-10 text-gray-400">
+                No hay pedidos en el historial
+              </div>
+            )}
             {myOrders
               .filter(
                 (o) =>
@@ -456,10 +474,7 @@ export const StoreDashboard = () => {
                     </div>
                     <div className="space-y-2 mb-4">
                       {order.items.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="flex justify-between text-sm"
-                        >
+                        <div key={idx} className="flex justify-between text-sm">
                           <span>
                             {item.quantity}x {item.product.name}
                           </span>
@@ -529,6 +544,16 @@ export const StoreDashboard = () => {
 
                 <select
                   className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm font-medium"
+                  value={prodFilterVisibility}
+                  onChange={(e) => setProdFilterVisibility(e.target.value)}
+                >
+                  <option value="ALL">Todos</option>
+                  <option value="VISIBLE">Visibles</option>
+                  <option value="HIDDEN">Ocultos</option>
+                </select>
+
+                <select
+                  className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm font-medium"
                   value={prodSortBy}
                   onChange={(e) => setProdSortBy(e.target.value)}
                 >
@@ -565,6 +590,21 @@ export const StoreDashboard = () => {
                           </Badge>
                         </div>
                         <div className="flex gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => handleToggleProductVisibility(p)}
+                            className={`p-1.5 rounded-lg transition-colors ${(p as any).isVisible === false ? "bg-gray-200 text-gray-500" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}
+                            title={
+                              (p as any).isVisible === false
+                                ? "Mostrar producto"
+                                : "Ocultar producto"
+                            }
+                          >
+                            {(p as any).isVisible === false ? (
+                              <Icons.EyeOff size={14} />
+                            ) : (
+                              <Icons.Eye size={14} />
+                            )}
+                          </button>
                           <button
                             onClick={() => openProductModal(p)}
                             className="p-1.5 bg-gray-100 rounded-lg text-gray-600 hover:bg-gray-200"
