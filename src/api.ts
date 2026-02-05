@@ -4,7 +4,7 @@ import axios from "axios";
 // Si tu backend y frontend están en el mismo dominio (ej. servidos por Nginx), usa "/api".
 // Si están separados (ej. Vercel + Render), usa la URL completa.
 const API_URL = import.meta.env.PROD
-  ? "https://www.prontomx.com/api" // Tu dominio real (con www para evitar redirects)
+  ? "https://prontoapp-backend.onrender.com/api" // URL de tu backend en Render
   : "http://localhost:5000/api";
 
 export const api = axios.create({
