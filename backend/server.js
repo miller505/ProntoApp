@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath } from "url"; // Ya lo tienes, ¡bien!
 import { createServer } from "http";
 import { Server } from "socket.io";
 dotenv.config();
@@ -19,6 +19,10 @@ import {
   Settings,
   Review,
 } from "./models.js";
+
+// Definir __dirname para módulos ES
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
@@ -54,18 +58,14 @@ cloudinary.config({
 
 // 6. Conexión y Server
 const PORT = process.env.PORT || 5000;
-
-// Cargar variables de entorno robustamente
-// Intentar cargar desde backend/.env también por si acaso (usuario custom setup)
-try {
-  const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  // Root (default) se cargó arriba, intentamos cargar backend/.env
-  dotenv.config({ path: path.join(currentDir, ".env") });
-} catch (e) {
-  console.log("Info: No extra .env in backend dir");
-}
-
 const MONGO_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
+
+// LOG PARA VERIFICAR EL MODO ACTUAL
+console.log("----------------------------------------------------");
+console.log(
+  `🚀 MODO ACTUAL (NODE_ENV): ${process.env.NODE_ENV || "desarrollo (por defecto)"}`,
+);
+console.log("----------------------------------------------------");
 
 if (!MONGO_URI) {
   console.error(
@@ -647,6 +647,21 @@ app.post("/api/admin/wipe-all-data", async (req, res) => {
     res.status(500).json({ error: "Error al resetear la base de datos." });
   }
 });
+
+// --- SERVIR FRONTEND EN PRODUCCIÓN ---
+// Esto debe ir DESPUÉS de todas tus rutas de API, pero ANTES de iniciar el servidor.
+if (process.env.NODE_ENV === "production") {
+  console.log("✅ Servidor en modo de producción. Sirviendo frontend...");
+  // La ruta a la carpeta 'dist' de tu frontend
+  const frontendDistPath = path.join(__dirname, "../dist");
+  app.use(express.static(frontendDistPath));
+
+  // Para cualquier otra ruta no manejada por la API, sirve el index.html
+  // Esto es clave para que el enrutamiento del lado del cliente (React Router) funcione.
+  app.get("*", (req, res) => {
+    res.sendFile(path.resolve(frontendDistPath, "index.html"));
+  });
+}
 
 httpServer.listen(PORT, () =>
   console.log(`Servidor corriendo en puerto ${PORT}`),
