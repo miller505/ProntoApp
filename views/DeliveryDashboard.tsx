@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useApp } from "../AppContext";
 import { Button, Card, Badge } from "../components/UI";
 import { Icons } from "../constants";
@@ -30,12 +30,26 @@ export const DeliveryDashboard = () => {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
 
-  const handleClaim = (orderId: string) => {
-    // Check if still available (simulation)
+  // Memoize a map of users by ID for efficient lookups
+  const usersById = useMemo(() => {
+    const map = new Map<string, User | StoreProfile>();
+    for (const user of users) {
+      map.set(user.id, user);
+    }
+    return map;
+  }, [users]);
+
+  const handleClaim = async (orderId: string) => {
     const order = orders.find((o) => o.id === orderId);
     if (order && !order.driverId) {
-      updateOrderStatus(orderId, OrderStatus.ON_WAY, currentUser?.id);
-      setActiveTab("mine");
+      try {
+        await updateOrderStatus(orderId, OrderStatus.ON_WAY, currentUser?.id);
+        setActiveTab("mine");
+      } catch (error) {
+        alert(
+          "¡Lo sentimos! Otro repartidor tomó este pedido justo antes que tú.",
+        );
+      }
     } else {
       alert("Este pedido ya fue tomado.");
     }
@@ -97,9 +111,7 @@ export const DeliveryDashboard = () => {
               </p>
             )}
             {availableOrders.map((order) => {
-              const store = users.find(
-                (u) => u.id === order.storeId,
-              ) as StoreProfile;
+              const store = usersById.get(order.storeId) as StoreProfile;
               return (
                 <Card key={order.id} className="border-l-4 border-yellow-400">
                   <div className="flex justify-between items-center mb-2">
@@ -140,10 +152,8 @@ export const DeliveryDashboard = () => {
               </p>
             )}
             {myDeliveries.map((order) => {
-              const store = users.find(
-                (u) => u.id === order.storeId,
-              ) as StoreProfile;
-              const client = users.find((u) => u.id === order.customerId);
+              const store = usersById.get(order.storeId) as StoreProfile;
+              const client = usersById.get(order.customerId);
 
               return (
                 <Card key={order.id} className="border-l-4 border-blue-500">
@@ -280,9 +290,7 @@ export const DeliveryDashboard = () => {
               </p>
             )}
             {myCompletedDeliveries.map((order) => {
-              const store = users.find(
-                (u) => u.id === order.storeId,
-              ) as StoreProfile;
+              const store = usersById.get(order.storeId) as StoreProfile;
               return (
                 <Card key={order.id} className="opacity-80 mb-4">
                   <div className="flex justify-between items-start mb-2">

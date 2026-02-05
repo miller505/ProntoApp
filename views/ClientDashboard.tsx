@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useApp } from "../AppContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
@@ -46,22 +46,25 @@ const ClientDashboard = () => {
     return shuffled;
   };
 
-  // Ultra Stores (Random order within ULTRA tier)
-  const ultraStores = shuffleArray(
-    stores.filter((s) => s.subscription === SubscriptionType.ULTRA),
-  );
+  // Memoize the shuffled stores to prevent re-shuffling on every render
+  const { ultraStores, otherStores } = useMemo(() => {
+    console.log("Shuffling stores...");
+    const newUltraStores = shuffleArray(
+      stores.filter((s) => s.subscription === SubscriptionType.ULTRA),
+    );
+    const newPremiumStores = shuffleArray(
+      stores.filter((s) => s.subscription === SubscriptionType.PREMIUM),
+    );
+    const newStandardStores = shuffleArray(
+      stores.filter((s) => s.subscription === SubscriptionType.STANDARD),
+    );
+    const newOtherStores = [...newPremiumStores, ...newStandardStores];
 
-  // Separate Premium and Standard stores
-  const premiumStores = shuffleArray(
-    stores.filter((s) => s.subscription === SubscriptionType.PREMIUM),
-  );
-
-  const standardStores = shuffleArray(
-    stores.filter((s) => s.subscription === SubscriptionType.STANDARD),
-  );
-
-  // Other Stores (Premium first, then Standard, both in random order within their tier)
-  const otherStores = [...premiumStores, ...standardStores];
+    return {
+      ultraStores: newUltraStores,
+      otherStores: newOtherStores,
+    };
+  }, [stores]);
 
   if (selectedStore) {
     return (
@@ -462,72 +465,24 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
     return deg * (Math.PI / 180);
   };
 
-  const submitOrder = (address: any) => {
-    if (!address) return alert("Dirección requerida");
-
-    const clientColony = colonies.find((c) => c.id === address.colonyId);
-    const store = users.find(
-      (u) => u.id === cart[0].product.storeId,
-    ) as StoreProfile;
-    const storeColony = store?.storeAddress?.colonyId
-      ? colonies.find((c) => c.id === store.storeAddress.colonyId)
-      : null;
-
-    let fee = 0;
-    let driverEarnings = 0;
-    if (clientColony && storeColony) {
-      const dist = calculateDistance(
-        clientColony.lat,
-        clientColony.lng,
-        storeColony.lat,
-        storeColony.lng,
-      );
-      driverEarnings = Math.ceil(dist * settings.kmRate);
-      // Minimum driver earnings fallback? Let's assume 1km min.
-      if (driverEarnings < settings.kmRate) driverEarnings = settings.kmRate;
-
-      fee = driverEarnings + settings.baseFee;
-    }
-
-    if (fee <= 0) {
-      return alert(
-        !storeColony
-          ? "Error: La tienda no tiene una colonia válida asignada. Contacta a soporte."
-          : !clientColony
-            ? "Error: Tu dirección no tiene una colonia válida."
-            : "No se pudo calcular la tarifa. Intenta de nuevo.",
-      );
-    }
-
-    placeOrder({
-      customerId: currentUser!.id,
-      storeId: cart[0].product.storeId,
-      items: cart,
-      status: OrderStatus.PENDING,
-      total: cartTotal + fee,
-      deliveryFee: fee,
-      driverFee: driverEarnings,
-      paymentMethod: payMethod,
-      deliveryAddress: address,
-      createdAt: Date.now(),
-    });
-    alert("¡Pedido realizado con éxito!");
-    setView("orders");
-  };
-
   const handleCheckout = async () => {
+    if (cart.length === 0) return;
+
+    // Determinar la dirección a usar
+    let finalAddress: any = null;
+
     // 1. Flujo de Nueva Dirección
     if (addressStep) {
       if (!newAddress.colonyId) return alert("Selecciona una colonia");
 
-      const finalAddress = { id: Date.now().toString(), ...newAddress } as any;
+      const newAddressObject = { id: Date.now().toString(), ...newAddress };
 
       if (saveAddress) {
         const currentAddresses = currentUser?.addresses || [];
         if (currentAddresses.length < 3) {
           await updateUser({
             ...currentUser,
-            addresses: [...currentAddresses, finalAddress],
+            addresses: [...currentAddresses, newAddressObject],
           } as any);
         } else {
           alert(
@@ -535,26 +490,32 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
           );
         }
       }
-
-      submitOrder(finalAddress);
-      return;
+      finalAddress = newAddressObject;
     }
 
     // 2. Flujo de Dirección Guardada
-    if (selectedAddressId) {
-      const savedAddr = currentUser?.addresses?.find(
+    else if (selectedAddressId) {
+      finalAddress = currentUser?.addresses?.find(
         (a) => (a.id || (a as any)._id) === selectedAddressId,
       );
-      if (savedAddr) {
-        submitOrder(savedAddr);
-      } else {
-        alert("Error: La dirección seleccionada no es válida.");
-      }
-      return;
     }
 
-    // 3. Si no hay nada seleccionado, forzar nueva dirección
-    setAddressStep(true);
+    if (!finalAddress) {
+      // 3. Si no hay nada seleccionado, forzar nueva dirección
+      setAddressStep(true);
+      return alert("Por favor, agrega o selecciona una dirección de entrega.");
+    }
+
+    // 4. Llamar a placeOrder con los datos mínimos. El backend hace el resto.
+    await placeOrder({
+      storeId: cart[0].product.storeId,
+      items: cart,
+      paymentMethod: payMethod,
+      deliveryAddress: finalAddress,
+    });
+
+    alert("¡Pedido realizado con éxito!");
+    setView("orders");
   };
 
   if (cart.length === 0)

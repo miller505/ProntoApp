@@ -62,7 +62,7 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
@@ -80,7 +80,7 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
 
     if (!formData.ineImage) return alert("Debes subir tu INE");
 
-    const baseUser = {
+    const baseUser: Omit<User, "id"> = {
       role: role,
       firstName: formData.firstName,
       lastName: formData.lastName,
@@ -91,9 +91,10 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
       approved: false,
     };
 
+    let success = false;
     if (role === UserRole.STORE) {
       if (!formData.storeColonyId) return alert("Selecciona colonia");
-      register({
+      success = await register({
         ...baseUser,
         storeName: formData.storeName,
         storeAddress: {
@@ -106,11 +107,13 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
         isOpen: false,
       } as any);
     } else {
-      register(baseUser as any);
+      success = await register(baseUser as any);
     }
 
-    alert("Solicitud enviada. Espera aprobación del Master.");
-    onBack();
+    if (success) {
+      alert("Solicitud enviada. Espera aprobación del Master.");
+      onBack();
+    }
   };
 
   return (

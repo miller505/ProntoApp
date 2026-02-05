@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../AppContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
@@ -87,37 +87,45 @@ export const StoreDashboard = () => {
   const myOrders = orders.filter((o) => o.storeId === store.id);
   const myProducts = products.filter((p) => p.storeId === store.id);
 
-  // Filter and sort products
-  const filteredAndSortedProducts = myProducts
-    .filter((p) => {
-      const matchesSearch = p.name
-        .toLowerCase()
-        .includes(prodSearchTerm.toLowerCase());
-      const matchesCategory =
-        prodFilterCategory === "ALL" || p.category === prodFilterCategory;
+  // Filter and sort products, memoized for performance
+  const filteredAndSortedProducts = useMemo(() => {
+    return myProducts
+      .filter((p) => {
+        const matchesSearch = p.name
+          .toLowerCase()
+          .includes(prodSearchTerm.toLowerCase());
+        const matchesCategory =
+          prodFilterCategory === "ALL" || p.category === prodFilterCategory;
 
-      const isHidden = (p as any).isVisible === false;
-      const matchesVisibility =
-        prodFilterVisibility === "ALL" ||
-        (prodFilterVisibility === "VISIBLE" && !isHidden) ||
-        (prodFilterVisibility === "HIDDEN" && isHidden);
+        const isHidden = (p as any).isVisible === false;
+        const matchesVisibility =
+          prodFilterVisibility === "ALL" ||
+          (prodFilterVisibility === "VISIBLE" && !isHidden) ||
+          (prodFilterVisibility === "HIDDEN" && isHidden);
 
-      return matchesSearch && matchesCategory && matchesVisibility;
-    })
-    .sort((a, b) => {
-      switch (prodSortBy) {
-        case "name-asc":
-          return a.name.localeCompare(b.name);
-        case "name-desc":
-          return b.name.localeCompare(a.name);
-        case "price-asc":
-          return a.price - b.price;
-        case "price-desc":
-          return b.price - a.price;
-        default:
-          return 0;
-      }
-    });
+        return matchesSearch && matchesCategory && matchesVisibility;
+      })
+      .sort((a, b) => {
+        switch (prodSortBy) {
+          case "name-asc":
+            return a.name.localeCompare(b.name);
+          case "name-desc":
+            return b.name.localeCompare(a.name);
+          case "price-asc":
+            return a.price - b.price;
+          case "price-desc":
+            return b.price - a.price;
+          default:
+            return 0;
+        }
+      });
+  }, [
+    myProducts,
+    prodSearchTerm,
+    prodFilterCategory,
+    prodFilterVisibility,
+    prodSortBy,
+  ]);
 
   // Get unique categories for filter
   const uniqueCategories = Array.from(

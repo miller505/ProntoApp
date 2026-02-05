@@ -23,7 +23,7 @@ interface AppContextType {
   currentUser: User | StoreProfile | null;
   login: (email: string, pass: string) => Promise<boolean>;
   logout: () => void;
-  register: (user: User | StoreProfile) => Promise<void>;
+  register: (user: User | StoreProfile) => Promise<boolean>;
 
   users: (User | StoreProfile)[];
   updateUser: (user: User | StoreProfile) => Promise<void>;
@@ -194,11 +194,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const login = async (email: string, pass: string) => {
     try {
       const { data } = await api.post("/auth/login", { email, password: pass });
-      // Mapear ID
-      const user = { ...data, id: data._id };
-      setCurrentUser(user);
-      // Persist session in localStorage
-      localStorage.setItem("currentUser", JSON.stringify(user));
+      const { user, token } = data;
+      const mappedUser = { ...user, id: user._id };
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("currentUser", JSON.stringify(mappedUser));
+      setCurrentUser(mappedUser);
       return true;
     } catch (e) {
       console.error(e);
@@ -209,17 +210,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const logout = () => {
     setCurrentUser(null);
     setCart([]);
-    // Clear session from localStorage
+    // Limpiar sesión completa
+    localStorage.removeItem("token");
     localStorage.removeItem("currentUser");
   };
 
-  const register = async (newUser: User | StoreProfile) => {
+  const register = async (newUser: User | StoreProfile): Promise<boolean> => {
     try {
-      await api.post("/auth/register", newUser);
-      await fetchInitialData(); // Recargar usuarios
-    } catch (e) {
+      // El registro ahora también devuelve un token para auto-login
+      const { data } = await api.post("/auth/register", newUser);
+      const { user, token } = data;
+      const mappedUser = { ...user, id: user._id };
+
+      // No guardamos la sesión aquí, el usuario debe ser aprobado por el Master primero.
+      // La alerta de éxito se maneja en el componente Register.
+      return true;
+    } catch (e: any) {
       console.error(e);
-      alert("Error en el registro");
+      const errorMessage =
+        e.response?.data?.error || "Error en el registro. Intenta de nuevo.";
+      alert(errorMessage);
+      return false;
     }
   };
 
@@ -279,10 +290,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   // --- ORDER MGMT ---
-  const placeOrder = async (order: Order) => {
+  const placeOrder = async (orderData: {
+    storeId: string;
+    items: { product: Product; quantity: number }[];
+    paymentMethod: "CASH" | "CARD";
+    deliveryAddress: any;
+  }) => {
     try {
-      const { data } = await api.post("/orders", order);
-      setOrders([...orders, { ...data, id: data._id }]);
+      // El frontend solo envía los datos esenciales.
+      // El backend calcula precios, tarifas y totales.
+      const { data } = await api.post("/orders", {
+        ...orderData,
+        customerId: currentUser!.id, // El backend lo verificará con el token de todos modos
+      });
+      // El socket se encargará de actualizar el estado de `orders`
       clearCart();
     } catch (e) {
       console.error(e);
@@ -301,6 +322,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       });
       const mapped = { ...data, id: data._id };
       setOrders(orders.map((o) => (o.id === orderId ? mapped : o)));
+      return mapped; // Devolver el pedido actualizado para manejar el flujo
     } catch (e) {
       console.error(e);
     }
