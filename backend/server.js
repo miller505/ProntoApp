@@ -667,18 +667,6 @@ app.post("/api/admin/wipe-all-data", async (req, res) => {
 
 // --- SERVIR FRONTEND EN PRODUCCIÓN ---
 // Esto debe ir DESPUÉS de todas tus rutas de API, pero ANTES de iniciar el servidor.
-if (process.env.NODE_ENV === "production") {
-  console.log("✅ Servidor en modo de producción. Sirviendo frontend...");
-  // La ruta a la carpeta 'dist' de tu frontend
-  const frontendDistPath = path.join(__dirname, "../dist");
-  app.use(express.static(frontendDistPath));
-
-  // Para cualquier otra ruta no manejada por la API, sirve el index.html
-  // Esto es clave para que el enrutamiento del lado del cliente (React Router) funcione.
-  app.get(/(.*)/, (req, res) => {
-    res.sendFile(path.resolve(frontendDistPath, "index.html"));
-  });
-}
 
 httpServer.listen(PORT, () =>
   console.log(`Servidor corriendo en puerto ${PORT}`),
