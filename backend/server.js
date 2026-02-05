@@ -675,7 +675,7 @@ if (process.env.NODE_ENV === "production") {
 
   // Para cualquier otra ruta no manejada por la API, sirve el index.html
   // Esto es clave para que el enrutamiento del lado del cliente (React Router) funcione.
-  app.get("*", (req, res) => {
+  app.get(/(.*)/, (req, res) => {
     res.sendFile(path.resolve(frontendDistPath, "index.html"));
   });
 }
