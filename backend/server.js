@@ -281,7 +281,7 @@ app.put("/api/users/:id", verifyToken, async (req, res) => {
     // Si el Master está actualizando, tiene más permisos.
     if (requester.role === "MASTER") {
       // Confiar solo en el rol del token
-      allowedUpdates = updateData;
+      allowedUpdates = { ...updateData, approved };
       // Si el master cambia la contraseña, hashearla.
       if (updateData.password && updateData.password.length > 0) {
         const salt = await bcrypt.genSalt(10);
