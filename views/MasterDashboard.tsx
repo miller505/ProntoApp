@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useApp } from "../AppContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
-import { Icons, MOCK_COLONIES } from "../constants";
+import { Icons } from "../constants";
 import { UserRole, SubscriptionType, StoreProfile, User } from "../types";
 
 export const MasterDashboard = () => {
@@ -15,6 +15,8 @@ export const MasterDashboard = () => {
     addColony,
     updateColony,
     deleteColony,
+    settings,
+    updateSettings,
   } = useApp();
   const [activeTab, setActiveTab] = useState<"users" | "requests" | "colonies">(
     "requests",
@@ -38,8 +40,14 @@ export const MasterDashboard = () => {
     const matchesSearch = (u.firstName + " " + u.lastName)
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
+    const matchesStoreName =
+      u.role === UserRole.STORE &&
+      (u as StoreProfile).storeName
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
     const matchesRole = filterRole === "ALL" || u.role === filterRole;
-    return matchesSearch && matchesRole;
+    return (matchesSearch || matchesStoreName) && matchesRole;
   });
 
   const handleApprove = (u: User | StoreProfile) => {
@@ -93,11 +101,15 @@ export const MasterDashboard = () => {
     <div className="min-h-screen bg-secondary pb-20">
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-primary">Master Panel</h1>
-          <p className="text-sm text-gray-500">
-            Bienvenido, {currentUser?.firstName}
-          </p>
+        <div className="flex items-center gap-3">
+          <img
+            src="/logo.svg"
+            alt="Logo"
+            className="h-10 w-auto object-contain"
+          />
+          <h1 className="text-xs font-bold text-primary">
+            Administración general
+          </h1>
         </div>
         <Button variant="ghost" onClick={logout}>
           <Icons.LogOut size={20} />
@@ -111,16 +123,28 @@ export const MasterDashboard = () => {
             {
               id: "requests",
               label: "Solicitudes",
+              icon: <Icons.Check size={18} />,
               count: pendingUsers.length,
             },
-            { id: "users", label: "Usuarios", count: 0 },
-            { id: "colonies", label: "Colonias", count: 0 },
+            {
+              id: "users",
+              label: "Usuarios",
+              icon: <Icons.User size={18} />,
+              count: 0,
+            },
+            {
+              id: "colonies",
+              label: "Colonias",
+              icon: <Icons.MapPin size={18} />,
+              count: 0,
+            },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${activeTab === tab.id ? "bg-primary text-white shadow-md" : "text-gray-500 hover:bg-gray-50"}`}
             >
+              {tab.icon}
               {tab.label}
               {tab.count > 0 && (
                 <span className="bg-white text-primary text-xs px-2 py-0.5 rounded-full">
@@ -249,23 +273,25 @@ export const MasterDashboard = () => {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2">
               {filteredUsers.map((u) => (
                 <Card
                   key={u.id}
-                  className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between"
+                  className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between py-3 px-4"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold">
+                  <div className="flex items-center gap-3 w-full md:w-auto overflow-hidden">
+                    <div className="w-10 h-10 shrink-0 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-sm">
                       {u.firstName[0]}
                       {u.lastName[0]}
                     </div>
-                    <div>
-                      <h4 className="font-bold text-iosText">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-bold text-iosText truncate">
                         {u.firstName} {u.lastName}
                       </h4>
-                      <span className="text-xs text-gray-400">{u.email}</span>
-                      <div className="flex gap-4 mt-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-gray-400 truncate">
+                          {u.email}
+                        </span>
                         <Badge
                           color={
                             u.role === UserRole.STORE
@@ -274,6 +300,7 @@ export const MasterDashboard = () => {
                                 ? "yellow"
                                 : "green"
                           }
+                          className="text-[10px] px-1.5 py-0 shrink-0"
                         >
                           {u.role === UserRole.STORE
                             ? "Tienda"
@@ -283,11 +310,11 @@ export const MasterDashboard = () => {
                         </Badge>
                       </div>
                       {u.role === UserRole.STORE && (
-                        <div className="mt-1 flex gap-2 items-center">
-                          <span className="text-xs font-semibold text-primary">
+                        <div className="flex gap-2 items-center mt-0.5">
+                          <span className="text-xs font-semibold text-primary truncate">
                             {(u as StoreProfile).storeName}
                           </span>
-                          <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600">
+                          <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 rounded text-gray-600 shrink-0">
                             {(u as StoreProfile).subscription}
                           </span>
                         </div>
@@ -295,40 +322,51 @@ export const MasterDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
+                  <div className="h-0.5 w-full bg-gray-200 rounded-full my-2 md:hidden" />
+                  <div className="flex flex-wrap gap-2 items-center w-full md:w-auto justify-between md:justify-end mt-1 md:mt-0">
                     {u.role === UserRole.STORE && (
-                      <select
-                        className="text-xs p-2 rounded-xl bg-gray-100 border-none"
-                        value={(u as StoreProfile).subscription}
-                        onChange={(e) =>
-                          handleChangeSubscription(
-                            u as StoreProfile,
-                            e.target.value as SubscriptionType,
-                          )
-                        }
-                      >
-                        <option value={SubscriptionType.STANDARD}>
-                          STANDARD
-                        </option>
-                        <option value={SubscriptionType.PREMIUM}>
-                          PREMIUM
-                        </option>
-                        <option value={SubscriptionType.ULTRA}>ULTRA</option>
-                      </select>
+                      <div className="flex flex-row md:flex-col items-center md:items-end gap-2">
+                        <div className="flex items-center gap-1 text-xs font-bold text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg">
+                          <Icons.Star size={12} fill="currentColor" />
+                          {(u as StoreProfile).averageRating
+                            ? (u as StoreProfile).averageRating?.toFixed(1)
+                            : "N/A"}
+                        </div>
+                        <select
+                          className="text-xs p-1.5 rounded-lg bg-gray-100 border-none"
+                          value={(u as StoreProfile).subscription}
+                          onChange={(e) =>
+                            handleChangeSubscription(
+                              u as StoreProfile,
+                              e.target.value as SubscriptionType,
+                            )
+                          }
+                        >
+                          <option value={SubscriptionType.STANDARD}>
+                            STANDARD
+                          </option>
+                          <option value={SubscriptionType.PREMIUM}>
+                            PREMIUM
+                          </option>
+                          <option value={SubscriptionType.ULTRA}>ULTRA</option>
+                        </select>
+                      </div>
                     )}
-                    <Button
-                      variant="secondary"
-                      className="px-3 py-2 text-xs"
-                      onClick={() => handleEditClick(u)}
-                    >
-                      Editar
-                    </Button>
-                    <button
-                      onClick={() => deleteUser(u.id)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                    >
-                      <Icons.Trash2 size={18} />
-                    </button>
+                    <div className="flex gap-2 ml-auto">
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1.5 text-xs h-8"
+                        onClick={() => handleEditClick(u)}
+                      >
+                        Editar
+                      </Button>
+                      <button
+                        onClick={() => deleteUser(u.id)}
+                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Icons.Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 </Card>
               ))}
@@ -343,6 +381,8 @@ export const MasterDashboard = () => {
             onAdd={addColony}
             onUpdate={updateColony}
             onDelete={deleteColony}
+            settings={settings}
+            onUpdateSettings={updateSettings}
           />
         )}
 
@@ -439,6 +479,31 @@ export const MasterDashboard = () => {
                     })
                   }
                 />
+                <div className="mb-4 w-full">
+                  <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
+                    Colonia
+                  </label>
+                  <select
+                    className="w-full px-4 py-3 rounded-2xl bg-gray-100 border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none transition-colors text-iosText"
+                    value={editFormData.storeAddress?.colonyId || ""}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        storeAddress: {
+                          ...editFormData.storeAddress,
+                          colonyId: e.target.value,
+                        },
+                      })
+                    }
+                  >
+                    <option value="">Selecciona una colonia</option>
+                    {colonies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </>
             )}
             {editingUser?.ineImage && (
@@ -464,42 +529,125 @@ export const MasterDashboard = () => {
 };
 
 // Sub-component for Colonies
-const ColoniesPanel = ({ colonies, onAdd, onUpdate, onDelete }: any) => {
+const ColoniesPanel = ({
+  colonies,
+  onAdd,
+  onUpdate,
+  onDelete,
+  settings,
+  onUpdateSettings,
+}: any) => {
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: "", fee: 0 });
+  const [formData, setFormData] = useState({ name: "", lat: "", lng: "" });
+  const [globalForm, setGlobalForm] = useState({
+    baseFee: settings.baseFee,
+    kmRate: settings.kmRate,
+  });
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const handleOpenAdd = () => {
     setEditingId(null);
-    setFormData({ name: "", fee: 0 });
+    setFormData({ name: "", lat: "", lng: "" });
     setModalOpen(true);
   };
 
   const handleEdit = (colony: any) => {
     setEditingId(colony.id);
-    setFormData({ name: colony.name, fee: colony.deliveryFee });
+    setFormData({
+      name: colony.name,
+      lat: String(colony.lat || 0),
+      lng: String(colony.lng || 0),
+    });
     setModalOpen(true);
   };
 
   const handleSave = () => {
+    const lat = Number(formData.lat);
+    const lng = Number(formData.lng);
+
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      return alert("Latitud inválida. Debe estar entre -90 y 90.");
+    }
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      return alert(
+        "Longitud inválida. Debe estar entre -180 y 180. (¿Falta un punto decimal?)",
+      );
+    }
+
     if (editingId) {
       onUpdate({
         id: editingId,
         name: formData.name,
-        deliveryFee: Number(formData.fee),
+        lat: lat,
+        lng: lng,
       });
     } else {
       onAdd({
         id: Date.now().toString(),
         name: formData.name,
-        deliveryFee: Number(formData.fee),
+        lat: lat,
+        lng: lng,
       });
     }
     setModalOpen(false);
   };
 
+  const handleSaveGlobal = () => {
+    onUpdateSettings({
+      ...settings,
+      baseFee: Number(globalForm.baseFee),
+      kmRate: Number(globalForm.kmRate),
+    });
+    alert("Tarifas globales actualizadas");
+  };
+
   return (
     <div>
+      {/* Global Settings Card */}
+      <Card className="mb-6 bg-blue-50 border border-blue-100">
+        <button
+          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+          className="flex justify-between items-center w-full"
+        >
+          <h3 className="font-bold text-lg text-blue-900">
+            Tarifas Globales de Envío
+          </h3>
+          <Icons.ChevronDown
+            className={`text-blue-900 transition-transform ${isSettingsOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {isSettingsOpen && (
+          <div className="mt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Banderazo (Comisión Empresa)"
+                type="number"
+                value={globalForm.baseFee}
+                onChange={(e: any) =>
+                  setGlobalForm({ ...globalForm, baseFee: e.target.value })
+                }
+              />
+              <Input
+                label="Tarifa por Kilómetro (Para Repartidor)"
+                type="number"
+                value={globalForm.kmRate}
+                onChange={(e: any) =>
+                  setGlobalForm({ ...globalForm, kmRate: e.target.value })
+                }
+              />
+            </div>
+            <Button
+              onClick={handleSaveGlobal}
+              className="mt-4 w-full bg-blue-600 hover:bg-blue-700"
+            >
+              Actualizar Tarifas
+            </Button>
+          </div>
+        )}
+      </Card>
+
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-bold text-lg">Administrar Colonias</h3>
         <Button onClick={handleOpenAdd} className="py-2 text-sm">
@@ -514,7 +662,9 @@ const ColoniesPanel = ({ colonies, onAdd, onUpdate, onDelete }: any) => {
           >
             <div>
               <p className="font-bold">{c.name}</p>
-              <p className="text-sm text-gray-500">Tarifa: ${c.deliveryFee}</p>
+              <p className="text-xs text-gray-500 font-mono">
+                Lat: {c.lat}, Lng: {c.lng}
+              </p>
             </div>
             <div className="flex gap-2">
               <button
@@ -548,11 +698,21 @@ const ColoniesPanel = ({ colonies, onAdd, onUpdate, onDelete }: any) => {
             }
           />
           <Input
-            label="Tarifa de Envío ($)"
+            label="Latitud"
             type="number"
-            value={formData.fee}
+            step="any"
+            value={formData.lat}
             onChange={(e: any) =>
-              setFormData({ ...formData, fee: Number(e.target.value) })
+              setFormData({ ...formData, lat: e.target.value })
+            }
+          />
+          <Input
+            label="Longitud"
+            type="number"
+            step="any"
+            value={formData.lng}
+            onChange={(e: any) =>
+              setFormData({ ...formData, lng: e.target.value })
             }
           />
           <Button onClick={handleSave} className="w-full">

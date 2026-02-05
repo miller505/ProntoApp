@@ -14,6 +14,7 @@ import {
   Message,
   OrderStatus,
   SubscriptionType,
+  SystemSettings,
 } from "./types";
 import { api } from "./src/api"; // Importamos la conexión real
 import { io } from "socket.io-client";
@@ -33,6 +34,9 @@ interface AppContextType {
   updateColony: (colony: Colony) => Promise<void>;
   deleteColony: (id: string) => Promise<void>;
 
+  settings: SystemSettings;
+  updateSettings: (settings: SystemSettings) => Promise<void>;
+
   products: Product[];
   addProduct: (product: Product) => Promise<void>;
   updateProduct: (product: Product) => Promise<void>;
@@ -50,6 +54,16 @@ interface AppContextType {
   fetchMessages: (orderId: string) => Promise<void>;
   sendMessage: (message: Omit<Message, "id" | "createdAt">) => Promise<void>;
   joinChatRoom: (orderId: string) => void;
+
+  addReview: (data: {
+    orderId: string;
+    storeId: string;
+    customerId: string;
+    rating: number;
+    comment: string;
+  }) => Promise<void>;
+
+  getStoreReviews: (storeId: string) => Promise<any[]>;
 
   // Cart Logic for Client
   cart: { product: Product; quantity: number }[];
@@ -70,6 +84,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   );
   const [users, setUsers] = useState<(User | StoreProfile)[]>([]);
   const [colonies, setColonies] = useState<Colony[]>([]);
+  const [settings, setSettings] = useState<SystemSettings>({
+    baseFee: 0,
+    kmRate: 0,
+  });
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<{ product: Product; quantity: number }[]>(
@@ -96,6 +114,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       setProducts(mapId(data.products));
       setOrders(mapId(data.orders));
       setColonies(mapId(data.colonies));
+      if (data.settings)
+        setSettings({ ...data.settings, id: data.settings._id });
     } catch (error) {
       console.error("Error cargando datos", error);
     } finally {
@@ -154,6 +174,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     newSocket.on("colony_update", handleUpdate(setColonies));
     newSocket.on("colony_delete", handleDelete(setColonies));
 
+    newSocket.on("settings_update", (data: any) => {
+      const mapped = { ...data, id: data._id || data.id };
+      setSettings(mapped);
+    });
+
     // Nuevo listener para mensajes de chat
     newSocket.on("new_message", (message: any) => {
       const mappedMessage = { ...message, id: message._id };
@@ -209,9 +234,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         // Update session in localStorage
         localStorage.setItem("currentUser", JSON.stringify(mapped));
       }
-      // CRITICAL: Reload all data from backend to ensure consistency
-      console.log("🔄 Reloading data from backend after user update...");
-      await fetchInitialData();
     } catch (e) {
       console.error(e);
     }
@@ -234,6 +256,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const deleteColony = async (id: string) => {
     await api.delete(`/colonies/${id}`);
     setColonies(colonies.filter((c) => c.id !== id));
+  };
+
+  // --- SETTINGS MGMT ---
+  const updateSettings = async (s: SystemSettings) => {
+    const { data } = await api.put("/settings", s);
+    setSettings({ ...data, id: data._id });
   };
 
   // --- PRODUCT MGMT ---
@@ -303,6 +331,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     if (socket) socket.emit("join_order_room", orderId);
   };
 
+  // --- REVIEWS ---
+  const addReview = async (data: any) => {
+    try {
+      await api.post("/reviews", data);
+    } catch (e) {
+      console.error("Error adding review", e);
+    }
+  };
+
+  const getStoreReviews = async (storeId: string) => {
+    try {
+      const { data } = await api.get(`/reviews/${storeId}`);
+      return data;
+    } catch (e) {
+      console.error("Error fetching reviews", e);
+      return [];
+    }
+  };
+
   // --- CART (Client side logic remains) ---
   const addToCart = (product: Product) => {
     const existing = cart.find((item) => item.product.id === product.id);
@@ -364,6 +411,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         addColony,
         updateColony,
         deleteColony,
+        settings,
+        updateSettings,
         products,
         addProduct,
         updateProduct,
@@ -375,6 +424,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         fetchMessages,
         sendMessage,
         joinChatRoom,
+        addReview,
+        getStoreReviews,
         cart,
         addToCart,
         removeFromCart,

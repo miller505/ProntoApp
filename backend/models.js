@@ -40,6 +40,8 @@ const UserSchema = new mongoose.Schema(
     coverImage: String,
     description: String,
     prepTime: String,
+    averageRating: { type: Number, default: 0 },
+    ratingCount: { type: Number, default: 0 },
   },
   { timestamps: true },
 );
@@ -80,6 +82,8 @@ const OrderSchema = new mongoose.Schema(
     status: { type: String, default: "PENDING" },
     total: Number,
     deliveryFee: Number,
+    driverFee: Number, // Portion of deliveryFee that goes to driver
+    isReviewed: { type: Boolean, default: false },
     paymentMethod: String,
     deliveryAddress: Object,
   },
@@ -111,11 +115,43 @@ const MessageSchema = new mongoose.Schema(
 
 const ColonySchema = new mongoose.Schema({
   name: { type: String, required: true },
-  deliveryFee: { type: Number, required: true },
+  lat: { type: Number, default: 0 },
+  lng: { type: Number, default: 0 },
+  // deliveryFee is deprecated in favor of dynamic calculation
 });
+
+const SettingsSchema = new mongoose.Schema({
+  baseFee: { type: Number, default: 15 }, // Banderazo (Commission)
+  kmRate: { type: Number, default: 5 }, // Tarifa por Km
+});
+
+const ReviewSchema = new mongoose.Schema(
+  {
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      required: true,
+    },
+    storeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    customerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    comment: String,
+  },
+  { timestamps: true },
+);
 
 export const User = mongoose.model("User", UserSchema);
 export const Product = mongoose.model("Product", ProductSchema);
 export const Order = mongoose.model("Order", OrderSchema);
 export const Colony = mongoose.model("Colony", ColonySchema);
 export const Message = mongoose.model("Message", MessageSchema);
+export const Settings = mongoose.model("Settings", SettingsSchema);
+export const Review = mongoose.model("Review", ReviewSchema);

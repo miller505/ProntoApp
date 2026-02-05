@@ -9,7 +9,15 @@ import mongoose from "mongoose";
 import cors from "cors";
 import { v2 as cloudinary } from "cloudinary";
 import bcrypt from "bcryptjs";
-import { User, Product, Order, Colony, Message } from "./models.js";
+import {
+  User,
+  Product,
+  Order,
+  Colony,
+  Message,
+  Settings,
+  Review,
+} from "./models.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -86,7 +94,12 @@ app.get("/api/init", async (req, res) => {
     const orders = await Order.find({});
     const colonies = await Colony.find({});
 
-    res.json({ users, products, orders, colonies });
+    let settings = await Settings.findOne({});
+    if (!settings) {
+      settings = await Settings.create({ baseFee: 15, kmRate: 5 });
+    }
+
+    res.json({ users, products, orders, colonies, settings });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -317,6 +330,81 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log(`Usuario desconectado: ${socket.id}`);
   });
+});
+
+// 8. Configuración Global
+app.put("/api/settings", async (req, res) => {
+  try {
+    const settings = await Settings.findOneAndUpdate({}, req.body, {
+      new: true,
+      upsert: true,
+    });
+    io.emit("settings_update", settings);
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 9. Reseñas y Calificaciones
+app.post("/api/reviews", async (req, res) => {
+  try {
+    const { orderId, storeId, customerId, rating, comment } = req.body;
+
+    // Verificar si ya existe
+    const existing = await Review.findOne({ orderId });
+    if (existing)
+      return res.status(400).json({ error: "Ya calificaste este pedido" });
+
+    const review = await Review.create({
+      orderId,
+      storeId,
+      customerId,
+      rating,
+      comment,
+    });
+
+    // Recalcular promedio de la tienda
+    const reviews = await Review.find({ storeId });
+    const total = reviews.reduce((acc, r) => acc + r.rating, 0);
+    const avg = total / reviews.length;
+
+    // Actualizar tienda
+    const updatedStore = await User.findByIdAndUpdate(
+      storeId,
+      {
+        averageRating: avg,
+        ratingCount: reviews.length,
+      },
+      { new: true },
+    );
+    const storeObj = updatedStore.toObject();
+    delete storeObj.password;
+    io.emit("user_update", storeObj); // Notificar a todos el nuevo rating
+
+    // Marcar pedido como revisado
+    const updatedOrder = await Order.findByIdAndUpdate(
+      orderId,
+      { isReviewed: true },
+      { new: true },
+    );
+    io.emit("order_update", updatedOrder);
+
+    res.json(review);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/reviews/:storeId", async (req, res) => {
+  try {
+    const reviews = await Review.find({ storeId: req.params.storeId })
+      .populate("customerId", "firstName lastName")
+      .sort({ createdAt: -1 });
+    res.json(reviews);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 httpServer.listen(PORT, () =>

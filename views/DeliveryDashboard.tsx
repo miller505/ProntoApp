@@ -4,6 +4,7 @@ import { Button, Card, Badge } from "../components/UI";
 import { Icons } from "../constants";
 import { OrderStatus, StoreProfile, User } from "../types";
 import { ChatModal } from "../components/ChatModal";
+import { formatDate } from "../utils";
 
 export const DeliveryDashboard = () => {
   const { orders, currentUser, updateOrderStatus, users, logout } = useApp();
@@ -11,21 +12,7 @@ export const DeliveryDashboard = () => {
     "available",
   );
   const [chatOrder, setChatOrder] = useState<any | null>(null);
-
-  const formatDate = (timestamp: any) => {
-    const date = new Date(timestamp);
-    return date
-      .toLocaleString("es-MX", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      })
-      .toUpperCase()
-      .replace(/\./g, "");
-  };
+  const [isProfileOpen, setIsProfileOpen] = useState(true);
 
   const availableOrders = orders.filter(
     (o) => o.status === OrderStatus.READY && !o.driverId,
@@ -61,36 +48,44 @@ export const DeliveryDashboard = () => {
 
   return (
     <div className="min-h-screen bg-secondary pb-20">
-      <header className="bg-primary text-white p-6 rounded-b-3xl shadow-lg mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">Repartidor</h1>
+      <header className="bg-primary text-white p-6 rounded-b-3xl shadow-lg">
+        <div className="flex justify-between items-center">
+          <img
+            src="/logowhite.svg"
+            alt="Logo"
+            className="h-10 w-auto object-contain"
+          />
           <button onClick={logout} className="p-2 bg-white/20 rounded-full">
             <Icons.LogOut size={20} />
           </button>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab("available")}
-            className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === "available" ? "bg-white text-primary" : "bg-primary-dark text-white/70 border border-white/20"}`}
-          >
-            Disponibles ({availableOrders.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("mine")}
-            className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === "mine" ? "bg-white text-primary" : "bg-primary-dark text-white/70 border border-white/20"}`}
-          >
-            Mis Entregas ({myDeliveries.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("profile")}
-            className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === "profile" ? "bg-white text-primary" : "bg-primary-dark text-white/70 border border-white/20"}`}
-          >
-            Perfil
-          </button>
-        </div>
       </header>
 
-      <div className="px-4 space-y-4">
+      <div className="p-4 space-y-6 max-w-3xl mx-auto">
+        <div className="flex gap-2 p-1 bg-white rounded-2xl shadow-sm">
+          <TabButton
+            id="available"
+            label={`Disponibles (${availableOrders.length})`}
+            icon={<Icons.Bike size={18} />}
+            active={activeTab}
+            set={setActiveTab}
+          />
+          <TabButton
+            id="mine"
+            label={`Mis Entregas (${myDeliveries.length})`}
+            icon={<Icons.ShoppingBag size={18} />}
+            active={activeTab}
+            set={setActiveTab}
+          />
+          <TabButton
+            id="profile"
+            label="Perfil"
+            icon={<Icons.User size={18} />}
+            active={activeTab}
+            set={setActiveTab}
+          />
+        </div>
+
         {activeTab === "available" && (
           <>
             {availableOrders.length === 0 && (
@@ -116,10 +111,11 @@ export const DeliveryDashboard = () => {
                       {store.storeAddress.street}, {store.storeAddress.number}
                     </p>
                   </div>
-                  <div className="flex justify-between items-center border-t pt-3">
+                  <div className="h-0.5 w-full bg-gray-200 rounded-full mb-3" />
+                  <div className="flex justify-between items-center">
                     <div className="text-sm">
                       <p className="font-bold text-primary">
-                        ${order.deliveryFee} ganancia
+                        ${order.driverFee || 0} ganancia
                       </p>
                       <p className="text-gray-400">Total: ${order.total}</p>
                     </div>
@@ -224,11 +220,54 @@ export const DeliveryDashboard = () => {
         {activeTab === "profile" && (
           <div>
             <Card className="mb-6">
-              <h3 className="font-bold text-lg mb-2">Mi Perfil</h3>
-              <p>
-                Nombre: {currentUser?.firstName} {currentUser?.lastName}
-              </p>
-              <p>Teléfono: {currentUser?.phone}</p>
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex justify-between items-center w-full"
+              >
+                <h3 className="font-bold text-lg">Mi Perfil</h3>
+                <Icons.ChevronDown
+                  className={`transition-transform duration-300 ${isProfileOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {isProfileOpen && (
+                <div className="space-y-4 text-sm mt-4 pt-4 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-gray-400 text-xs block">
+                        Nombre
+                      </span>
+                      <p className="font-medium text-gray-800">
+                        {currentUser?.firstName}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-xs block">
+                        Apellido
+                      </span>
+                      <p className="font-medium text-gray-800">
+                        {currentUser?.lastName}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-xs block">
+                      Correo electrónico
+                    </span>
+                    <p className="font-medium text-gray-800">
+                      {currentUser?.email}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-xs block">
+                      Teléfono
+                    </span>
+                    <p className="font-medium text-gray-800">
+                      {currentUser?.phone}
+                    </p>
+                  </div>
+                </div>
+              )}
             </Card>
 
             <h3 className="font-bold text-lg mb-2">Historial de Entregas</h3>
@@ -257,10 +296,11 @@ export const DeliveryDashboard = () => {
                   <div className="mb-2">
                     <h3 className="font-bold text-md">{store.storeName}</h3>
                   </div>
-                  <div className="flex justify-between items-center border-t pt-2 mt-2">
+                  <div className="h-0.5 w-full bg-gray-200 rounded-full mb-2 mt-2" />
+                  <div className="flex justify-between items-center">
                     <div className="text-sm">
                       <p className="font-bold text-primary">
-                        ${order.deliveryFee} ganancia
+                        ${order.driverFee || 0} ganancia
                       </p>
                     </div>
                     <p className="text-sm text-gray-500">${order.total}</p>
@@ -282,3 +322,13 @@ export const DeliveryDashboard = () => {
     </div>
   );
 };
+
+const TabButton = ({ id, label, icon, active, set }: any) => (
+  <button
+    onClick={() => set(id)}
+    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${active === id ? "bg-primary/10 text-primary" : "text-gray-400"}`}
+  >
+    {icon}
+    <span className="text-[10px] font-bold mt-1">{label}</span>
+  </button>
+);

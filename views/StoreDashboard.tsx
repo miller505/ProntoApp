@@ -7,6 +7,7 @@ import {
   getOrderStatusLabel,
   getOrderStatusColor,
 } from "../src/orderStatusTranslations";
+import { formatDate } from "../utils";
 
 export const StoreDashboard = () => {
   const {
@@ -20,15 +21,17 @@ export const StoreDashboard = () => {
     updateOrderStatus,
     logout,
     colonies,
+    getStoreReviews,
   } = useApp();
   const store = currentUser as StoreProfile;
 
-  const [activeTab, setActiveTab] = useState<"orders" | "products" | "profile">(
-    "orders",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "orders" | "products" | "reviews" | "profile"
+  >("orders");
   const [isProductModalOpen, setProductModalOpen] = useState(false);
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [reviews, setReviews] = useState<any[]>([]);
 
   // Product Form State
   const [prodForm, setProdForm] = useState<any>({
@@ -73,6 +76,12 @@ export const StoreDashboard = () => {
     });
   }, [store.prepTime, store.description, store.logo, store.coverImage]);
 
+  useEffect(() => {
+    if (activeTab === "reviews") {
+      getStoreReviews(store.id).then(setReviews);
+    }
+  }, [activeTab]);
+
   const [saveFeedback, setSaveFeedback] = useState("");
 
   const myOrders = orders.filter((o) => o.storeId === store.id);
@@ -114,21 +123,6 @@ export const StoreDashboard = () => {
   const uniqueCategories = Array.from(
     new Set(myProducts.map((p) => p.category)),
   );
-
-  const formatDate = (timestamp: any) => {
-    const date = new Date(timestamp);
-    return date
-      .toLocaleString("es-MX", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      })
-      .toUpperCase()
-      .replace(/\./g, "");
-  };
 
   const handleToggleOpen = () => {
     updateUser({ ...store, isOpen: !store.isOpen });
@@ -361,6 +355,13 @@ export const StoreDashboard = () => {
             set={setActiveTab}
           />
           <TabButton
+            id="reviews"
+            label="Reseñas"
+            icon={<Icons.Star size={18} />}
+            active={activeTab}
+            set={setActiveTab}
+          />
+          <TabButton
             id="profile"
             label="Perfil"
             icon={<Icons.Settings size={18} />}
@@ -414,7 +415,8 @@ export const StoreDashboard = () => {
                       </div>
                     ))}
                   </div>
-                  <div className="flex justify-between items-center border-t pt-3">
+                  <div className="h-0.5 w-full bg-gray-200 rounded-full mb-3" />
+                  <div className="flex justify-between items-center">
                     <span className="font-bold text-lg">
                       $
                       {order.items.reduce(
@@ -513,7 +515,8 @@ export const StoreDashboard = () => {
                         </div>
                       ))}
                     </div>
-                    <div className="flex justify-between items-center border-t pt-3">
+                    <div className="h-0.5 w-full bg-gray-200 rounded-full mb-3" />
+                    <div className="flex justify-between items-center">
                       <span className="font-bold text-lg">
                         $
                         {order.items.reduce(
@@ -664,6 +667,42 @@ export const StoreDashboard = () => {
                 ))
               )}
             </div>
+          </div>
+        )}
+
+        {/* --- REVIEWS --- */}
+        {activeTab === "reviews" && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-gray-800 ml-1">
+              Reseñas de Clientes
+            </h2>
+            {reviews.length === 0 && (
+              <div className="text-center py-10 text-gray-400">
+                Aún no tienes reseñas.
+              </div>
+            )}
+            {reviews.map((r) => (
+              <Card key={r._id || r.id}>
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <p className="font-bold text-sm">
+                      Pedido #{r.orderId.slice(-4)}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {formatDate(r.createdAt)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 text-yellow-500 font-bold text-sm">
+                    <Icons.Star size={14} fill="currentColor" /> {r.rating}
+                  </div>
+                </div>
+                {r.comment && (
+                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-xl mt-2">
+                    "{r.comment}"
+                  </p>
+                )}
+              </Card>
+            ))}
           </div>
         )}
 
@@ -852,6 +891,22 @@ export const StoreDashboard = () => {
                   ) : (
                     <p className="text-gray-400 italic">No disponible</p>
                   )}
+                </div>
+                <div className="pt-4 border-t border-gray-100">
+                  <span className="text-gray-400 text-xs block mb-1">
+                    Calificación Promedio
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 text-yellow-500 font-bold text-lg">
+                      <Icons.Star size={20} fill="currentColor" />
+                      {store.averageRating
+                        ? store.averageRating.toFixed(1)
+                        : "N/A"}
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      ({store.ratingCount || 0} reseñas)
+                    </span>
+                  </div>
                 </div>
               </div>
             </Card>

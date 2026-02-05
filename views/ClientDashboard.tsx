@@ -8,6 +8,7 @@ import {
   getOrderStatusColor,
 } from "../src/orderStatusTranslations";
 import { ChatModal } from "../components/ChatModal";
+import { formatDate } from "../utils";
 
 const ClientDashboard = () => {
   const {
@@ -23,6 +24,7 @@ const ClientDashboard = () => {
     orders,
     logout,
     colonies,
+    addReview,
   } = useApp();
   const [view, setView] = useState<"home" | "cart" | "orders" | "profile">(
     "home",
@@ -203,6 +205,14 @@ const StoreView = ({
             <span className="flex items-center gap-1">
               <Icons.MapPin size={16} /> {store.storeAddress.street}
             </span>
+            {store.averageRating !== undefined && (
+              <span className="flex items-center gap-1 text-yellow-500 font-bold">
+                <Icons.Star size={16} fill="currentColor" />{" "}
+                {store.averageRating > 0
+                  ? store.averageRating.toFixed(1)
+                  : "Nuevo"}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -368,6 +378,14 @@ const HomeView = ({
                         <span className="text-xs bg-gray-100 px-2 py-1 rounded-lg flex items-center gap-1">
                           <Icons.Clock size={12} /> {s.prepTime || "30m"}
                         </span>
+                        {s.averageRating !== undefined && (
+                          <span className="text-xs bg-yellow-50 text-yellow-600 px-2 py-1 rounded-lg flex items-center gap-1 font-bold">
+                            <Icons.Star size={12} fill="currentColor" />
+                            {s.averageRating > 0
+                              ? s.averageRating.toFixed(1)
+                              : "Nuevo"}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -405,6 +423,8 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
     cartTotal,
     placeOrder,
     updateUser,
+    users,
+    settings,
   } = useApp();
   const [addressStep, setAddressStep] = useState(false);
   const [newAddress, setNewAddress] = useState({
@@ -417,19 +437,76 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [payMethod, setPayMethod] = useState<"CARD" | "CASH">("CARD");
 
+  // Haversine formula to calculate distance in km
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(deg2rad(lat1)) *
+        Math.cos(deg2rad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c; // Distance in km
+    return d;
+  };
+
+  const deg2rad = (deg: number) => {
+    return deg * (Math.PI / 180);
+  };
+
   const submitOrder = (address: any) => {
     if (!address) return alert("Dirección requerida");
-    const colony = colonies.find((c) => c.id === address.colonyId);
-    const fee = colony ? colony.deliveryFee : 0;
+
+    const clientColony = colonies.find((c) => c.id === address.colonyId);
+    const store = users.find(
+      (u) => u.id === cart[0].product.storeId,
+    ) as StoreProfile;
+    const storeColony = store?.storeAddress?.colonyId
+      ? colonies.find((c) => c.id === store.storeAddress.colonyId)
+      : null;
+
+    let fee = 0;
+    let driverEarnings = 0;
+    if (clientColony && storeColony) {
+      const dist = calculateDistance(
+        clientColony.lat,
+        clientColony.lng,
+        storeColony.lat,
+        storeColony.lng,
+      );
+      driverEarnings = Math.ceil(dist * settings.kmRate);
+      // Minimum driver earnings fallback? Let's assume 1km min.
+      if (driverEarnings < settings.kmRate) driverEarnings = settings.kmRate;
+
+      fee = driverEarnings + settings.baseFee;
+    }
+
+    if (fee <= 0) {
+      return alert(
+        !storeColony
+          ? "Error: La tienda no tiene una colonia válida asignada. Contacta a soporte."
+          : !clientColony
+            ? "Error: Tu dirección no tiene una colonia válida."
+            : "No se pudo calcular la tarifa. Intenta de nuevo.",
+      );
+    }
 
     placeOrder({
-      id: Date.now().toString(),
       customerId: currentUser!.id,
       storeId: cart[0].product.storeId,
       items: cart,
       status: OrderStatus.PENDING,
       total: cartTotal + fee,
       deliveryFee: fee,
+      driverFee: driverEarnings,
       paymentMethod: payMethod,
       deliveryAddress: address,
       createdAt: Date.now(),
@@ -482,7 +559,7 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
 
   if (cart.length === 0)
     return (
-      <div className="h-full flex flex-col items-center justify-center text-gray-400">
+      <div className="min-h-[80vh] flex flex-col items-center justify-center text-gray-400">
         <Icons.ShoppingCart size={48} className="mb-4 opacity-20" />
         <p>Tu carrito está vacío</p>
       </div>
@@ -492,12 +569,36 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
     (a) => (a.id || (a as any)._id) === selectedAddressId,
   );
 
-  const colony =
+  const clientColony =
     addressStep && newAddress.colonyId
       ? colonies.find((c) => c.id === newAddress.colonyId)
       : selectedSavedAddress
         ? colonies.find((c) => c.id === selectedSavedAddress.colonyId)
         : null;
+
+  // Calculate estimated fee for display
+  let estimatedFee = 0;
+  if (clientColony && cart.length > 0) {
+    const store = users.find(
+      (u) => u.id === cart[0].product.storeId,
+    ) as StoreProfile;
+    const storeColony = store?.storeAddress?.colonyId
+      ? colonies.find((c) => c.id === store.storeAddress.colonyId)
+      : null;
+    if (storeColony) {
+      const dist = calculateDistance(
+        clientColony.lat,
+        clientColony.lng,
+        storeColony.lat,
+        storeColony.lng,
+      );
+      const driverPart = Math.ceil(dist * settings.kmRate);
+      // Ensure at least 1km charge
+      estimatedFee =
+        (driverPart < settings.kmRate ? settings.kmRate : driverPart) +
+        settings.baseFee;
+    }
+  }
 
   return (
     <div className="px-4 pt-6 pb-24 max-w-lg mx-auto">
@@ -659,11 +760,18 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
         </div>
         <div className="flex justify-between text-gray-500">
           <span>Envío</span>
-          <span>${colony ? colony.deliveryFee : "Calculando..."}</span>
+          <span>
+            $
+            {estimatedFee > 0
+              ? estimatedFee
+              : clientColony
+                ? "Calculando..."
+                : "Selecciona dirección"}
+          </span>
         </div>
         <div className="flex justify-between font-bold text-xl pt-2 border-t">
           <span>Total</span>
-          <span>${cartTotal + (colony ? colony.deliveryFee : 0)}</span>
+          <span>${cartTotal + estimatedFee}</span>
         </div>
       </div>
 
@@ -693,23 +801,10 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
 };
 
 const OrdersView = () => {
-  const { orders, currentUser, users, updateOrderStatus, products } = useApp();
+  const { orders, currentUser, users, updateOrderStatus, products, addReview } =
+    useApp();
   const [chatOrder, setChatOrder] = useState<any | null>(null);
-
-  const formatDate = (timestamp: any) => {
-    const date = new Date(timestamp);
-    return date
-      .toLocaleString("es-MX", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      })
-      .toUpperCase()
-      .replace(/\./g, "");
-  };
+  const [ratingOrder, setRatingOrder] = useState<any | null>(null);
 
   return (
     <div className="px-4 py-6 pb-24 space-y-4">
@@ -792,6 +887,21 @@ const OrdersView = () => {
                   Chatear con Repartidor
                 </Button>
               )}
+              {o.status === OrderStatus.DELIVERED && !o.isReviewed && (
+                <Button
+                  className="w-full mt-3 py-2 text-sm bg-yellow-500 hover:bg-yellow-600 text-white"
+                  onClick={() => setRatingOrder(o)}
+                >
+                  <Icons.Star size={16} className="mr-2" />
+                  Calificar Restaurante
+                </Button>
+              )}
+              {o.status === OrderStatus.DELIVERED && o.isReviewed && (
+                <div className="w-full mt-3 py-2 text-sm bg-gray-100 text-gray-500 text-center rounded-xl font-medium flex items-center justify-center gap-2">
+                  <Icons.Check size={16} />
+                  Restaurante calificado
+                </div>
+              )}
               {o.status === OrderStatus.PENDING && (
                 <Button
                   variant="danger"
@@ -818,12 +928,32 @@ const OrdersView = () => {
           otherParty={users.find((u) => u.id === chatOrder.driverId)!}
         />
       )}
+      {ratingOrder && (
+        <RatingModal
+          isOpen={!!ratingOrder}
+          onClose={() => setRatingOrder(null)}
+          order={ratingOrder}
+          onSubmit={addReview}
+        />
+      )}
     </div>
   );
 };
 
 const ProfileView = () => {
-  const { currentUser, colonies, logout } = useApp();
+  const { currentUser, colonies, logout, updateUser } = useApp();
+
+  const handleDeleteAddress = (addressId: string) => {
+    if (!currentUser?.addresses) return;
+
+    if (window.confirm("¿Seguro que deseas eliminar esta dirección?")) {
+      const updatedAddresses = currentUser.addresses.filter(
+        (addr) => (addr.id || (addr as any)._id) !== addressId,
+      );
+      updateUser({ ...currentUser, addresses: updatedAddresses } as any);
+    }
+  };
+
   return (
     <div className="p-6 pb-24">
       <Card className="flex flex-col items-center py-10 space-y-4">
@@ -873,22 +1003,31 @@ const ProfileView = () => {
             <div className="space-y-2">
               {currentUser.addresses.map((addr, idx) => {
                 const col = colonies.find((c) => c.id === addr.colonyId);
+                const addrId = addr.id || (addr as any)._id;
                 return (
                   <div
-                    key={idx}
-                    className="bg-white border border-gray-100 p-3 rounded-2xl shadow-sm"
+                    key={addrId || idx}
+                    className="bg-white border border-gray-100 p-3 rounded-2xl shadow-sm flex justify-between items-center"
                   >
-                    <p className="font-bold text-sm">
-                      {addr.street} #{addr.number}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {col ? col.name : "Colonia desconocida"}
-                    </p>
-                    {addr.reference && (
-                      <p className="text-xs text-gray-400 mt-1 italic">
-                        "{addr.reference}"
+                    <div>
+                      <p className="font-bold text-sm">
+                        {addr.street} #{addr.number}
                       </p>
-                    )}
+                      <p className="text-xs text-gray-500">
+                        {col ? col.name : "Colonia desconocida"}
+                      </p>
+                      {addr.reference && (
+                        <p className="text-xs text-gray-400 mt-1 italic">
+                          "{addr.reference}"
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleDeleteAddress(addrId)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                    >
+                      <Icons.Trash2 size={16} />
+                    </button>
                   </div>
                 );
               })}
@@ -939,6 +1078,12 @@ const StoreCard: React.FC<{ store: StoreProfile; onClick: () => void }> = ({
         <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg">
           <Icons.Clock size={10} /> {store.prepTime || "30m"}
         </span>
+        <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg text-yellow-600">
+          <Icons.Star size={10} fill="currentColor" />
+          {store.averageRating && store.averageRating > 0
+            ? store.averageRating.toFixed(1)
+            : "Nuevo"}
+        </span>
       </div>
     </div>
   </div>
@@ -953,5 +1098,48 @@ const NavBtn = ({ icon, label, active, onClick }: any) => (
     <span className="text-[10px] font-medium mt-1">{label}</span>
   </button>
 );
+
+const RatingModal = ({ isOpen, onClose, order, onSubmit }: any) => {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+
+  const handleSubmit = () => {
+    onSubmit({
+      orderId: order.id,
+      storeId: order.storeId,
+      customerId: order.customerId,
+      rating,
+      comment,
+    });
+    onClose();
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Calificar Servicio">
+      <div className="flex flex-col items-center space-y-4 py-4">
+        <p className="text-gray-500 text-center">¿Qué te pareció tu pedido?</p>
+        <div className="flex gap-2">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              onClick={() => setRating(star)}
+              className={`transition-transform hover:scale-110 ${rating >= star ? "text-yellow-400" : "text-gray-300"}`}
+            >
+              <Icons.Star size={32} fill="currentColor" />
+            </button>
+          ))}
+        </div>
+        <Input
+          placeholder="Escribe un comentario (opcional)"
+          value={comment}
+          onChange={(e: any) => setComment(e.target.value)}
+        />
+        <Button onClick={handleSubmit} className="w-full">
+          Enviar Calificación
+        </Button>
+      </div>
+    </Modal>
+  );
+};
 
 export { ClientDashboard };

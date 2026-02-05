@@ -29,10 +29,17 @@ export enum OrderStatus {
   REJECTED = "REJECTED", // Store rejected
 }
 
+export interface SystemSettings {
+  id?: string;
+  baseFee: number; // Banderazo
+  kmRate: number; // Tarifa por Km
+}
+
 export interface Colony {
   id: string;
   name: string;
-  deliveryFee: number;
+  lat: number;
+  lng: number;
 }
 
 export interface User {
@@ -62,6 +69,8 @@ export interface StoreProfile extends User {
   coverImage?: string;
   description?: string;
   prepTime?: string; // e.g. "20-30 min"
+  averageRating?: number;
+  ratingCount?: number;
 }
 
 export interface Product {
@@ -96,7 +105,9 @@ export interface Order {
   status: OrderStatus;
   total: number;
   deliveryFee: number;
+  driverFee?: number; // What the driver earns
   paymentMethod: "CARD" | "CASH";
   deliveryAddress: Address;
   createdAt: number;
+  isReviewed?: boolean;
 }
