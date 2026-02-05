@@ -26,24 +26,39 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
+
+// Configuración dinámica de CORS para permitir Vercel y dominios propios
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173", // Puerto común de Vite
+  "https://prontomx.com",
+  "https://www.prontomx.com",
+];
+
+const checkOrigin = (origin, callback) => {
+  // Permitir solicitudes sin origen (como Postman o apps móviles)
+  if (!origin) return callback(null, true);
+
+  // Permitir orígenes listados o cualquier subdominio de vercel.app
+  if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith(".vercel.app")) {
+    callback(null, true);
+  } else {
+    console.log("❌ CORS Bloqueado para:", origin);
+    callback(new Error("Not allowed by CORS"));
+  }
+};
+
 const io = new Server(httpServer, {
   cors: {
-    origin: [
-      "http://localhost:3000",
-      "https://prontomx.com",
-      "https://www.prontomx.com",
-    ], // Producción Real
+    origin: checkOrigin,
     methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
   },
 });
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://prontomx.com",
-      "https://www.prontomx.com",
-    ],
+    origin: checkOrigin,
     credentials: true,
   }),
 );
@@ -154,6 +169,7 @@ app.get("/api/init", async (req, res) => {
 // 2. Autenticación
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
+  console.log(`[LOGIN] Intento de acceso: ${email}`);
   try {
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ error: "Credenciales inválidas" });
@@ -184,6 +200,7 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.post("/api/auth/register", async (req, res) => {
   try {
+    console.log("[REGISTER] Datos recibidos para:", req.body.email);
     let userData = req.body;
 
     // Verificar si ya existe
