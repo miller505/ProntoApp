@@ -19,6 +19,7 @@ export const StoreDashboard = () => {
     orders,
     updateOrderStatus,
     logout,
+    colonies,
   } = useApp();
   const store = currentUser as StoreProfile;
 
@@ -26,6 +27,7 @@ export const StoreDashboard = () => {
     "orders",
   );
   const [isProductModalOpen, setProductModalOpen] = useState(false);
+  const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // Product Form State
@@ -112,6 +114,21 @@ export const StoreDashboard = () => {
   const uniqueCategories = Array.from(
     new Set(myProducts.map((p) => p.category)),
   );
+
+  const formatDate = (timestamp: any) => {
+    const date = new Date(timestamp);
+    return date
+      .toLocaleString("es-MX", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+      .toUpperCase()
+      .replace(/\./g, "");
+  };
 
   const handleToggleOpen = () => {
     updateUser({ ...store, isOpen: !store.isOpen });
@@ -375,10 +392,15 @@ export const StoreDashboard = () => {
               )
               .map((order) => (
                 <Card key={order.id} className="border-l-4 border-primary">
-                  <div className="flex justify-between mb-3">
-                    <span className="font-mono text-sm text-gray-400">
-                      #{order.id.slice(-4)}
-                    </span>
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex flex-col">
+                      <span className="font-mono text-sm text-gray-400">
+                        #{order.id.slice(-4)}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {formatDate(order.createdAt)}
+                      </span>
+                    </div>
                     <Badge color={getOrderStatusColor(order.status)}>
                       {getOrderStatusLabel(order.status)}
                     </Badge>
@@ -461,13 +483,23 @@ export const StoreDashboard = () => {
                   o.status === OrderStatus.DELIVERED ||
                   o.status === OrderStatus.REJECTED,
               )
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime(),
+              )
               .map((order) => {
                 return (
                   <Card key={order.id} className="opacity-70">
-                    <div className="flex justify-between mb-3">
-                      <span className="font-mono text-sm text-gray-400">
-                        #{order.id.slice(-4)}
-                      </span>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex flex-col">
+                        <span className="font-mono text-sm text-gray-400">
+                          #{order.id.slice(-4)}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {formatDate(order.createdAt)}
+                        </span>
+                      </div>
                       <Badge color={getOrderStatusColor(order.status)}>
                         {getOrderStatusLabel(order.status)}
                       </Badge>
@@ -637,109 +669,193 @@ export const StoreDashboard = () => {
 
         {/* --- PROFILE (Simplified) --- */}
         {activeTab === "profile" && (
-          <Card>
-            <h3 className="font-bold text-lg mb-4">Configuración</h3>
-            <div className="space-y-4">
-              {/* Cover Image Upload */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Portada de Tienda
-                </label>
-                {profileForm.coverImage && (
-                  <img
-                    src={profileForm.coverImage}
-                    alt="Cover"
-                    className="w-full h-32 rounded-xl object-cover mb-2 border border-gray-200"
-                  />
-                )}
-                <label className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Icons.Camera size={18} />
-                    <span>Cambiar portada</span>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleProfileImageUpload(e, "coverImage")}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-
-              {/* Logo Upload */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Avatar de Tienda
-                </label>
-                {profileForm.logo && (
-                  <img
-                    src={profileForm.logo}
-                    alt="Logo"
-                    className="w-20 h-20 rounded-full object-cover mb-2 border border-gray-200"
-                  />
-                )}
-                <label className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Icons.Camera size={18} />
-                    <span>Cambiar avatar</span>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleProfileImageUpload(e, "logo")}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-baseline">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Tiempo estimado de preparación
-                  </label>
-                  <span className="text-xs text-gray-400">Máx 120 min</span>
-                </div>
-                <Input
-                  type="number"
-                  placeholder="Ej. 20"
-                  value={profileForm.prepTime}
-                  onChange={(e: any) =>
-                    setProfileForm({
-                      ...profileForm,
-                      prepTime: e.target.value,
-                    })
-                  }
-                  min={0}
-                  max={120}
-                  step={1}
+          <div className="space-y-4">
+            <Card>
+              <button
+                onClick={() => setIsCustomizationOpen(!isCustomizationOpen)}
+                className="flex justify-between items-center w-full"
+              >
+                <h3 className="font-bold text-lg">
+                  Personalización de la tienda
+                </h3>
+                <Icons.ChevronDown
+                  className={`transition-transform duration-300 ${isCustomizationOpen ? "rotate-180" : ""}`}
                 />
-              </div>
+              </button>
 
-              <div>
-                <div className="flex justify-between items-baseline">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Descripción de la tienda
-                  </label>
-                  <span className="text-xs text-gray-400">
-                    {(profileForm.description || "").length}/70
+              {isCustomizationOpen && (
+                <div className="space-y-6 mt-4 pt-4 border-t border-gray-100">
+                  {/* Cover Image Upload */}
+                  <div className="flex flex-col items-center">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Portada de Tienda
+                    </label>
+                    <div className="flex items-center gap-4">
+                      {profileForm.coverImage && (
+                        <img
+                          src={profileForm.coverImage}
+                          alt="Cover"
+                          className="w-32 h-20 rounded-xl object-cover border border-gray-200"
+                        />
+                      )}
+                      <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Icons.Camera size={18} />
+                          <span>
+                            {profileForm.coverImage ? "Cambiar" : "Subir"}
+                          </span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) =>
+                            handleProfileImageUpload(e, "coverImage")
+                          }
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Logo Upload */}
+                  <div className="flex flex-col items-center">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Avatar de Tienda
+                    </label>
+                    <div className="flex items-center gap-4">
+                      {profileForm.logo && (
+                        <img
+                          src={profileForm.logo}
+                          alt="Logo"
+                          className="w-20 h-20 rounded-full object-cover border border-gray-200"
+                        />
+                      )}
+                      <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Icons.Camera size={18} />
+                          <span>{profileForm.logo ? "Cambiar" : "Subir"}</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleProfileImageUpload(e, "logo")}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-baseline">
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Tiempo estimado de preparación
+                      </label>
+                      <span className="text-xs text-gray-400">Máx 120 min</span>
+                    </div>
+                    <Input
+                      type="number"
+                      placeholder="Ej. 20"
+                      value={profileForm.prepTime}
+                      onChange={(e: any) =>
+                        setProfileForm({
+                          ...profileForm,
+                          prepTime: e.target.value,
+                        })
+                      }
+                      min={0}
+                      max={120}
+                      step={1}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-baseline">
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Descripción de la tienda
+                      </label>
+                      <span className="text-xs text-gray-400">
+                        {(profileForm.description || "").length}/70
+                      </span>
+                    </div>
+                    <Input
+                      value={profileForm.description}
+                      onChange={(e: any) =>
+                        setProfileForm({
+                          ...profileForm,
+                          description: e.target.value,
+                        })
+                      }
+                      maxLength={70}
+                    />
+                  </div>
+                  <Button className="w-full mt-4" onClick={handleSaveProfile}>
+                    Guardar Cambios
+                  </Button>
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <h3 className="font-bold text-lg mb-4">
+                Información del Propietario
+              </h3>
+              <div className="space-y-4 text-sm">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-gray-400 text-xs block">Nombre</span>
+                    <p className="font-medium text-gray-800">
+                      {store.firstName}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-xs block">
+                      Apellido
+                    </span>
+                    <p className="font-medium text-gray-800">
+                      {store.lastName}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs block">
+                    Número asociado
                   </span>
+                  <p className="font-medium text-gray-800">{store.phone}</p>
                 </div>
-                <Input
-                  value={profileForm.description}
-                  onChange={(e: any) =>
-                    setProfileForm({
-                      ...profileForm,
-                      description: e.target.value,
-                    })
-                  }
-                  maxLength={70}
-                />
+                <div>
+                  <span className="text-gray-400 text-xs block">
+                    Correo electrónico
+                  </span>
+                  <p className="font-medium text-gray-800">{store.email}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs block">
+                    Dirección de la tienda
+                  </span>
+                  <p className="font-medium text-gray-800">
+                    {store.storeAddress.street} #{store.storeAddress.number}
+                    {store.storeAddress.colonyId && colonies
+                      ? `, ${colonies.find((c) => c.id === store.storeAddress.colonyId)?.name}`
+                      : ""}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs block mb-2">
+                    Identificación (INE)
+                  </span>
+                  {store.ineImage ? (
+                    <img
+                      src={store.ineImage}
+                      alt="INE"
+                      className="w-full h-48 object-cover rounded-xl border border-gray-200"
+                    />
+                  ) : (
+                    <p className="text-gray-400 italic">No disponible</p>
+                  )}
+                </div>
               </div>
-              <Button className="w-full mt-4" onClick={handleSaveProfile}>
-                Guardar Cambios
-              </Button>
-            </div>
-          </Card>
+            </Card>
+          </div>
         )}
       </div>
 

@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from "react";
 import { useApp } from "../AppContext";
-import { Button, Card, Input, Badge } from "../components/UI";
+import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
 import { StoreProfile, SubscriptionType, Product, OrderStatus } from "../types";
 import {
   getOrderStatusLabel,
   getOrderStatusColor,
 } from "../src/orderStatusTranslations";
+import { ChatModal } from "../components/ChatModal";
 
 const ClientDashboard = () => {
   const {
@@ -692,90 +693,131 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
 };
 
 const OrdersView = () => {
-  const { orders, currentUser, users, updateOrderStatus } = useApp();
+  const { orders, currentUser, users, updateOrderStatus, products } = useApp();
+  const [chatOrder, setChatOrder] = useState<any | null>(null);
+
+  const formatDate = (timestamp: any) => {
+    const date = new Date(timestamp);
+    return date
+      .toLocaleString("es-MX", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+      .toUpperCase()
+      .replace(/\./g, "");
+  };
+
   return (
     <div className="px-4 py-6 pb-24 space-y-4">
       <h2 className="text-2xl font-bold mb-6">Mis Pedidos</h2>
       {orders
         .filter((o) => o.customerId === currentUser!.id)
         .reverse()
-        .map((o) => (
-          <Card key={o.id}>
-            <div className="flex justify-between mb-2">
-              <span className="font-bold text-primary">
-                {(users.find((u) => u.id === o.storeId) as StoreProfile)
-                  ?.storeName || "Tienda"}
-              </span>
-              <Badge color={getOrderStatusColor(o.status)}>
-                {getOrderStatusLabel(o.status)}
-              </Badge>
-            </div>
-            <p className="text-sm text-gray-500 mb-2">
-              ID: #{o.id.slice(-4)} •{" "}
-              {new Date(o.createdAt).toLocaleDateString()}
-            </p>
-            <div className="space-y-1 mb-3 bg-gray-50 p-3 rounded-xl">
-              {o.items.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex justify-between text-xs text-gray-600"
-                >
-                  <span>
-                    {item.quantity}x {item.product.name}
-                  </span>
-                  <span>${item.product.price * item.quantity}</span>
-                </div>
-              ))}
-              <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between font-bold text-sm">
-                <span>Total</span>
-                <span>${o.total}</span>
+        .map((o) => {
+          const driver = o.driverId
+            ? users.find((u) => u.id === o.driverId)
+            : null;
+          return (
+            <Card key={o.id}>
+              <div className="flex justify-between mb-2">
+                <span className="font-bold text-primary">
+                  {(users.find((u) => u.id === o.storeId) as StoreProfile)
+                    ?.storeName || "Tienda"}
+                </span>
+                <Badge color={getOrderStatusColor(o.status)}>
+                  {getOrderStatusLabel(o.status)}
+                </Badge>
               </div>
-            </div>
-            <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
-              <div
-                className={`h-full bg-primary transition-all duration-1000`}
-                style={{
-                  width:
-                    o.status === "PENDING"
-                      ? "10%"
-                      : o.status === "PREPARING"
-                        ? "40%"
-                        : o.status === "ON_WAY"
-                          ? "80%"
-                          : "100%",
-                }}
-              ></div>
-            </div>
-            <p className="text-xs text-right mt-1 text-gray-400">
-              {o.status === OrderStatus.PENDING
-                ? "Enviado"
-                : o.status === OrderStatus.PREPARING
-                  ? "Preparando"
-                  : o.status === OrderStatus.READY
-                    ? "Esperando Repartidor"
-                    : o.status === OrderStatus.ON_WAY
-                      ? "En camino"
-                      : o.status === OrderStatus.DELIVERED
-                        ? "Entregado"
-                        : "Cancelado"}
-            </p>
-            {o.status === OrderStatus.PENDING && (
-              <Button
-                variant="danger"
-                className="w-full mt-3 py-2 text-sm"
-                onClick={() => {
-                  if (
-                    window.confirm("¿Seguro que deseas cancelar el pedido?")
-                  ) {
-                    updateOrderStatus(o.id, OrderStatus.REJECTED);
-                  }
-                }}
-              >
-                Cancelar Pedido
-              </Button>
-            )}
-          </Card>
-        ))}
+              <p className="text-sm text-gray-500 mb-2">
+                ID: #{o.id.slice(-4)} • {formatDate(o.createdAt)}
+              </p>
+              <div className="space-y-1 mb-3 bg-gray-50 p-3 rounded-xl">
+                {o.items.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex justify-between text-xs text-gray-600"
+                  >
+                    <span>
+                      {item.quantity}x {item.product.name}
+                    </span>
+                    <span>${item.product.price * item.quantity}</span>
+                  </div>
+                ))}
+                <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between font-bold text-sm">
+                  <span>Total</span>
+                  <span>${o.total}</span>
+                </div>
+              </div>
+              <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                <div
+                  className={`h-full bg-primary transition-all duration-1000`}
+                  style={{
+                    width:
+                      o.status === "PENDING"
+                        ? "10%"
+                        : o.status === "PREPARING"
+                          ? "40%"
+                          : o.status === "READY"
+                            ? "60%"
+                            : o.status === "ON_WAY"
+                              ? "80%"
+                              : "100%",
+                  }}
+                ></div>
+              </div>
+              <p className="text-xs text-right mt-1 text-gray-400">
+                {o.status === OrderStatus.PENDING
+                  ? "Enviado"
+                  : o.status === OrderStatus.PREPARING
+                    ? "Preparando"
+                    : o.status === OrderStatus.READY
+                      ? "Esperando Repartidor"
+                      : o.status === OrderStatus.ON_WAY
+                        ? "En camino"
+                        : o.status === OrderStatus.DELIVERED
+                          ? "Entregado"
+                          : "Cancelado"}
+              </p>
+              {o.status === OrderStatus.ON_WAY && driver && (
+                <Button
+                  variant="secondary"
+                  className="w-full mt-3 py-2 text-sm"
+                  onClick={() => setChatOrder(o)}
+                >
+                  <Icons.Mail size={16} className="mr-2" />
+                  Chatear con Repartidor
+                </Button>
+              )}
+              {o.status === OrderStatus.PENDING && (
+                <Button
+                  variant="danger"
+                  className="w-full mt-3 py-2 text-sm"
+                  onClick={() => {
+                    if (
+                      window.confirm("¿Seguro que deseas cancelar el pedido?")
+                    ) {
+                      updateOrderStatus(o.id, OrderStatus.REJECTED);
+                    }
+                  }}
+                >
+                  Cancelar Pedido
+                </Button>
+              )}
+            </Card>
+          );
+        })}
+      {chatOrder && (
+        <ChatModal
+          isOpen={!!chatOrder}
+          onClose={() => setChatOrder(null)}
+          orderId={chatOrder.id}
+          otherParty={users.find((u) => u.id === chatOrder.driverId)!}
+        />
+      )}
     </div>
   );
 };

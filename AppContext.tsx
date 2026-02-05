@@ -11,10 +11,12 @@ import {
   Product,
   Order,
   Colony,
+  Message,
   OrderStatus,
   SubscriptionType,
 } from "./types";
 import { api } from "./src/api"; // Importamos la conexión real
+import { io } from "socket.io-client";
 
 interface AppContextType {
   currentUser: User | StoreProfile | null;
@@ -44,6 +46,11 @@ interface AppContextType {
     driverId?: string,
   ) => Promise<void>;
 
+  messages: Message[];
+  fetchMessages: (orderId: string) => Promise<void>;
+  sendMessage: (message: Omit<Message, "id" | "createdAt">) => Promise<void>;
+  joinChatRoom: (orderId: string) => void;
+
   // Cart Logic for Client
   cart: { product: Product; quantity: number }[];
   addToCart: (product: Product) => void;
@@ -68,6 +75,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const [cart, setCart] = useState<{ product: Product; quantity: number }[]>(
     [],
   );
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [socket, setSocket] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   // Initial Load from Backend
@@ -105,6 +114,55 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         localStorage.removeItem("currentUser");
       }
     }
+  }, []);
+
+  // --- REAL-TIME UPDATES (Socket.io) ---
+  useEffect(() => {
+    // Conectar al backend (ajusta la URL si es diferente en producción)
+    const newSocket = io("http://localhost:5000");
+    setSocket(newSocket);
+
+    // Helper para actualizar listas (insertar o reemplazar)
+    const handleUpdate = (setter: any) => (data: any) => {
+      // Mapear _id a id para consistencia con el frontend
+      const item = { ...data, id: String(data._id || data.id) };
+      setter((prev: any[]) => {
+        const index = prev.findIndex((i) => String(i.id) === item.id);
+        if (index >= 0) {
+          const newArr = [...prev];
+          newArr[index] = item;
+          return newArr;
+        }
+        return [...prev, item];
+      });
+    };
+
+    // Helper para eliminar de listas
+    const handleDelete = (setter: any) => (id: string) => {
+      setter((prev: any[]) => prev.filter((i) => i.id !== id));
+    };
+
+    // Escuchar eventos
+    newSocket.on("order_update", handleUpdate(setOrders));
+
+    newSocket.on("product_update", handleUpdate(setProducts));
+    newSocket.on("product_delete", handleDelete(setProducts));
+
+    newSocket.on("user_update", handleUpdate(setUsers));
+    newSocket.on("user_delete", handleDelete(setUsers));
+
+    newSocket.on("colony_update", handleUpdate(setColonies));
+    newSocket.on("colony_delete", handleDelete(setColonies));
+
+    // Nuevo listener para mensajes de chat
+    newSocket.on("new_message", (message: any) => {
+      const mappedMessage = { ...message, id: message._id };
+      setMessages((prev) => [...prev, mappedMessage]);
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
   }, []);
 
   // --- AUTH ---
@@ -220,6 +278,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  // --- CHAT MGMT ---
+  const fetchMessages = async (orderId: string) => {
+    try {
+      const { data } = await api.get(`/messages/${orderId}`);
+      const mapped = data.map((m: any) => ({ ...m, id: m._id }));
+      setMessages(mapped);
+    } catch (e) {
+      console.error("Error fetching messages", e);
+      setMessages([]);
+    }
+  };
+
+  const sendMessage = async (message: Omit<Message, "id" | "createdAt">) => {
+    try {
+      // El backend guarda y emite, el listener 'new_message' actualiza el estado
+      await api.post("/messages", message);
+    } catch (e) {
+      console.error("Error sending message", e);
+    }
+  };
+
+  const joinChatRoom = (orderId: string) => {
+    if (socket) socket.emit("join_order_room", orderId);
+  };
+
   // --- CART (Client side logic remains) ---
   const addToCart = (product: Product) => {
     const existing = cart.find((item) => item.product.id === product.id);
@@ -288,6 +371,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         orders,
         placeOrder,
         updateOrderStatus,
+        messages,
+        fetchMessages,
+        sendMessage,
+        joinChatRoom,
         cart,
         addToCart,
         removeFromCart,

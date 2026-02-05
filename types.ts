@@ -1,23 +1,32 @@
 export enum UserRole {
-  MASTER = 'MASTER',
-  STORE = 'STORE',
-  DELIVERY = 'DELIVERY',
-  CLIENT = 'CLIENT'
+  MASTER = "MASTER",
+  STORE = "STORE",
+  DELIVERY = "DELIVERY",
+  CLIENT = "CLIENT",
 }
 
 export enum SubscriptionType {
-  ULTRA = 'ULTRA',
-  PREMIUM = 'PREMIUM',
-  STANDARD = 'STANDARD'
+  ULTRA = "ULTRA",
+  PREMIUM = "PREMIUM",
+  STANDARD = "STANDARD",
+}
+export interface Message {
+  _id?: string;
+  id: string;
+  orderId: string;
+  senderId: string;
+  receiverId: string;
+  text: string;
+  createdAt: string;
 }
 
 export enum OrderStatus {
-  PENDING = 'PENDING',       // Waiting for store acceptance
-  PREPARING = 'PREPARING',   // Store accepted, cooking
-  READY = 'READY',           // Ready for pickup (Pool for drivers)
-  ON_WAY = 'ON_WAY',         // Driver picked up
-  DELIVERED = 'DELIVERED',   // Completed
-  REJECTED = 'REJECTED'      // Store rejected
+  PENDING = "PENDING", // Waiting for store acceptance
+  PREPARING = "PREPARING", // Store accepted, cooking
+  READY = "READY", // Ready for pickup (Pool for drivers)
+  ON_WAY = "ON_WAY", // Driver picked up
+  DELIVERED = "DELIVERED", // Completed
+  REJECTED = "REJECTED", // Store rejected
 }
 
 export interface Colony {
@@ -87,7 +96,7 @@ export interface Order {
   status: OrderStatus;
   total: number;
   deliveryFee: number;
-  paymentMethod: 'CARD' | 'CASH';
+  paymentMethod: "CARD" | "CASH";
   deliveryAddress: Address;
   createdAt: number;
 }
