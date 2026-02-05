@@ -150,7 +150,8 @@ app.get("/api/init", async (req, res) => {
       });
     }
 
-    const users = await User.find({});
+    // IMPORTANTE: Excluir contraseñas para evitar re-hashing accidental al actualizar usuarios
+    const users = await User.find({}).select("-password");
     const products = await Product.find({}).lean();
     const orders = await Order.find({});
     const colonies = await Colony.find({});
