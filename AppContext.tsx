@@ -139,7 +139,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   // --- REAL-TIME UPDATES (Socket.io) ---
   useEffect(() => {
     // Conectar al backend (ajusta la URL si es diferente en producción)
-    const newSocket = io("http://localhost:5000");
+    const socketUrl = import.meta.env.PROD
+      ? "https://www.prontomx.com"
+      : "http://localhost:5000";
+    const newSocket = io(socketUrl);
     setSocket(newSocket);
 
     // Helper para actualizar listas (insertar o reemplazar)

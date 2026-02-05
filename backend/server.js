@@ -33,7 +33,16 @@ const io = new Server(httpServer, {
   },
 });
 
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000",
+      "https://prontomx.com",
+      "https://www.prontomx.com",
+    ],
+    credentials: true,
+  }),
+);
 app.use(express.json({ limit: "50mb" })); // Aumentado para aceptar imágenes base64
 
 // Configuración Cloudinary
