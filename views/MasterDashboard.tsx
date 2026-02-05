@@ -108,7 +108,7 @@ export const MasterDashboard = () => {
             className="h-10 w-auto object-contain"
           />
           <h1 className="text-xs font-bold text-primary">
-            Administración general
+            ADMINISTRACIÓN GENERAL
           </h1>
         </div>
         <Button variant="ghost" onClick={logout}>

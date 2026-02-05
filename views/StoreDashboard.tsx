@@ -296,7 +296,7 @@ export const StoreDashboard = () => {
 
   return (
     <div className="min-h-screen bg-secondary pb-24">
-      <header className="bg-white sticky top-0 z-30 px-6 py-4 shadow-sm flex justify-between items-center">
+      <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">
             {store.logo && (
@@ -1054,7 +1054,7 @@ export const StoreDashboard = () => {
 const TabButton = ({ id, label, icon, active, set }: any) => (
   <button
     onClick={() => set(id)}
-    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${active === id ? "bg-primary/10 text-primary" : "text-gray-400"}`}
+    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${active === id ? "bg-primary text-white shadow-md" : "text-gray-400"}`}
   >
     {icon}
     <span className="text-[10px] font-bold mt-1">{label}</span>

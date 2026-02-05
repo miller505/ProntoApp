@@ -48,17 +48,20 @@ export const DeliveryDashboard = () => {
 
   return (
     <div className="min-h-screen bg-secondary pb-20">
-      <header className="bg-primary text-white p-6 rounded-b-3xl shadow-lg">
-        <div className="flex justify-between items-center">
+      <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+        <div className="flex items-center gap-3">
           <img
-            src="/logowhite.svg"
+            src="/logo.svg"
             alt="Logo"
             className="h-10 w-auto object-contain"
           />
-          <button onClick={logout} className="p-2 bg-white/20 rounded-full">
-            <Icons.LogOut size={20} />
-          </button>
+          <h1 className="text-xs font-bold text-primary">
+            PANEL DE REPARTIDOR
+          </h1>
         </div>
+        <Button variant="ghost" onClick={logout}>
+          <Icons.LogOut size={20} />
+        </Button>
       </header>
 
       <div className="p-4 space-y-6 max-w-3xl mx-auto">
@@ -326,7 +329,7 @@ export const DeliveryDashboard = () => {
 const TabButton = ({ id, label, icon, active, set }: any) => (
   <button
     onClick={() => set(id)}
-    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${active === id ? "bg-primary/10 text-primary" : "text-gray-400"}`}
+    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${active === id ? "bg-primary text-white shadow-md" : "text-gray-400"}`}
   >
     {icon}
     <span className="text-[10px] font-bold mt-1">{label}</span>
