@@ -552,7 +552,13 @@ app.post("/api/messages", async (req, res) => {
 
 app.get("/api/messages/unread", verifyToken, async (req, res) => {
   try {
-    if (!req.user || !req.user.id) return res.json([]); // Fail safe
+    if (!req.user || !req.user.id) {
+      console.error("GET /messages/unread: No user ID in request");
+      return res.json([]);
+    }
+
+    // Debugging
+    console.log(`Checking unread messages for user: ${req.user.id}`);
 
     const messages = await Message.find({
       receiverId: req.user.id,
@@ -560,8 +566,9 @@ app.get("/api/messages/unread", verifyToken, async (req, res) => {
     });
     res.json(messages);
   } catch (error) {
-    console.error("Error fetching unread:", error);
-    res.status(500).json({ error: error.message });
+    console.error("Error fetching unread messages:", error);
+    // Send detailed error for debugging
+    res.status(500).json({ error: error.toString(), stack: error.stack, userId: req.user?.id });
   }
 });
 
