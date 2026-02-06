@@ -395,7 +395,7 @@ export const DeliveryDashboard = () => {
                   const labelStart = startDate.toLocaleDateString("es-MX", { day: 'numeric', month: 'long', year: 'numeric' });
                   const endDate = new Date(startDate);
                   endDate.setDate(endDate.getDate() + 6);
-                  const labelEnd = endDate.toLocaleDateString("es-MX", { day: 'numeric', month: 'numeric' });
+                  const labelEnd = endDate.toLocaleDateString("es-MX", { day: 'numeric', month: 'long', year: 'numeric' });
 
                   return (
                     <Card key={key} className="mb-3 flex justify-between items-center group hover:bg-gray-50 transition-colors">

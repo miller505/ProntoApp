@@ -539,6 +539,11 @@ app.post("/api/messages", async (req, res) => {
     const newMessage = await Message.create(req.body);
     // Emitir a la sala específica del pedido
     io.to(`order_${newMessage.orderId}`).emit("new_message", newMessage);
+    // Emitir a la sala del usuario receptor (para notificaciones)
+    if (newMessage.receiverId) {
+      io.to(newMessage.receiverId.toString()).emit("new_message", newMessage);
+    }
+
     res.json(newMessage);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -547,12 +552,15 @@ app.post("/api/messages", async (req, res) => {
 
 app.get("/api/messages/unread", verifyToken, async (req, res) => {
   try {
+    if (!req.user || !req.user.id) return res.json([]); // Fail safe
+
     const messages = await Message.find({
       receiverId: req.user.id,
       read: false,
     });
     res.json(messages);
   } catch (error) {
+    console.error("Error fetching unread:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -576,6 +584,11 @@ io.on("connection", (socket) => {
   socket.on("join_order_room", (orderId) => {
     socket.join(`order_${orderId}`);
     console.log(`Usuario ${socket.id} se unió a la sala order_${orderId}`);
+  });
+
+  socket.on("join_user_room", (userId) => {
+    socket.join(userId);
+    console.log(`Usuario ${socket.id} se unió a su sala personal ${userId}`);
   });
 
   socket.on("disconnect", () => {
