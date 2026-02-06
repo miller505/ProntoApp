@@ -72,6 +72,8 @@ interface AppContextType {
   clearCart: () => void;
   cartTotal: number;
   loading: boolean;
+  unreadCounts: Record<string, number>;
+  markOrderMessagesAsRead: (orderId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -94,6 +96,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     [],
   );
   const [messages, setMessages] = useState<Message[]>([]);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [socket, setSocket] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
@@ -135,6 +138,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       }
     }
   }, []);
+
+  // Fetch Unread Messages
+  useEffect(() => {
+    if (currentUser) {
+      api.get("/messages/unread").then(({ data }) => {
+        const counts: Record<string, number> = {};
+        data.forEach((m: any) => {
+          counts[m.orderId] = (counts[m.orderId] || 0) + 1;
+        });
+        setUnreadCounts(counts);
+      });
+    }
+  }, [currentUser]);
 
   // --- REAL-TIME UPDATES (Socket.io) ---
   useEffect(() => {
@@ -186,6 +202,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     newSocket.on("new_message", (message: any) => {
       const mappedMessage = { ...message, id: message._id };
       setMessages((prev) => [...prev, mappedMessage]);
+
+      if (currentUser && message.receiverId === currentUser.id) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [message.orderId]: (prev[message.orderId] || 0) + 1,
+        }));
+      }
     });
 
     return () => {
@@ -355,6 +378,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const markOrderMessagesAsRead = async (orderId: string) => {
+    try {
+      await api.put(`/messages/read/${orderId}`);
+      setUnreadCounts((prev) => {
+        const newCounts = { ...prev };
+        delete newCounts[orderId];
+        return newCounts;
+      });
+    } catch (e) {
+      console.error("Error marking messages as read", e);
+    }
+  };
+
   const joinChatRoom = (orderId: string) => {
     if (socket) socket.emit("join_order_room", orderId);
   };
@@ -460,6 +496,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         clearCart,
         cartTotal,
         loading,
+        unreadCounts,
+        markOrderMessagesAsRead,
       }}
     >
       {children}

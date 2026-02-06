@@ -121,9 +121,9 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
@@ -299,8 +299,18 @@ app.put("/api/users/:id", verifyToken, async (req, res) => {
           coverImage: updateData.coverImage,
           isOpen: updateData.isOpen,
         };
+      } else if (requester.role === "CLIENT") {
+        // Clientes pueden actualizar perfil y direcciones
+        allowedUpdates = {
+          firstName: updateData.firstName,
+          lastName: updateData.lastName,
+          phone: updateData.phone,
+          email: updateData.email,
+          addresses: updateData.addresses,
+          ineImage: updateData.ineImage, // Por si acaso
+        };
       }
-      // Aquí iría la lógica para otros roles (CLIENT, DELIVERY)
+      // Aquí iría la lógica para otros roles (DELIVERY)
     } else {
       return res.status(403).json({ error: "Acción no autorizada" });
     }
@@ -530,6 +540,30 @@ app.post("/api/messages", async (req, res) => {
     // Emitir a la sala específica del pedido
     io.to(`order_${newMessage.orderId}`).emit("new_message", newMessage);
     res.json(newMessage);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/messages/unread", verifyToken, async (req, res) => {
+  try {
+    const messages = await Message.find({
+      receiverId: req.user.id,
+      read: false,
+    });
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put("/api/messages/read/:orderId", verifyToken, async (req, res) => {
+  try {
+    await Message.updateMany(
+      { orderId: req.params.orderId, receiverId: req.user.id, read: false },
+      { read: true }
+    );
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

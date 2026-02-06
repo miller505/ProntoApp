@@ -7,8 +7,8 @@ import { ChatModal } from "../components/ChatModal";
 import { formatDate } from "../utils";
 
 export const DeliveryDashboard = () => {
-  const { orders, currentUser, updateOrderStatus, users, logout } = useApp();
-  const [activeTab, setActiveTab] = useState<"available" | "mine" | "profile">(
+  const { orders, currentUser, updateOrderStatus, users, logout, colonies, unreadCounts, markOrderMessagesAsRead } = useApp();
+  const [activeTab, setActiveTab] = useState<"available" | "mine" | "profile" | "finances">(
     "available",
   );
   const [chatOrder, setChatOrder] = useState<any | null>(null);
@@ -101,6 +101,13 @@ export const DeliveryDashboard = () => {
             active={activeTab}
             set={setActiveTab}
           />
+          <TabButton
+            id="finances"
+            label="Finanzas"
+            icon={<Icons.DollarSign size={18} />}
+            active={activeTab}
+            set={setActiveTab}
+          />
         </div>
 
         {activeTab === "available" && (
@@ -112,6 +119,13 @@ export const DeliveryDashboard = () => {
             )}
             {availableOrders.map((order) => {
               const store = usersById.get(order.storeId) as StoreProfile;
+              const storeColony = colonies.find(
+                (c) => c.id === store.storeAddress.colonyId
+              );
+              const deliveryColony = colonies.find(
+                (c) => c.id === order.deliveryAddress.colonyId
+              );
+
               return (
                 <Card key={order.id} className="border-l-4 border-yellow-400">
                   <div className="flex justify-between items-center mb-2">
@@ -122,8 +136,13 @@ export const DeliveryDashboard = () => {
                   </div>
                   <div className="mb-4">
                     <h3 className="font-bold text-lg">{store.storeName}</h3>
-                    <p className="text-sm text-gray-500">
-                      {store.storeAddress.street}, {store.storeAddress.number}
+                    <p className="text-sm text-gray-600 font-semibold mb-1">
+                      <Icons.MapPin size={14} className="inline mr-1" />
+                      De: {storeColony?.name || "Colonia desconocida"}
+                    </p>
+                    <p className="text-sm text-gray-600 font-semibold">
+                      <Icons.MapPin size={14} className="inline mr-1" />
+                      Para: {deliveryColony?.name || "Colonia desconocida"}
                     </p>
                   </div>
                   <div className="h-0.5 w-full bg-gray-200 rounded-full mb-3" />
@@ -154,6 +173,12 @@ export const DeliveryDashboard = () => {
             {myDeliveries.map((order) => {
               const store = usersById.get(order.storeId) as StoreProfile;
               const client = usersById.get(order.customerId);
+              const storeColony = colonies.find(
+                (c) => c.id === store.storeAddress.colonyId
+              );
+              const clientColony = colonies.find(
+                (c) => c.id === order.deliveryAddress.colonyId
+              );
 
               return (
                 <Card key={order.id} className="border-l-4 border-blue-500">
@@ -180,6 +205,9 @@ export const DeliveryDashboard = () => {
                           Recoger en
                         </p>
                         <p className="font-bold">{store.storeName}</p>
+                        <p className="text-sm text-gray-600 font-semibold">
+                          Col. {storeColony?.name || "Desconocida"}
+                        </p>
                         <p className="text-sm text-gray-500">
                           {store.storeAddress.street} #
                           {store.storeAddress.number}
@@ -195,6 +223,9 @@ export const DeliveryDashboard = () => {
                         </p>
                         <p className="font-bold">
                           {client?.firstName} {client?.lastName}
+                        </p>
+                        <p className="text-sm text-gray-600 font-semibold">
+                          Col. {clientColony?.name || "Desconocida"}
                         </p>
                         <p className="text-sm text-gray-500">
                           {order.deliveryAddress.street} #
@@ -217,12 +248,19 @@ export const DeliveryDashboard = () => {
                     Marcar Entregado
                   </Button>
                   <Button
-                    variant="secondary"
-                    className="w-full mt-2"
-                    onClick={() => setChatOrder(order)}
+                    className="w-full mt-4 bg-gray-800 text-white relative"
+                    onClick={() => {
+                      setChatOrder(order);
+                      markOrderMessagesAsRead(order.id);
+                    }}
                   >
-                    <Icons.Mail size={16} className="mr-2" /> Chatear con
-                    Cliente
+                    <Icons.MessageSquare size={16} className="mr-2" />
+                    Chatear con Cliente
+                    {unreadCounts[order.id] > 0 && (
+                      <span className="absolute top-3 right-4 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        {unreadCounts[order.id]}
+                      </span>
+                    )}
                   </Button>
                 </Card>
               );
@@ -321,6 +359,52 @@ export const DeliveryDashboard = () => {
             })}
           </div>
         )}
+
+        {activeTab === "finances" && (
+          <div className="pb-24">
+            <h2 className="text-2xl font-bold mb-6">Mis Finanzas</h2>
+            <Card className="bg-gradient-to-br from-green-600 to-green-800 text-white p-6 mb-6">
+              <div className="flex items-center gap-3 mb-2 opacity-80">
+                <Icons.DollarSign size={20} />
+                <h3 className="font-semibold text-sm">Ganancias Totales</h3>
+              </div>
+              <p className="text-4xl font-bold">
+                ${myCompletedDeliveries.reduce((acc, o) => acc + (o.driverFee || 0), 0).toFixed(2)}
+              </p>
+            </Card>
+
+            <div>
+              <h3 className="font-bold text-lg mb-4">Desglose Semanal</h3>
+              {Object.entries(
+                myCompletedDeliveries.reduce((acc: any, order) => {
+                  const date = new Date(order.createdAt);
+                  const key = `${date.getFullYear()}-W${getWeekNumber(date)}`;
+                  if (!acc[key]) acc[key] = { total: 0, orders: 0, week: key };
+                  acc[key].total += order.driverFee || 0;
+                  acc[key].orders += 1;
+                  return acc;
+                }, {})
+              )
+                .sort((a: any, b: any) => b[0].localeCompare(a[0]))
+                .map(([key, data]: any) => (
+                  <Card key={key} className="mb-3 flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-gray-800">Semana {key.split("-W")[1]}</p>
+                      <p className="text-xs text-gray-500">{data.orders} entregas</p>
+                    </div>
+                    <span className="font-bold text-green-600 text-lg">
+                      ${data.total.toFixed(2)}
+                    </span>
+                  </Card>
+                ))}
+              {myCompletedDeliveries.length === 0 && (
+                <p className="text-gray-400 text-center py-10">
+                  Aún no tienes ganancias registradas.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       {chatOrder && (
         <ChatModal
@@ -332,6 +416,16 @@ export const DeliveryDashboard = () => {
       )}
     </div>
   );
+};
+
+const getWeekNumber = (d: Date) => {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(
+    ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+  );
+  return weekNo;
 };
 
 const TabButton = ({ id, label, icon, active, set }: any) => (

@@ -25,6 +25,8 @@ const ClientDashboard = () => {
     logout,
     colonies,
     addReview,
+    unreadCounts,
+    markOrderMessagesAsRead,
   } = useApp();
   const [view, setView] = useState<"home" | "cart" | "orders" | "profile">(
     "home",
@@ -103,12 +105,17 @@ const ClientDashboard = () => {
           active={view === "home"}
           onClick={() => setView("home")}
         />
-        <NavBtn
-          icon={<Icons.ShoppingBag />}
-          label="Pedidos"
-          active={view === "orders"}
-          onClick={() => setView("orders")}
-        />
+        <div className="relative">
+          <NavBtn
+            icon={<Icons.ShoppingBag />}
+            label="Pedidos"
+            active={view === "orders"}
+            onClick={() => setView("orders")}
+          />
+          {Object.values(unreadCounts).reduce((a: number, b: number) => a + b, 0) > 0 && (
+            <span className="absolute top-0 right-4 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white"></span>
+          )}
+        </div>
         <div className="relative">
           <NavBtn
             icon={<Icons.ShoppingCart />}
@@ -453,9 +460,9 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(deg2rad(lat1)) *
-        Math.cos(deg2rad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const d = R * c; // Distance in km
     return d;
@@ -762,7 +769,7 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
 };
 
 const OrdersView = () => {
-  const { orders, currentUser, users, updateOrderStatus, products, addReview } =
+  const { orders, currentUser, users, updateOrderStatus, products, addReview, unreadCounts, markOrderMessagesAsRead } =
     useApp();
   const [chatOrder, setChatOrder] = useState<any | null>(null);
   const [ratingOrder, setRatingOrder] = useState<any | null>(null);
@@ -803,9 +810,21 @@ const OrdersView = () => {
                     <span>${item.product.price * item.quantity}</span>
                   </div>
                 ))}
-                <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between font-bold text-sm">
-                  <span>Total</span>
-                  <span>${o.total}</span>
+                <div className="border-t border-gray-200 mt-2 pt-2 space-y-1">
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Productos</span>
+                    <span>
+                      ${o.items.reduce((sum, i) => sum + i.product.price * i.quantity, 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Envío (Banderazo + Repartidor)</span>
+                    <span>${o.deliveryFee}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-sm pt-1 border-t border-dashed border-gray-100">
+                    <span>Total</span>
+                    <span>${o.total}</span>
+                  </div>
                 </div>
               </div>
               <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
@@ -841,11 +860,19 @@ const OrdersView = () => {
               {o.status === OrderStatus.ON_WAY && driver && (
                 <Button
                   variant="secondary"
-                  className="w-full mt-3 py-2 text-sm"
-                  onClick={() => setChatOrder(o)}
+                  className="w-full mt-3 py-2 text-sm relative"
+                  onClick={() => {
+                    setChatOrder(o);
+                    markOrderMessagesAsRead(o.id);
+                  }}
                 >
                   <Icons.Mail size={16} className="mr-2" />
                   Chatear con Repartidor
+                  {unreadCounts[o.id] > 0 && (
+                    <span className="absolute top-3 right-4 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      {unreadCounts[o.id]}
+                    </span>
+                  )}
                 </Button>
               )}
               {o.status === OrderStatus.DELIVERED && !o.isReviewed && (
