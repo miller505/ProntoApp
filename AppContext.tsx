@@ -204,8 +204,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       localStorage.setItem("currentUser", JSON.stringify(mappedUser));
       setCurrentUser(mappedUser);
       return true;
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      // Solo mostrar error en consola si NO es un error de credenciales (401)
+      if (e.response?.status !== 401) {
+        console.error(e);
+      }
       return false;
     }
   };

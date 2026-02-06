@@ -37,7 +37,13 @@ api.interceptors.response.use(
       localStorage.removeItem("currentUser");
       window.location.href = "/";
     }
-    console.error("API Error:", error);
+    // Solo loguear el error si NO es un error de credenciales (401 en login)
+    if (
+      error.response?.status !== 401 ||
+      !error.config.url.includes("/login")
+    ) {
+      console.error("API Error:", error);
+    }
     return Promise.reject(error);
   },
 );
