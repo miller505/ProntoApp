@@ -139,7 +139,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   // --- REAL-TIME UPDATES (Socket.io) ---
   useEffect(() => {
     // Conectar al backend (ajusta la URL si es diferente en producción)
-    const socketUrl = import.meta.env.PROD
+    const socketUrl = (import.meta as any).env.PROD
       ? "https://prontoapp-backend.onrender.com"
       : "http://localhost:5000";
     const newSocket = io(socketUrl);

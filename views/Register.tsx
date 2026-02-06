@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useApp } from "../AppContext";
-import { UserRole, Colony, SubscriptionType } from "../types";
+import { UserRole, Colony, SubscriptionType, User } from "../types";
 import { Button, Input, Card } from "../components/UI";
 import { Icons, ALLOWED_EMAILS } from "../constants";
 

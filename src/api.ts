@@ -3,7 +3,7 @@ import axios from "axios";
 // CONFIGURACIÓN DE PRODUCCIÓN REAL
 // Si tu backend y frontend están en el mismo dominio (ej. servidos por Nginx), usa "/api".
 // Si están separados (ej. Vercel + Render), usa la URL completa.
-const API_URL = import.meta.env.PROD
+const API_URL = (import.meta as any).env.PROD
   ? "https://prontoapp-backend.onrender.com/api" // URL de tu backend en Render
   : "http://localhost:5000/api";
 

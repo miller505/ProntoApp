@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useApp } from "../AppContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
-import { UserRole, SubscriptionType, StoreProfile, User } from "../types";
+import { UserRole, SubscriptionType, StoreProfile, User, Order, OrderStatus } from "../types";
 
 export const MasterDashboard = () => {
   const {
@@ -17,16 +17,13 @@ export const MasterDashboard = () => {
     deleteColony,
     settings,
     updateSettings,
+    orders, // Needed for Finances
   } = useApp();
-  const [activeTab, setActiveTab] = useState<"users" | "requests" | "colonies">(
-    "requests",
-  );
+  const [activeTab, setActiveTab] = useState<"users" | "requests" | "colonies" | "finances">("requests");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("ALL");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | StoreProfile | null>(
-    null,
-  );
+  const [editingUser, setEditingUser] = useState<User | StoreProfile | null>(null);
   const [editFormData, setEditFormData] = useState<any>({});
 
   // Requests Logic
@@ -34,7 +31,7 @@ export const MasterDashboard = () => {
 
   // Users Logic
   const activeUsers = users.filter(
-    (u) => u.approved && u.role !== UserRole.MASTER,
+    (u) => u.approved && u.role !== UserRole.MASTER
   );
   const filteredUsers = activeUsers.filter((u) => {
     const matchesSearch = (u.firstName + " " + u.lastName)
@@ -56,7 +53,7 @@ export const MasterDashboard = () => {
 
   const handleChangeSubscription = (
     store: StoreProfile,
-    sub: SubscriptionType,
+    sub: SubscriptionType
   ) => {
     updateUser({ ...store, subscription: sub, isMasterUpdate: true } as any);
   };
@@ -68,7 +65,7 @@ export const MasterDashboard = () => {
       lastName: user.lastName,
       email: user.email,
       phone: user.phone,
-      password: "", // Don't show the hash, start empty
+      password: "",
       ...(user.role === UserRole.STORE && {
         storeName: (user as StoreProfile).storeName,
         storeAddress: (user as StoreProfile).storeAddress,
@@ -80,14 +77,12 @@ export const MasterDashboard = () => {
   const handleSaveEdit = () => {
     if (!editingUser) return;
 
-    // Create update object
     const updatedUser: any = {
       ...editingUser,
       ...editFormData,
       isMasterUpdate: true,
     };
 
-    // If password is empty string, remove it so it doesn't get sent/processed
     if (!editFormData.password) {
       delete updatedUser.password;
     }
@@ -138,11 +133,20 @@ export const MasterDashboard = () => {
               icon: <Icons.MapPin size={18} />,
               count: 0,
             },
+            {
+              id: "finances",
+              label: "Finanzas",
+              icon: <Icons.DollarSign size={18} />,
+              count: 0,
+            },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${activeTab === tab.id ? "bg-primary text-white shadow-md" : "text-gray-500 hover:bg-gray-50"}`}
+              className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${activeTab === tab.id
+                  ? "bg-primary text-white shadow-md"
+                  : "text-gray-500 hover:bg-gray-50"
+                }`}
             >
               {tab.icon}
               {tab.label}
@@ -264,7 +268,10 @@ export const MasterDashboard = () => {
                     <button
                       key={r}
                       onClick={() => setFilterRole(r)}
-                      className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${filterRole === r ? "bg-gray-800 text-white" : "bg-white text-gray-600"}`}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${filterRole === r
+                          ? "bg-gray-800 text-white"
+                          : "bg-white text-gray-600"
+                        }`}
                     >
                       {getRoleLabel(r)}
                     </button>
@@ -338,7 +345,7 @@ export const MasterDashboard = () => {
                           onChange={(e) =>
                             handleChangeSubscription(
                               u as StoreProfile,
-                              e.target.value as SubscriptionType,
+                              e.target.value as SubscriptionType
                             )
                           }
                         >
@@ -386,11 +393,19 @@ export const MasterDashboard = () => {
           />
         )}
 
+        {/* --- FINANCES PANEL --- */}
+        {activeTab === "finances" && <FinancePanel orders={orders} />}
+
         {/* Edit User Modal */}
         <Modal
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
-          title={`Editar ${editingUser?.role === UserRole.STORE ? "Tienda" : editingUser?.role === UserRole.DELIVERY ? "Repartidor" : "Cliente"}`}
+          title={`Editar ${editingUser?.role === UserRole.STORE
+              ? "Tienda"
+              : editingUser?.role === UserRole.DELIVERY
+                ? "Repartidor"
+                : "Cliente"
+            }`}
         >
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -546,7 +561,10 @@ const ColoniesPanel = ({
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Sincronizar el formulario con los settings cuando se carguen del backend
+  // Search and Sort states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
   useEffect(() => {
     setGlobalForm({
       baseFee: settings.baseFee,
@@ -579,7 +597,7 @@ const ColoniesPanel = ({
     }
     if (isNaN(lng) || lng < -180 || lng > 180) {
       return alert(
-        "Longitud inválida. Debe estar entre -180 y 180. (¿Falta un punto decimal?)",
+        "Longitud inválida. Debe estar entre -180 y 180. (¿Falta un punto decimal?)"
       );
     }
 
@@ -610,6 +628,16 @@ const ColoniesPanel = ({
     alert("Tarifas globales actualizadas");
   };
 
+  // Filter and Sort Logic
+  const filteredAndSortedColonies = colonies
+    .filter((c: any) =>
+      c.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a: any, b: any) => {
+      if (sortOrder === "asc") return a.name.localeCompare(b.name);
+      return b.name.localeCompare(a.name);
+    });
+
   return (
     <div>
       {/* Global Settings Card */}
@@ -622,7 +650,8 @@ const ColoniesPanel = ({
             Tarifas Globales de Envío
           </h3>
           <Icons.ChevronDown
-            className={`text-blue-900 transition-transform ${isSettingsOpen ? "rotate-180" : ""}`}
+            className={`text-blue-900 transition-transform ${isSettingsOpen ? "rotate-180" : ""
+              }`}
           />
         </button>
 
@@ -662,8 +691,40 @@ const ColoniesPanel = ({
           <Icons.Plus size={16} /> Agregar
         </Button>
       </div>
+
+      {/* Search and Sort Controls */}
+      <div className="flex gap-4 mb-4">
+        <div className="flex-1 relative">
+          <Icons.Search
+            className="absolute left-3 top-3.5 text-gray-400"
+            size={18}
+          />
+          <input
+            type="text"
+            placeholder="Buscar colonia..."
+            className="w-full pl-10 pr-4 py-3 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 ring-primary/20"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <button
+          onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+          className="px-4 py-2 bg-white shadow-sm rounded-xl font-medium text-gray-700 flex items-center gap-2 hover:bg-gray-50 transition-colors"
+        >
+          {sortOrder === "asc" ? (
+            <>
+              <Icons.ArrowUp size={18} /> A-Z
+            </>
+          ) : (
+            <>
+              <Icons.ArrowDown size={18} /> Z-A
+            </>
+          )}
+        </button>
+      </div>
+
       <div className="space-y-3">
-        {colonies.map((c: any) => (
+        {filteredAndSortedColonies.map((c: any) => (
           <div
             key={c.id}
             className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm"
@@ -690,6 +751,11 @@ const ColoniesPanel = ({
             </div>
           </div>
         ))}
+        {filteredAndSortedColonies.length === 0 && (
+          <p className="text-center text-gray-400 py-6">
+            No se encontraron colonias.
+          </p>
+        )}
       </div>
 
       <Modal
@@ -728,6 +794,114 @@ const ColoniesPanel = ({
           </Button>
         </div>
       </Modal>
+    </div>
+  );
+};
+
+// Sub-component for Finances
+const FinancePanel = ({ orders }: { orders: Order[] }) => {
+  // Only completed orders contribute to earnings
+  const completedOrders = orders.filter(
+    (o) => o.status === OrderStatus.DELIVERED
+  );
+
+  // Calculate Total Earnings (Commision = DeliveryFee - DriverFee)
+  // Note: Ensure driverFee exists, otherwise commission might be BaseFee.
+  // Assuming strict logic: user pays DeliveryFee, Driver gets DriverFee, App gets the rest.
+  const calculateCommission = (order: Order) => {
+    const delivery = order.deliveryFee || 0;
+    const driver = order.driverFee || 0;
+    return Math.max(0, delivery - driver);
+  };
+
+  const totalEarnings = completedOrders.reduce(
+    (acc, o) => acc + calculateCommission(o),
+    0
+  );
+
+  // Group by Week
+  const getWeekKey = (dateMs: number) => {
+    const d = new Date(dateMs);
+    // Simple week grouping: Start of the week (Sunday)
+    const day = d.getDay();
+    const diff = d.getDate() - day; // adjust when day is sunday
+    const weekStart = new Date(d.setDate(diff));
+    weekStart.setHours(0, 0, 0, 0);
+    return weekStart.getTime();
+  };
+
+  const weeklyData: Record<number, number> = {};
+
+  completedOrders.forEach((o) => {
+    const weekStart = getWeekKey(o.createdAt);
+    if (!weeklyData[weekStart]) weeklyData[weekStart] = 0;
+    weeklyData[weekStart] += calculateCommission(o);
+  });
+
+  const sortedWeeks = Object.keys(weeklyData)
+    .map(Number)
+    .sort((a, b) => b - a); // Descending date
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Card */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white p-6">
+          <div className="flex items-center gap-3 mb-2 opacity-80">
+            <Icons.DollarSign size={20} />
+            <h3 className="font-semibold text-sm">Ganancias Totales (Banderazos)</h3>
+          </div>
+          <p className="text-4xl font-bold">
+            ${totalEarnings.toFixed(2)}
+          </p>
+          <p className="text-xs mt-2 opacity-70">
+            Acumulado histórico de comisiones
+          </p>
+        </Card>
+
+        <Card className="bg-white p-6 flex flex-col justify-center items-center text-center">
+          <h3 className="text-gray-500 text-sm font-semibold mb-1">Pedidos Completados</h3>
+          <p className="text-3xl font-bold text-gray-800">{completedOrders.length}</p>
+        </Card>
+      </div>
+
+      {/* Weekly Breakdown */}
+      <div>
+        <h3 className="font-bold text-lg mb-4 text-gray-800">Resumen Semanal</h3>
+        <div className="space-y-3">
+          {sortedWeeks.length === 0 ? (
+            <p className="text-gray-400">No hay datos financieros registrados aún.</p>
+          ) : (
+            sortedWeeks.map(weekStart => {
+              const date = new Date(weekStart);
+              const label = date.toLocaleDateString("es-MX", { day: 'numeric', month: 'long', year: 'numeric' });
+              // Calculate range end (Saturday)
+              const weekEnd = new Date(weekStart);
+              weekEnd.setDate(weekEnd.getDate() + 6);
+              const labelEnd = weekEnd.toLocaleDateString("es-MX", { day: 'numeric', month: 'numeric' });
+
+              return (
+                <div key={weekStart} className="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center group hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                      <Icons.Calendar size={20} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-800">Semana del {label}</p>
+                      <p className="text-xs text-gray-400">Hasta {labelEnd}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-lg text-indigo-600">
+                      +${weeklyData[weekStart].toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
     </div>
   );
 };
