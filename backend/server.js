@@ -552,7 +552,9 @@ io.on("connection", (socket) => {
 // 8. Configuración Global
 app.put("/api/settings", async (req, res) => {
   try {
-    const settings = await Settings.findOneAndUpdate({}, req.body, {
+    // Excluir _id del body para evitar error de campo inmutable en MongoDB
+    const { _id, id, ...updateData } = req.body;
+    const settings = await Settings.findOneAndUpdate({}, updateData, {
       new: true,
       upsert: true,
     });

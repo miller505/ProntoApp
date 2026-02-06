@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../AppContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
@@ -545,6 +545,14 @@ const ColoniesPanel = ({
     kmRate: settings.kmRate,
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Sincronizar el formulario con los settings cuando se carguen del backend
+  useEffect(() => {
+    setGlobalForm({
+      baseFee: settings.baseFee,
+      kmRate: settings.kmRate,
+    });
+  }, [settings]);
 
   const handleOpenAdd = () => {
     setEditingId(null);
