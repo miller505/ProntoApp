@@ -398,10 +398,15 @@ export const DeliveryDashboard = () => {
                   const labelEnd = endDate.toLocaleDateString("es-MX", { day: 'numeric', month: 'numeric' });
 
                   return (
-                    <Card key={key} className="mb-3 flex justify-between items-center">
-                      <div>
-                        <p className="font-bold text-gray-800">Semana del {labelStart}</p>
-                        <p className="text-xs text-gray-500">Hasta {labelEnd} • {data.orders} entregas</p>
+                    <Card key={key} className="mb-3 flex justify-between items-center group hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                          <Icons.Calendar size={20} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-800">Semana del {labelStart}</p>
+                          <p className="text-xs text-gray-400">Hasta {labelEnd} • {data.orders} entregas</p>
+                        </div>
                       </div>
                       <span className="font-bold text-green-600 text-lg">
                         ${data.total.toFixed(2)}

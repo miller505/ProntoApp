@@ -176,7 +176,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
   // Listener principal de eventos
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !currentUser) return; // Wait for user to be logged in to attach listeners effectively
 
     // Helper para actualizar listas (insertar o reemplazar)
     const handleUpdate = (setter: any) => (data: any) => {
@@ -198,7 +198,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       setter((prev: any[]) => prev.filter((i) => i.id !== id));
     };
 
-    // Escuchar eventos
+    // Escuchar eventos de datos
     socket.on("order_update", handleUpdate(setOrders));
     socket.on("product_update", handleUpdate(setProducts));
     socket.on("product_delete", handleDelete(setProducts));
@@ -215,12 +215,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     socket.on("new_message", (message: any) => {
       const mappedMessage = { ...message, id: message._id };
 
-      // Update messages list if in chat
+      // 1. Update messages list ONLY if it looks relevant (basic check)
+      // We append to the global 'messages' state which is used by the chat modal.
       setMessages((prev) => {
-        // Avoid duplicates
+        // Prevent duplicates
         if (prev.find((m) => m.id === mappedMessage.id)) return prev;
+        // Optional: Can check if prev.length > 0 && prev[0].orderId === message.orderId to avoid mixing
         return [...prev, mappedMessage];
       });
+
+      // 2. Notification Logic
+      // Check if I am the sender. If so, DO NOT increment unread count.
+      if (mappedMessage.senderId === currentUser.id) {
+        return;
+      }
+
+      console.log("New message received for notification:", mappedMessage);
 
       // We rely on the server only sending us relevant messages now (via user room)
       setUnreadCounts((prev) => {
@@ -242,7 +252,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       socket.off("settings_update");
       socket.off("new_message");
     };
-  }, [socket]);
+  }, [socket, currentUser]); // Re-bind when currentUser changes to capture correct ID
 
   // Update socket user room when user changes
   useEffect(() => {
