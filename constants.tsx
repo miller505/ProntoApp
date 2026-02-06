@@ -29,6 +29,9 @@ import {
   Eye,
   EyeOff,
   Star,
+  ArrowUp,
+  ArrowDown,
+  Calendar,
 } from "lucide-react";
 
 export const Icons = {
@@ -61,6 +64,9 @@ export const Icons = {
   Eye,
   EyeOff,
   Star,
+  ArrowUp,
+  ArrowDown,
+  Calendar,
 };
 
 export const ALLOWED_EMAILS = [
