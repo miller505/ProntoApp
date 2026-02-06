@@ -818,7 +818,7 @@ const OrdersView = () => {
                     </span>
                   </div>
                   <div className="flex justify-between text-xs text-gray-500">
-                    <span>Envío (Banderazo + Repartidor)</span>
+                    <span> Tarifa de envío </span>
                     <span>${o.deliveryFee}</span>
                   </div>
                   <div className="flex justify-between font-bold text-sm pt-1 border-t border-dashed border-gray-100">

@@ -161,6 +161,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     const newSocket = io(socketUrl);
     setSocket(newSocket);
 
+    // Clean up on unmount
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
+
+  // Unirse a sala de usuario cuando cambia el usuario o el socket
+  useEffect(() => {
+    if (socket && currentUser) {
+      socket.emit("join_user_room", currentUser.id);
+    }
+  }, [socket, currentUser]);
+
+  // Listener principal de eventos
+  useEffect(() => {
+    if (!socket) return;
+
     // Helper para actualizar listas (insertar o reemplazar)
     const handleUpdate = (setter: any) => (data: any) => {
       // Mapear _id a id para consistencia con el frontend
@@ -182,39 +199,58 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     };
 
     // Escuchar eventos
-    newSocket.on("order_update", handleUpdate(setOrders));
-
-    newSocket.on("product_update", handleUpdate(setProducts));
-    newSocket.on("product_delete", handleDelete(setProducts));
-
-    newSocket.on("user_update", handleUpdate(setUsers));
-    newSocket.on("user_delete", handleDelete(setUsers));
-
-    newSocket.on("colony_update", handleUpdate(setColonies));
-    newSocket.on("colony_delete", handleDelete(setColonies));
-
-    newSocket.on("settings_update", (data: any) => {
+    socket.on("order_update", handleUpdate(setOrders));
+    socket.on("product_update", handleUpdate(setProducts));
+    socket.on("product_delete", handleDelete(setProducts));
+    socket.on("user_update", handleUpdate(setUsers));
+    socket.on("user_delete", handleDelete(setUsers));
+    socket.on("colony_update", handleUpdate(setColonies));
+    socket.on("colony_delete", handleDelete(setColonies));
+    socket.on("settings_update", (data: any) => {
       const mapped = { ...data, id: data._id || data.id };
       setSettings(mapped);
     });
 
     // Nuevo listener para mensajes de chat
-    newSocket.on("new_message", (message: any) => {
+    socket.on("new_message", (message: any) => {
       const mappedMessage = { ...message, id: message._id };
-      setMessages((prev) => [...prev, mappedMessage]);
 
-      if (currentUser && message.receiverId === currentUser.id) {
-        setUnreadCounts((prev) => ({
+      // Update messages list if in chat
+      setMessages((prev) => {
+        // Avoid duplicates
+        if (prev.find((m) => m.id === mappedMessage.id)) return prev;
+        return [...prev, mappedMessage];
+      });
+
+      // We rely on the server only sending us relevant messages now (via user room)
+      setUnreadCounts((prev) => {
+        return {
           ...prev,
           [message.orderId]: (prev[message.orderId] || 0) + 1,
-        }));
-      }
+        };
+      });
     });
 
     return () => {
-      newSocket.disconnect();
+      socket.off("order_update");
+      socket.off("product_update");
+      socket.off("product_delete");
+      socket.off("user_update");
+      socket.off("user_delete");
+      socket.off("colony_update");
+      socket.off("colony_delete");
+      socket.off("settings_update");
+      socket.off("new_message");
     };
-  }, []);
+  }, [socket]);
+
+  // Update socket user room when user changes
+  useEffect(() => {
+    if (socket && currentUser) {
+      socket.emit("join_user_room", currentUser.id);
+    }
+  }, [socket, currentUser]);
+
 
   // --- AUTH ---
   const login = async (email: string, pass: string) => {

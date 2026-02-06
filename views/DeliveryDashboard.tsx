@@ -377,26 +377,38 @@ export const DeliveryDashboard = () => {
               <h3 className="font-bold text-lg mb-4">Desglose Semanal</h3>
               {Object.entries(
                 myCompletedDeliveries.reduce((acc: any, order) => {
-                  const date = new Date(order.createdAt);
-                  const key = `${date.getFullYear()}-W${getWeekNumber(date)}`;
-                  if (!acc[key]) acc[key] = { total: 0, orders: 0, week: key };
-                  acc[key].total += order.driverFee || 0;
-                  acc[key].orders += 1;
+                  const d = new Date(order.createdAt);
+                  const day = d.getDay();
+                  const diff = d.getDate() - day;
+                  const weekStart = new Date(d.setDate(diff)).setHours(0, 0, 0, 0);
+
+                  if (!acc[weekStart]) acc[weekStart] = { total: 0, orders: 0, date: weekStart };
+
+                  acc[weekStart].total += order.driverFee || 0;
+                  acc[weekStart].orders += 1;
                   return acc;
                 }, {})
               )
-                .sort((a: any, b: any) => b[0].localeCompare(a[0]))
-                .map(([key, data]: any) => (
-                  <Card key={key} className="mb-3 flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-gray-800">Semana {key.split("-W")[1]}</p>
-                      <p className="text-xs text-gray-500">{data.orders} entregas</p>
-                    </div>
-                    <span className="font-bold text-green-600 text-lg">
-                      ${data.total.toFixed(2)}
-                    </span>
-                  </Card>
-                ))}
+                .sort((a: any, b: any) => Number(b[0]) - Number(a[0]))
+                .map(([key, data]: any) => {
+                  const startDate = new Date(Number(key));
+                  const labelStart = startDate.toLocaleDateString("es-MX", { day: 'numeric', month: 'long', year: 'numeric' });
+                  const endDate = new Date(startDate);
+                  endDate.setDate(endDate.getDate() + 6);
+                  const labelEnd = endDate.toLocaleDateString("es-MX", { day: 'numeric', month: 'numeric' });
+
+                  return (
+                    <Card key={key} className="mb-3 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-gray-800">Semana del {labelStart}</p>
+                        <p className="text-xs text-gray-500">Hasta {labelEnd} • {data.orders} entregas</p>
+                      </div>
+                      <span className="font-bold text-green-600 text-lg">
+                        ${data.total.toFixed(2)}
+                      </span>
+                    </Card>
+                  );
+                })}
               {myCompletedDeliveries.length === 0 && (
                 <p className="text-gray-400 text-center py-10">
                   Aún no tienes ganancias registradas.
@@ -418,15 +430,7 @@ export const DeliveryDashboard = () => {
   );
 };
 
-const getWeekNumber = (d: Date) => {
-  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(
-    ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
-  );
-  return weekNo;
-};
+
 
 const TabButton = ({ id, label, icon, active, set }: any) => (
   <button
