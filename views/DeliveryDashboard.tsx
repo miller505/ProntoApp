@@ -7,10 +7,19 @@ import { ChatModal } from "../components/ChatModal";
 import { formatDate } from "../utils";
 
 export const DeliveryDashboard = () => {
-  const { orders, currentUser, updateOrderStatus, users, logout, colonies, unreadCounts, markOrderMessagesAsRead } = useApp();
-  const [activeTab, setActiveTab] = useState<"available" | "mine" | "profile" | "finances">(
-    "available",
-  );
+  const {
+    orders,
+    currentUser,
+    updateOrderStatus,
+    users,
+    logout,
+    colonies,
+    unreadCounts,
+    markOrderMessagesAsRead,
+  } = useApp();
+  const [activeTab, setActiveTab] = useState<
+    "available" | "mine" | "profile" | "finances"
+  >("available");
   const [chatOrder, setChatOrder] = useState<any | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(true);
 
@@ -29,6 +38,41 @@ export const DeliveryDashboard = () => {
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
+
+  // Calculate financial stats
+  const { totalEarnings, currentWeekEarnings, currentWeekOrders } =
+    useMemo(() => {
+      const total = myCompletedDeliveries.reduce(
+        (acc, o) => acc + (o.driverFee || 0),
+        0,
+      );
+
+      const now = new Date();
+      const currentDay = now.getDay();
+      const diff = now.getDate() - currentDay;
+      const currentWeekStart = new Date(now.setDate(diff)).setHours(0, 0, 0, 0);
+
+      let weekEarnings = 0;
+      let weekOrders = 0;
+
+      myCompletedDeliveries.forEach((o) => {
+        const d = new Date(o.createdAt);
+        const day = d.getDay();
+        const diffDate = d.getDate() - day;
+        const weekStart = new Date(d.setDate(diffDate)).setHours(0, 0, 0, 0);
+
+        if (weekStart === currentWeekStart) {
+          weekEarnings += o.driverFee || 0;
+          weekOrders += 1;
+        }
+      });
+
+      return {
+        totalEarnings: total,
+        currentWeekEarnings: weekEarnings,
+        currentWeekOrders: weekOrders,
+      };
+    }, [myCompletedDeliveries]);
 
   // Memoize a map of users by ID for efficient lookups
   const usersById = useMemo(() => {
@@ -119,11 +163,13 @@ export const DeliveryDashboard = () => {
             )}
             {availableOrders.map((order) => {
               const store = usersById.get(order.storeId) as StoreProfile;
+              if (!store) return null;
+
               const storeColony = colonies.find(
-                (c) => c.id === store.storeAddress.colonyId
+                (c) => c.id === store.storeAddress?.colonyId,
               );
               const deliveryColony = colonies.find(
-                (c) => c.id === order.deliveryAddress.colonyId
+                (c) => c.id === order.deliveryAddress.colonyId,
               );
 
               return (
@@ -172,12 +218,14 @@ export const DeliveryDashboard = () => {
             )}
             {myDeliveries.map((order) => {
               const store = usersById.get(order.storeId) as StoreProfile;
+              if (!store) return null;
+
               const client = usersById.get(order.customerId);
               const storeColony = colonies.find(
-                (c) => c.id === store.storeAddress.colonyId
+                (c) => c.id === store.storeAddress?.colonyId,
               );
               const clientColony = colonies.find(
-                (c) => c.id === order.deliveryAddress.colonyId
+                (c) => c.id === order.deliveryAddress.colonyId,
               );
 
               return (
@@ -195,7 +243,6 @@ export const DeliveryDashboard = () => {
                   </div>
 
                   <div className="space-y-4 relative">
-                    {/* Line connector */}
                     <div className="absolute left-2 top-2 bottom-8 w-0.5 bg-gray-200"></div>
 
                     <div className="flex gap-3 relative z-10">
@@ -329,6 +376,7 @@ export const DeliveryDashboard = () => {
             )}
             {myCompletedDeliveries.map((order) => {
               const store = usersById.get(order.storeId) as StoreProfile;
+              if (!store) return null;
               return (
                 <Card key={order.id} className="opacity-80 mb-4">
                   <div className="flex justify-between items-start mb-2">
@@ -362,50 +410,116 @@ export const DeliveryDashboard = () => {
 
         {activeTab === "finances" && (
           <div className="pb-24">
-            <h2 className="text-2xl font-bold mb-6">Mis Finanzas</h2>
-            <Card className="bg-gradient-to-br from-green-600 to-green-800 text-white p-6 mb-6">
-              <div className="flex items-center gap-3 mb-2 opacity-80">
-                <Icons.DollarSign size={20} />
-                <h3 className="font-semibold text-sm">Ganancias Totales</h3>
-              </div>
-              <p className="text-4xl font-bold">
-                ${myCompletedDeliveries.reduce((acc, o) => acc + (o.driverFee || 0), 0).toFixed(2)}
-              </p>
-            </Card>
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <Card className="bg-white border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-2 text-green-600">
+                  <Icons.DollarSign size={20} />
+                  <h3 className="font-semibold text-sm text-gray-600">
+                    Ganancias Totales
+                  </h3>
+                </div>
+                <p className="text-4xl font-bold text-gray-800">
+                  ${totalEarnings.toFixed(2)}
+                </p>
+                <p className="text-xs mt-2 text-gray-400">
+                  Acumulado histórico de pedidos entregados
+                </p>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-green-600 to-green-800 text-white p-6">
+                <div className="flex items-center gap-3 mb-2 opacity-80">
+                  <Icons.Calendar size={20} />
+                  <h3 className="font-semibold text-sm">Ganancias Semanales</h3>
+                </div>
+                <p className="text-4xl font-bold">
+                  ${currentWeekEarnings.toFixed(2)}
+                </p>
+                <p className="text-xs mt-2 opacity-70">Semana en curso</p>
+              </Card>
+
+              <Card className="bg-white border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-2 text-blue-600">
+                  <Icons.ShoppingBag size={20} />
+                  <h3 className="font-semibold text-sm text-gray-600">
+                    Entregas Totales
+                  </h3>
+                </div>
+                <p className="text-4xl font-bold text-gray-800">
+                  {myCompletedDeliveries.length}
+                </p>
+                <p className="text-xs mt-2 text-gray-400">
+                  Acumulado histórico
+                </p>
+              </Card>
+
+              <Card className="bg-white border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-2 text-indigo-600">
+                  <Icons.ShoppingBag size={20} />
+                  <h3 className="font-semibold text-sm text-gray-600">
+                    Entregas Semanales
+                  </h3>
+                </div>
+                <p className="text-4xl font-bold text-gray-800">
+                  {currentWeekOrders}
+                </p>
+                <p className="text-xs mt-2 text-gray-400">Semana en curso</p>
+              </Card>
+            </div>
 
             <div>
-              <h3 className="font-bold text-lg mb-4">Desglose Semanal</h3>
+              <h3 className="font-bold text-lg mb-4">Resumen semanal</h3>
               {Object.entries(
                 myCompletedDeliveries.reduce((acc: any, order) => {
                   const d = new Date(order.createdAt);
                   const day = d.getDay();
                   const diff = d.getDate() - day;
-                  const weekStart = new Date(d.setDate(diff)).setHours(0, 0, 0, 0);
+                  const weekStart = new Date(d.setDate(diff)).setHours(
+                    0,
+                    0,
+                    0,
+                    0,
+                  );
 
-                  if (!acc[weekStart]) acc[weekStart] = { total: 0, orders: 0, date: weekStart };
+                  if (!acc[weekStart])
+                    acc[weekStart] = { total: 0, orders: 0, date: weekStart };
 
                   acc[weekStart].total += order.driverFee || 0;
                   acc[weekStart].orders += 1;
                   return acc;
-                }, {})
+                }, {}),
               )
                 .sort((a: any, b: any) => Number(b[0]) - Number(a[0]))
                 .map(([key, data]: any) => {
                   const startDate = new Date(Number(key));
-                  const labelStart = startDate.toLocaleDateString("es-MX", { day: 'numeric', month: 'long', year: 'numeric' });
+                  const labelStart = startDate.toLocaleDateString("es-MX", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  });
                   const endDate = new Date(startDate);
                   endDate.setDate(endDate.getDate() + 6);
-                  const labelEnd = endDate.toLocaleDateString("es-MX", { day: 'numeric', month: 'long', year: 'numeric' });
+                  const labelEnd = endDate.toLocaleDateString("es-MX", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  });
 
                   return (
-                    <Card key={key} className="mb-3 flex justify-between items-center group hover:bg-gray-50 transition-colors">
+                    <Card
+                      key={key}
+                      className="mb-3 flex justify-between items-center group hover:bg-gray-50 transition-colors"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
                           <Icons.Calendar size={20} />
                         </div>
                         <div>
-                          <p className="font-bold text-gray-800">Semana del {labelStart}</p>
-                          <p className="text-xs text-gray-400">Hasta {labelEnd} • {data.orders} entregas</p>
+                          <p className="font-bold text-gray-800">
+                            Semana del {labelStart}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Hasta {labelEnd} • {data.orders} entregas
+                          </p>
                         </div>
                       </div>
                       <span className="font-bold text-green-600 text-lg">
@@ -428,14 +542,19 @@ export const DeliveryDashboard = () => {
           isOpen={!!chatOrder}
           onClose={() => setChatOrder(null)}
           orderId={chatOrder.id}
-          otherParty={users.find((u) => u.id === chatOrder.customerId) as User}
+          otherParty={
+            users.find((u) => u.id === chatOrder.customerId) ||
+            ({
+              firstName: "Cliente",
+              lastName: "",
+              id: chatOrder.customerId,
+            } as User)
+          }
         />
       )}
     </div>
   );
 };
-
-
 
 const TabButton = ({ id, label, icon, active, set }: any) => (
   <button

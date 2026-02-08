@@ -1,17 +1,6 @@
-@import "tailwindcss";
-
-@theme {
-  --font-sans: "Inter", "sans-serif";
-
-  --color-primary: #ed1c24;
-  --color-secondary: #f2f2f7;
-  --color-surface: #ffffff;
-  --color-iosText: #1c1c1e;
-  --color-iosGray: #8e8e93;
-
-  --shadow-ios: 0 4px 20px rgba(0, 0, 0, 0.05);
-  --shadow-ios-card: 0 2px 10px rgba(0, 0, 0, 0.03);
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* Custom base styles if needed */
 body {

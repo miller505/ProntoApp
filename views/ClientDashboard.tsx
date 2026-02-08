@@ -68,6 +68,13 @@ const ClientDashboard = () => {
     };
   }, [stores]);
 
+  const totalUnread = useMemo(() => {
+    return Object.values(unreadCounts || {}).reduce(
+      (a: number, b: number) => a + (b || 0),
+      0,
+    );
+  }, [unreadCounts]);
+
   if (selectedStore) {
     return (
       <StoreView
@@ -112,7 +119,7 @@ const ClientDashboard = () => {
             active={view === "orders"}
             onClick={() => setView("orders")}
           />
-          {Object.values(unreadCounts).reduce((a: number, b: number) => a + b, 0) > 0 && (
+          {totalUnread > 0 && (
             <span className="absolute top-0 right-4 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white"></span>
           )}
         </div>
@@ -262,7 +269,9 @@ const StoreView = ({
                 </p>
               </div>
               <div className="flex justify-between items-center mt-2">
-                <span className="font-bold text-primary">${p.price}</span>
+                <span className="font-bold text-primary">
+                  ${Number(p.price || 0).toFixed(2)}
+                </span>
                 <button
                   onClick={() => {
                     addToCart(p);
@@ -332,10 +341,16 @@ const HomeView = ({
 
       {search ? (
         <div className="px-4 space-y-4">
-          <h2 className="font-bold text-lg">Resultados</h2>
-          {filteredStores.map((s) => (
-            <StoreCard key={s.id} store={s} onClick={() => onStoreSelect(s)} />
-          ))}
+          <h2 className="font-bold text-lg mb-4 text-gray-800">Resultados</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {filteredStores.map((s) => (
+              <StoreCard
+                key={s.id}
+                store={s}
+                onClick={() => onStoreSelect(s)}
+              />
+            ))}
+          </div>
           {filteredStores.length === 0 && (
             <p className="text-gray-400 text-center">
               No se encontraron resultados
@@ -460,9 +475,9 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(deg2rad(lat1)) *
-      Math.cos(deg2rad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+        Math.cos(deg2rad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const d = R * c; // Distance in km
     return d;
@@ -513,13 +528,41 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
       return alert("Por favor, agrega o selecciona una dirección de entrega.");
     }
 
-    // 4. Llamar a placeOrder con los datos mínimos. El backend hace el resto.
+    // Calcular tarifa de envío y total antes de enviar
+    let calculatedFee = 0;
+    const destColony = colonies.find((c) => c.id === finalAddress.colonyId);
+    if (destColony && cart.length > 0) {
+      const store = users.find(
+        (u) => u.id === cart[0].product.storeId,
+      ) as StoreProfile;
+      const storeColony = store?.storeAddress?.colonyId
+        ? colonies.find((c) => c.id === store.storeAddress.colonyId)
+        : null;
+
+      if (storeColony) {
+        const dist = calculateDistance(
+          destColony.lat,
+          destColony.lng,
+          storeColony.lat,
+          storeColony.lng,
+        );
+        const driverPart = Math.ceil(dist * settings.kmRate);
+        calculatedFee =
+          (driverPart < settings.kmRate ? settings.kmRate : driverPart) +
+          settings.baseFee;
+      }
+    }
+
     await placeOrder({
       storeId: cart[0].product.storeId,
+      customerId: currentUser!.id,
       items: cart,
       paymentMethod: payMethod,
       deliveryAddress: finalAddress,
-    });
+      deliveryFee: calculatedFee,
+      total: cartTotal + calculatedFee,
+      status: OrderStatus.PENDING,
+    } as any);
 
     alert("¡Pedido realizado con éxito!");
     setView("orders");
@@ -585,7 +628,8 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
               <div>
                 <p className="font-bold text-sm">{item.product.name}</p>
                 <p className="text-xs text-gray-500">
-                  ${item.product.price * item.quantity}
+                  $
+                  {(Number(item.product.price || 0) * item.quantity).toFixed(2)}
                 </p>
               </div>
             </div>
@@ -724,14 +768,14 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
       <div className="mt-6 bg-white p-4 rounded-3xl space-y-3">
         <div className="flex justify-between">
           <span>Subtotal</span>
-          <span>${cartTotal}</span>
+          <span>${cartTotal.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-gray-500">
           <span>Envío</span>
           <span>
             $
             {estimatedFee > 0
-              ? estimatedFee
+              ? estimatedFee.toFixed(2)
               : clientColony
                 ? "Calculando..."
                 : "Selecciona dirección"}
@@ -739,7 +783,7 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
         </div>
         <div className="flex justify-between font-bold text-xl pt-2 border-t">
           <span>Total</span>
-          <span>${cartTotal + estimatedFee}</span>
+          <span>${(cartTotal + estimatedFee).toFixed(2)}</span>
         </div>
       </div>
 
@@ -769,8 +813,16 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
 };
 
 const OrdersView = () => {
-  const { orders, currentUser, users, updateOrderStatus, products, addReview, unreadCounts, markOrderMessagesAsRead } =
-    useApp();
+  const {
+    orders,
+    currentUser,
+    users,
+    updateOrderStatus,
+    products,
+    addReview,
+    unreadCounts,
+    markOrderMessagesAsRead,
+  } = useApp();
   const [chatOrder, setChatOrder] = useState<any | null>(null);
   const [ratingOrder, setRatingOrder] = useState<any | null>(null);
 
@@ -779,7 +831,6 @@ const OrdersView = () => {
       <h2 className="text-2xl font-bold mb-6">Mis Pedidos</h2>
       {orders
         .filter((o) => o.customerId === currentUser!.id)
-        .reverse()
         .map((o) => {
           const driver = o.driverId
             ? users.find((u) => u.id === o.driverId)
@@ -807,23 +858,35 @@ const OrdersView = () => {
                     <span>
                       {item.quantity}x {item.product.name}
                     </span>
-                    <span>${item.product.price * item.quantity}</span>
+                    <span>
+                      $
+                      {(
+                        Number(item.product.price || 0) * item.quantity
+                      ).toFixed(2)}
+                    </span>
                   </div>
                 ))}
                 <div className="border-t border-gray-200 mt-2 pt-2 space-y-1">
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>Productos</span>
                     <span>
-                      ${o.items.reduce((sum, i) => sum + i.product.price * i.quantity, 0)}
+                      $
+                      {o.items
+                        .reduce(
+                          (sum, i) =>
+                            sum + Number(i.product.price || 0) * i.quantity,
+                          0,
+                        )
+                        .toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between text-xs text-gray-500">
                     <span> Tarifa de envío </span>
-                    <span>${o.deliveryFee}</span>
+                    <span>${Number(o.deliveryFee || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-sm pt-1 border-t border-dashed border-gray-100">
                     <span>Total</span>
-                    <span>${o.total}</span>
+                    <span>${Number(o.total || 0).toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -1041,36 +1104,64 @@ const StoreCard: React.FC<{ store: StoreProfile; onClick: () => void }> = ({
 }) => (
   <div
     onClick={onClick}
-    className="bg-white p-3 rounded-3xl flex flex-col gap-3 shadow-ios-card cursor-pointer active:scale-95 transition-transform h-full"
+    className="bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group active:scale-[0.98]"
   >
-    <div className="relative w-full h-24">
+    <div className="relative h-32 w-full overflow-hidden">
       <img
-        src={store.logo}
-        className="w-full h-full rounded-2xl object-cover bg-gray-100"
+        src={store.coverImage || store.logo}
+        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
+        alt={store.storeName}
       />
-      {store.subscription === SubscriptionType.PREMIUM && (
-        <span className="absolute top-2 right-2 text-[8px] bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full font-bold shadow-sm">
-          RECOMENDADO
-        </span>
-      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+
+      {/* Badges */}
+      <div className="absolute top-2 left-2 flex gap-1">
+        {store.subscription === SubscriptionType.PREMIUM && (
+          <span className="bg-yellow-400/90 backdrop-blur-sm text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+            PREMIUM
+          </span>
+        )}
+        {store.subscription === SubscriptionType.ULTRA && (
+          <span className="bg-purple-500/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+            ULTRA
+          </span>
+        )}
+      </div>
+
+      <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white">
+        <div className="bg-white/20 backdrop-blur-md p-1 rounded-full">
+          <img
+            src={store.logo}
+            className="w-6 h-6 rounded-full object-cover"
+            alt="logo"
+          />
+        </div>
+      </div>
     </div>
 
-    <div className="flex-1 flex flex-col">
-      <h3 className="font-bold text-iosText text-sm line-clamp-1">
-        {store.storeName}
-      </h3>
-      <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 flex-1">
+    <div className="p-3">
+      <div className="flex justify-between items-start">
+        <h3 className="font-bold text-gray-800 text-sm line-clamp-1 flex-1">
+          {store.storeName}
+        </h3>
+        {store.averageRating !== undefined && (
+          <span className="flex items-center gap-1 text-xs font-bold text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded-lg">
+            <Icons.Star size={10} fill="currentColor" />
+            {store.averageRating > 0 ? store.averageRating.toFixed(1) : "N"}
+          </span>
+        )}
+      </div>
+
+      <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 min-h-[2.5em]">
         {store.description}
       </p>
-      <div className="mt-2 flex gap-3 text-xs text-gray-400 items-center">
+
+      <div className="mt-3 flex items-center gap-3 text-xs text-gray-400">
         <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg">
-          <Icons.Clock size={10} /> {store.prepTime || "30m"}
+          <Icons.Clock size={12} /> {store.prepTime || "30m"}
         </span>
-        <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg text-yellow-600">
-          <Icons.Star size={10} fill="currentColor" />
-          {store.averageRating && store.averageRating > 0
-            ? store.averageRating.toFixed(1)
-            : "Nuevo"}
+        <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg text-green-600 font-medium">
+          <Icons.Zap size={12} /> Disponible
         </span>
       </div>
     </div>

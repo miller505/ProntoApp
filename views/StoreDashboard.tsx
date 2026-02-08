@@ -26,7 +26,7 @@ export const StoreDashboard = () => {
   const store = currentUser as StoreProfile;
 
   const [activeTab, setActiveTab] = useState<
-    "orders" | "products" | "reviews" | "profile"
+    "orders" | "products" | "reviews" | "profile" | "finances"
   >("orders");
   const [isProductModalOpen, setProductModalOpen] = useState(false);
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
@@ -132,6 +132,54 @@ export const StoreDashboard = () => {
     new Set(myProducts.map((p) => p.category)),
   );
 
+  // Calculate financial stats
+  const { totalSales, currentWeekSales, totalOrders, currentWeekOrders } =
+    useMemo(() => {
+      const deliveredOrders = myOrders.filter(
+        (o) => o.status === OrderStatus.DELIVERED,
+      );
+
+      const total = deliveredOrders.reduce(
+        (acc, o) =>
+          acc +
+          o.items.reduce(
+            (sum, item) => sum + item.product.price * item.quantity,
+            0,
+          ),
+        0,
+      );
+
+      const now = new Date();
+      const currentDay = now.getDay();
+      const diff = now.getDate() - currentDay;
+      const currentWeekStart = new Date(now.setDate(diff)).setHours(0, 0, 0, 0);
+
+      let weekTotal = 0;
+      let weekOrders = 0;
+
+      deliveredOrders.forEach((o) => {
+        const d = new Date(o.createdAt);
+        const day = d.getDay();
+        const diffDate = d.getDate() - day;
+        const weekStart = new Date(d.setDate(diffDate)).setHours(0, 0, 0, 0);
+
+        if (weekStart === currentWeekStart) {
+          weekTotal += o.items.reduce(
+            (sum, item) => sum + item.product.price * item.quantity,
+            0,
+          );
+          weekOrders += 1;
+        }
+      });
+
+      return {
+        totalSales: total,
+        currentWeekSales: weekTotal,
+        totalOrders: deliveredOrders.length,
+        currentWeekOrders: weekOrders,
+      };
+    }, [myOrders]);
+
   const handleToggleOpen = () => {
     updateUser({ ...store, isOpen: !store.isOpen });
   };
@@ -147,9 +195,11 @@ export const StoreDashboard = () => {
   };
 
   const handleToggleProductVisibility = (p: Product) => {
-    const isHidden = (p as any).isVisible === false;
-    updateProduct({ ...p, isVisible: isHidden } as any);
-    setSaveFeedback(isHidden ? "Producto visible" : "Producto oculto");
+    const currentVisibility = (p as any).isVisible !== false; // Por defecto es true si es undefined
+    updateProduct({ ...p, isVisible: !currentVisibility } as any);
+    setSaveFeedback(
+      !currentVisibility ? "Producto visible" : "Producto oculto",
+    );
     setTimeout(() => setSaveFeedback(""), 2500);
   };
 
@@ -180,8 +230,7 @@ export const StoreDashboard = () => {
 
     setProdErrors({});
 
-    const payload = {
-      id: editingProduct ? editingProduct.id : Date.now().toString(),
+    const payload: any = {
       storeId: store.id,
       name: name.trim(),
       description: description.trim(),
@@ -191,8 +240,11 @@ export const StoreDashboard = () => {
       isVisible: editingProduct ? (editingProduct as any).isVisible : true,
     };
 
-    if (editingProduct) updateProduct(payload);
-    else addProduct(payload);
+    if (editingProduct) {
+      updateProduct({ ...payload, id: editingProduct.id });
+    } else {
+      addProduct(payload);
+    }
 
     setProductModalOpen(false);
     setEditingProduct(null);
@@ -366,6 +418,13 @@ export const StoreDashboard = () => {
             id="reviews"
             label="Reseñas"
             icon={<Icons.Star size={18} />}
+            active={activeTab}
+            set={setActiveTab}
+          />
+          <TabButton
+            id="finances"
+            label="Finanzas"
+            icon={<Icons.DollarSign size={18} />}
             active={activeTab}
             set={setActiveTab}
           />
@@ -711,6 +770,145 @@ export const StoreDashboard = () => {
                 )}
               </Card>
             ))}
+          </div>
+        )}
+
+        {/* --- FINANCES --- */}
+        {activeTab === "finances" && (
+          <div className="pb-24">
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <Card className="bg-white border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-2 text-green-600">
+                  <Icons.DollarSign size={20} />
+                  <h3 className="font-semibold text-sm text-gray-600">
+                    Ventas Totales
+                  </h3>
+                </div>
+                <p className="text-4xl font-bold text-gray-800">
+                  ${totalSales.toFixed(2)}
+                </p>
+                <p className="text-xs mt-2 text-gray-400">
+                  Acumulado histórico de ventas completadas
+                </p>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-green-600 to-green-800 text-white p-6">
+                <div className="flex items-center gap-3 mb-2 opacity-80">
+                  <Icons.Calendar size={20} />
+                  <h3 className="font-semibold text-sm">Ganancias Semanales</h3>
+                </div>
+                <p className="text-4xl font-bold">
+                  ${currentWeekSales.toFixed(2)}
+                </p>
+                <p className="text-xs mt-2 opacity-70">Semana en curso</p>
+              </Card>
+
+              <Card className="bg-white border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-2 text-blue-600">
+                  <Icons.ShoppingBag size={20} />
+                  <h3 className="font-semibold text-sm text-gray-600">
+                    Pedidos Completados
+                  </h3>
+                </div>
+                <p className="text-4xl font-bold text-gray-800">
+                  {totalOrders}
+                </p>
+                <p className="text-xs mt-2 text-gray-400">
+                  Acumulado histórico
+                </p>
+              </Card>
+
+              <Card className="bg-white border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-2 text-indigo-600">
+                  <Icons.ShoppingBag size={20} />
+                  <h3 className="font-semibold text-sm text-gray-600">
+                    Pedidos Semanales
+                  </h3>
+                </div>
+                <p className="text-4xl font-bold text-gray-800">
+                  {currentWeekOrders}
+                </p>
+                <p className="text-xs mt-2 text-gray-400">Semana en curso</p>
+              </Card>
+            </div>
+
+            <div>
+              <h3 className="font-bold text-lg mb-4">Resumen semanal</h3>
+              {Object.entries(
+                myOrders
+                  .filter((o) => o.status === OrderStatus.DELIVERED)
+                  .reduce((acc: any, order) => {
+                    const d = new Date(order.createdAt);
+                    const day = d.getDay();
+                    const diff = d.getDate() - day;
+                    const weekStart = new Date(d.setDate(diff)).setHours(
+                      0,
+                      0,
+                      0,
+                      0,
+                    );
+
+                    if (!acc[weekStart])
+                      acc[weekStart] = { total: 0, orders: 0, date: weekStart };
+
+                    const orderTotal = order.items.reduce(
+                      (sum: number, item: any) =>
+                        sum + item.product.price * item.quantity,
+                      0,
+                    );
+
+                    acc[weekStart].total += orderTotal;
+                    acc[weekStart].orders += 1;
+                    return acc;
+                  }, {}),
+              )
+                .sort((a: any, b: any) => Number(b[0]) - Number(a[0]))
+                .map(([key, data]: any) => {
+                  const startDate = new Date(Number(key));
+                  const labelStart = startDate.toLocaleDateString("es-MX", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  });
+                  const endDate = new Date(startDate);
+                  endDate.setDate(endDate.getDate() + 6);
+                  const labelEnd = endDate.toLocaleDateString("es-MX", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  });
+
+                  return (
+                    <Card
+                      key={key}
+                      className="mb-3 flex justify-between items-center group hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                          <Icons.Calendar size={20} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-800">
+                            Semana del {labelStart}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Hasta {labelEnd} • {data.orders} pedidos
+                          </p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-green-600 text-lg">
+                        ${data.total.toFixed(2)}
+                      </span>
+                    </Card>
+                  );
+                })}
+              {myOrders.filter((o) => o.status === OrderStatus.DELIVERED)
+                .length === 0 && (
+                <p className="text-gray-400 text-center py-10">
+                  Aún no tienes ventas registradas.
+                </p>
+              )}
+            </div>
           </div>
         )}
 

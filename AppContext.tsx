@@ -1,9 +1,11 @@
+/// <reference types="vite/client" />
 import React, {
   createContext,
   useContext,
   useState,
   ReactNode,
   useEffect,
+  useCallback,
 } from "react";
 import {
   User,
@@ -12,498 +14,364 @@ import {
   Order,
   Colony,
   Message,
-  OrderStatus,
-  SubscriptionType,
   SystemSettings,
 } from "./types";
-import { api } from "./src/api"; // Importamos la conexión real
-import { io } from "socket.io-client";
+import { api } from "./src/api";
+import { io, Socket } from "socket.io-client";
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 interface AppContextType {
   currentUser: User | StoreProfile | null;
   login: (email: string, pass: string) => Promise<boolean>;
   logout: () => void;
   register: (user: User | StoreProfile) => Promise<boolean>;
-
   users: (User | StoreProfile)[];
-  updateUser: (user: User | StoreProfile) => Promise<void>;
-  deleteUser: (id: string) => Promise<void>;
-
-  colonies: Colony[];
-  addColony: (colony: Colony) => Promise<void>;
-  updateColony: (colony: Colony) => Promise<void>;
-  deleteColony: (id: string) => Promise<void>;
-
-  settings: SystemSettings;
-  updateSettings: (settings: SystemSettings) => Promise<void>;
-
   products: Product[];
-  addProduct: (product: Product) => Promise<void>;
-  updateProduct: (product: Product) => Promise<void>;
-  deleteProduct: (id: string) => Promise<void>;
-
   orders: Order[];
+  colonies: Colony[];
+  settings: SystemSettings;
   placeOrder: (order: Order) => Promise<void>;
   updateOrderStatus: (
     orderId: string,
-    status: OrderStatus,
+    status: string,
     driverId?: string,
   ) => Promise<void>;
-
+  updateUser: (user: User | StoreProfile) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
+  addProduct: (product: any) => Promise<void>;
+  updateProduct: (product: Product) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  addColony: (colony: Colony) => Promise<void>;
+  updateColony: (colony: Colony) => Promise<void>;
+  deleteColony: (id: string) => Promise<void>;
+  updateSettings: (settings: SystemSettings) => Promise<void>;
   messages: Message[];
   fetchMessages: (orderId: string) => Promise<void>;
-  sendMessage: (message: Omit<Message, "id" | "createdAt">) => Promise<void>;
+  sendMessage: (msg: Partial<Message>) => Promise<void>;
   joinChatRoom: (orderId: string) => void;
-
-  addReview: (data: {
-    orderId: string;
-    storeId: string;
-    customerId: string;
-    rating: number;
-    comment: string;
-  }) => Promise<void>;
-
+  markOrderMessagesAsRead: (orderId: string) => void;
+  unreadCounts: Record<string, number>;
+  addReview: (review: any) => Promise<void>;
   getStoreReviews: (storeId: string) => Promise<any[]>;
-
-  // Cart Logic for Client
-  cart: { product: Product; quantity: number }[];
-  addToCart: (product: Product) => void;
+  cart: any[];
+  addToCart: (product: Product, quantity?: number) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
   cartTotal: number;
   loading: boolean;
-  unreadCounts: Record<string, number>;
-  markOrderMessagesAsRead: (orderId: string) => void;
 }
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+const AppContext = createContext<AppContextType>({} as AppContextType);
 
-export const AppProvider: React.FC<{ children: ReactNode }> = ({
-  children,
-}) => {
-  const [currentUser, setCurrentUser] = useState<User | StoreProfile | null>(
-    null,
-  );
+export const AppProvider = ({ children }: { children: ReactNode }) => {
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [socket, setSocket] = useState<Socket | null>(null);
+
   const [users, setUsers] = useState<(User | StoreProfile)[]>([]);
-  const [colonies, setColonies] = useState<Colony[]>([]);
-  const [settings, setSettings] = useState<SystemSettings>({
-    baseFee: 0,
-    kmRate: 0,
-  });
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [cart, setCart] = useState<{ product: Product; quantity: number }[]>(
-    [],
-  );
+  const [colonies, setColonies] = useState<Colony[]>([]);
+  const [settings, setSettings] = useState<SystemSettings>({
+    baseFee: 15,
+    kmRate: 5,
+  });
+
   const [messages, setMessages] = useState<Message[]>([]);
+  const [cart, setCart] = useState<any[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-  const [socket, setSocket] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
 
-  // Initial Load from Backend
+  // Socket setup
   useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  const fetchInitialData = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get("/init");
-      // Mapear _id de mongo a id string para el frontend
-      const mapId = (list: any[]) =>
-        list.map((item) => ({ ...item, id: item._id }));
-
-      setUsers(mapId(data.users));
-      setProducts(mapId(data.products));
-      setOrders(mapId(data.orders));
-      setColonies(mapId(data.colonies));
-      if (data.settings)
-        setSettings({ ...data.settings, id: data.settings._id });
-    } catch (error) {
-      console.error("Error cargando datos", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Restore session from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem("currentUser");
-    if (saved) {
-      try {
-        setCurrentUser(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error restoring session", e);
-        localStorage.removeItem("currentUser");
-      }
-    }
-  }, []);
-
-  // Fetch Unread Messages
-  useEffect(() => {
-    if (currentUser) {
-      api.get("/messages/unread").then(({ data }) => {
-        const counts: Record<string, number> = {};
-        data.forEach((m: any) => {
-          counts[m.orderId] = (counts[m.orderId] || 0) + 1;
-        });
-        setUnreadCounts(counts);
-      });
-    }
-  }, [currentUser]);
-
-  // --- REAL-TIME UPDATES (Socket.io) ---
-  useEffect(() => {
-    // Conectar al backend (ajusta la URL si es diferente en producción)
-    const socketUrl = (import.meta as any).env.PROD
-      ? "https://prontoapp-backend.onrender.com"
-      : "http://localhost:5000";
-    const newSocket = io(socketUrl);
+    const newSocket = io(SOCKET_URL);
     setSocket(newSocket);
 
-    // Clean up on unmount
+    newSocket.on("orders_updated", () => {
+      // Usamos una referencia funcional para obtener el usuario actual sin dependencias rancias
+      setCurrentUser((prevUser: any) => {
+        if (prevUser) fetchInitialData(prevUser);
+        return prevUser;
+      });
+    });
+
+    newSocket.on("receive_message", (newMessage: Message) => {
+      setMessages((prev) => {
+        if (
+          prev.some(
+            (m) =>
+              m._id === newMessage._id ||
+              (m.text === newMessage.text &&
+                m.createdAt === newMessage.createdAt),
+          )
+        ) {
+          return prev;
+        }
+        return [...prev, newMessage];
+      });
+    });
+
     return () => {
-      newSocket.disconnect();
+      newSocket.close();
     };
+  }, []); // Removemos currentUser?.id de dependencias para evitar reconexiones infinitas
+
+  // --- CORRECCIÓN PRINCIPAL: MANEJO DE IDs ---
+  const fetchInitialData = useCallback(async (user: any) => {
+    // MongoDB usa _id, el frontend a veces usa id. Normalizamos:
+    const userId = user._id || user.id;
+
+    if (!userId || userId === "undefined") {
+      console.error(
+        "❌ Error: Usuario sin ID válido intentando cargar datos",
+        user,
+      );
+      return;
+    }
+
+    // Helper para normalizar _id a id en arrays
+    const normalize = (data: any[]) => {
+      if (!Array.isArray(data)) return [];
+      return data.map((item) => ({ ...item, id: item._id || item.id }));
+    };
+
+    try {
+      // Cargar datos globales básicos
+      const [colsRes, setRes] = await Promise.all([
+        api.get("/api/colonies"),
+        api.get("/api/settings"),
+      ]);
+      setColonies(normalize(colsRes.data));
+      setSettings(setRes.data);
+
+      let endpointOrders = `/api/orders?userId=${userId}&role=${user.role}`;
+      let endpointUsers = "/api/stores";
+
+      if (user.role === "MASTER") {
+        endpointUsers = "/api/users";
+        endpointOrders = "/api/orders";
+      } else if (user.role === "DELIVERY") {
+        // Los repartidores necesitan info de tiendas Y clientes.
+        // Si /api/stores solo devuelve tiendas, intentamos traer todos los usuarios si el backend lo permite.
+        endpointUsers = "/api/users";
+      }
+
+      const promises = [
+        api.get(endpointOrders),
+        api.get(endpointUsers),
+        api.get("/api/products"),
+      ];
+
+      // Si es tienda, traer sus reviews también
+      if (user.role === "STORE") {
+        // No hacemos nada extra aquí, se piden bajo demanda o podrías agregarlo
+      }
+
+      const [ordersRes, usersRes, prodsRes] = await Promise.all(promises);
+
+      setOrders(normalize(ordersRes.data));
+      setUsers(normalize(usersRes.data));
+      setProducts(normalize(prodsRes.data));
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    }
   }, []);
 
-  // Unirse a sala de usuario cuando cambia el usuario o el socket
   useEffect(() => {
-    if (socket && currentUser) {
-      socket.emit("join_user_room", currentUser.id);
-    }
-  }, [socket, currentUser]);
-
-  // Listener principal de eventos
-  useEffect(() => {
-    if (!socket || !currentUser) return; // Wait for user to be logged in to attach listeners effectively
-
-    // Helper para actualizar listas (insertar o reemplazar)
-    const handleUpdate = (setter: any) => (data: any) => {
-      // Mapear _id a id para consistencia con el frontend
-      const item = { ...data, id: String(data._id || data.id) };
-      setter((prev: any[]) => {
-        const index = prev.findIndex((i) => String(i.id) === item.id);
-        if (index >= 0) {
-          const newArr = [...prev];
-          newArr[index] = item;
-          return newArr;
+    const init = async () => {
+      const storedUser = localStorage.getItem("user");
+      const token = localStorage.getItem("token");
+      if (storedUser && token) {
+        try {
+          const user = JSON.parse(storedUser);
+          // Aseguramos que el usuario tenga un formato correcto
+          if (user && (user._id || user.id)) {
+            setCurrentUser(user);
+            await fetchInitialData(user);
+          }
+        } catch (e) {
+          console.error("Error parsing stored user", e);
+          localStorage.clear();
         }
-        return [...prev, item];
-      });
-    };
-
-    // Helper para eliminar de listas
-    const handleDelete = (setter: any) => (id: string) => {
-      setter((prev: any[]) => prev.filter((i) => i.id !== id));
-    };
-
-    // Escuchar eventos de datos
-    socket.on("order_update", handleUpdate(setOrders));
-    socket.on("product_update", handleUpdate(setProducts));
-    socket.on("product_delete", handleDelete(setProducts));
-    socket.on("user_update", handleUpdate(setUsers));
-    socket.on("user_delete", handleDelete(setUsers));
-    socket.on("colony_update", handleUpdate(setColonies));
-    socket.on("colony_delete", handleDelete(setColonies));
-    socket.on("settings_update", (data: any) => {
-      const mapped = { ...data, id: data._id || data.id };
-      setSettings(mapped);
-    });
-
-    // Nuevo listener para mensajes de chat
-    socket.on("new_message", (message: any) => {
-      const mappedMessage = { ...message, id: message._id };
-
-      // 1. Update messages list ONLY if it looks relevant (basic check)
-      // We append to the global 'messages' state which is used by the chat modal.
-      setMessages((prev) => {
-        // Prevent duplicates
-        if (prev.find((m) => m.id === mappedMessage.id)) return prev;
-        // Optional: Can check if prev.length > 0 && prev[0].orderId === message.orderId to avoid mixing
-        return [...prev, mappedMessage];
-      });
-
-      // 2. Notification Logic
-      // Check if I am the sender. If so, DO NOT increment unread count.
-      if (mappedMessage.senderId === currentUser.id) {
-        return;
       }
-
-      console.log("New message received for notification:", mappedMessage);
-
-      // We rely on the server only sending us relevant messages now (via user room)
-      setUnreadCounts((prev) => {
-        return {
-          ...prev,
-          [message.orderId]: (prev[message.orderId] || 0) + 1,
-        };
-      });
-    });
-
-    return () => {
-      socket.off("order_update");
-      socket.off("product_update");
-      socket.off("product_delete");
-      socket.off("user_update");
-      socket.off("user_delete");
-      socket.off("colony_update");
-      socket.off("colony_delete");
-      socket.off("settings_update");
-      socket.off("new_message");
+      setLoading(false);
     };
-  }, [socket, currentUser]); // Re-bind when currentUser changes to capture correct ID
+    init();
+  }, [fetchInitialData]);
 
-  // Update socket user room when user changes
-  useEffect(() => {
-    if (socket && currentUser) {
-      socket.emit("join_user_room", currentUser.id);
-    }
-  }, [socket, currentUser]);
-
-
-  // --- AUTH ---
   const login = async (email: string, pass: string) => {
     try {
-      const { data } = await api.post("/auth/login", { email, password: pass });
-      const { user, token } = data;
-      const mappedUser = { ...user, id: user._id };
+      const res = await api.post("/api/login", { email, password: pass });
+      const { user, token } = res.data;
+
+      // Normalización importante antes de guardar
+      const safeUser = { ...user, id: user._id || user.id };
 
       localStorage.setItem("token", token);
-      localStorage.setItem("currentUser", JSON.stringify(mappedUser));
-      setCurrentUser(mappedUser);
+      localStorage.setItem("user", JSON.stringify(safeUser));
+
+      setCurrentUser(safeUser);
+      await fetchInitialData(safeUser);
       return true;
-    } catch (e: any) {
-      // Solo mostrar error en consola si NO es un error de credenciales (401)
-      if (e.response?.status !== 401) {
-        console.error(e);
-      }
+    } catch (e) {
       return false;
     }
   };
 
   const logout = () => {
+    localStorage.clear();
     setCurrentUser(null);
-    setCart([]);
-    // Limpiar sesión completa
-    localStorage.removeItem("token");
-    localStorage.removeItem("currentUser");
+    setOrders([]);
+    window.location.href = "/";
   };
 
-  const register = async (newUser: User | StoreProfile): Promise<boolean> => {
+  const register = async (data: any) => {
     try {
-      // El registro ahora también devuelve un token para auto-login
-      const { data } = await api.post("/auth/register", newUser);
-      const { user, token } = data;
-      const mappedUser = { ...user, id: user._id };
-
-      // No guardamos la sesión aquí, el usuario debe ser aprobado por el Master primero.
-      // La alerta de éxito se maneja en el componente Register.
+      await api.post("/api/register", data);
       return true;
-    } catch (e: any) {
-      console.error(e);
-      const errorMessage =
-        e.response?.data?.error || "Error en el registro. Intenta de nuevo.";
-      alert(errorMessage);
+    } catch (e) {
       return false;
     }
   };
 
-  // --- USER MGMT ---
-  const updateUser = async (updatedUser: User | StoreProfile) => {
+  const joinChatRoom = (orderId: string) => {
+    socket?.emit("join_room", orderId);
+  };
+
+  const fetchMessages = async (orderId: string) => {
+    if (!orderId) return;
     try {
-      const { data } = await api.put(`/users/${updatedUser.id}`, updatedUser);
-      const mapped = { ...data, id: data._id };
-      setUsers(users.map((u) => (u.id === mapped.id ? mapped : u)));
-      if (currentUser?.id === mapped.id) {
-        setCurrentUser(mapped);
-        // Update session in localStorage
-        localStorage.setItem("currentUser", JSON.stringify(mapped));
-      }
+      const res = await api.get(`/api/messages/${orderId}`);
+      setMessages(res.data);
     } catch (e) {
       console.error(e);
     }
   };
 
-  const deleteUser = async (id: string) => {
-    await api.delete(`/users/${id}`);
-    setUsers(users.filter((u) => u.id !== id));
+  const sendMessage = async (msg: Partial<Message>) => {
+    socket?.emit("send_message", msg);
+  };
+  const markOrderMessagesAsRead = (orderId: string) => {
+    const newCounts = { ...unreadCounts };
+    delete newCounts[orderId];
+    setUnreadCounts(newCounts);
   };
 
-  // --- COLONY MGMT ---
-  const addColony = async (c: Colony) => {
-    const { data } = await api.post("/colonies", c);
-    setColonies([...colonies, { ...data, id: data._id }]);
-  };
-  const updateColony = async (c: Colony) => {
-    await api.put(`/colonies/${c.id}`, c);
-    setColonies(colonies.map((col) => (col.id === c.id ? c : col)));
-  };
-  const deleteColony = async (id: string) => {
-    await api.delete(`/colonies/${id}`);
-    setColonies(colonies.filter((c) => c.id !== id));
-  };
-
-  // --- SETTINGS MGMT ---
-  const updateSettings = async (s: SystemSettings) => {
-    const { data } = await api.put("/settings", s);
-    setSettings({ ...data, id: data._id });
-  };
-
-  // --- PRODUCT MGMT ---
-  const addProduct = async (p: Product) => {
-    const { data } = await api.post("/products", p);
-    setProducts([...products, { ...data, id: data._id }]);
-  };
-  const updateProduct = async (p: Product) => {
-    await api.put(`/products/${p.id}`, p);
-    setProducts(products.map((prod) => (prod.id === p.id ? p : prod)));
-  };
-  const deleteProduct = async (id: string) => {
-    await api.delete(`/products/${id}`);
-    setProducts(products.filter((p) => p.id !== id));
-  };
-
-  // --- ORDER MGMT ---
-  const placeOrder = async (orderData: {
-    storeId: string;
-    items: { product: Product; quantity: number }[];
-    paymentMethod: "CASH" | "CARD";
-    deliveryAddress: any;
-  }) => {
-    try {
-      // El frontend solo envía los datos esenciales.
-      // El backend calcula precios, tarifas y totales.
-      const { data } = await api.post("/orders", {
-        ...orderData,
-        customerId: currentUser!.id, // El backend lo verificará con el token de todos modos
-      });
-      // El socket se encargará de actualizar el estado de `orders`
-      clearCart();
-    } catch (e) {
-      console.error(e);
-    }
+  const placeOrder = async (order: Order) => {
+    await api.post("/api/orders", order);
+    clearCart();
+    if (currentUser) fetchInitialData(currentUser);
   };
 
   const updateOrderStatus = async (
-    orderId: string,
-    status: OrderStatus,
+    id: string,
+    status: string,
     driverId?: string,
   ) => {
+    await api.put(`/api/orders/${id}/status`, { status, driverId });
+    if (currentUser) fetchInitialData(currentUser);
+  };
+
+  const updateUser = async (u: any) => {
+    const { _id, ...rest } = u; // Extraemos _id para no enviarlo en el cuerpo
     try {
-      const { data } = await api.put(`/orders/${orderId}/status`, {
-        status,
-        driverId,
-      });
-      const mapped = { ...data, id: data._id };
-      setOrders(orders.map((o) => (o.id === orderId ? mapped : o)));
-      return mapped; // Devolver el pedido actualizado para manejar el flujo
-    } catch (e) {
-      console.error(e);
+      const res = await api.put(`/api/users/${u._id || u.id}`, rest);
+      // Si el usuario actualizado es el actual, actualizamos el estado local y localStorage
+      if (
+        currentUser &&
+        (u.id === currentUser.id || u._id === currentUser.id)
+      ) {
+        const updatedUser = { ...res.data, id: res.data._id || res.data.id };
+        setCurrentUser(updatedUser);
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+      }
+      if (currentUser) fetchInitialData(currentUser);
+    } catch (error) {
+      console.error("Error updating user:", error);
     }
   };
-
-  // --- CHAT MGMT ---
-  const fetchMessages = async (orderId: string) => {
-    try {
-      const { data } = await api.get(`/messages/${orderId}`);
-      const mapped = data.map((m: any) => ({ ...m, id: m._id }));
-      setMessages(mapped);
-    } catch (e) {
-      console.error("Error fetching messages", e);
-      setMessages([]);
-    }
+  const deleteUser = async (id: string) => {
+    /* Implementar */
   };
 
-  const sendMessage = async (message: Omit<Message, "id" | "createdAt">) => {
-    try {
-      // El backend guarda y emite, el listener 'new_message' actualiza el estado
-      await api.post("/messages", message);
-    } catch (e) {
-      console.error("Error sending message", e);
-    }
+  const addProduct = async (p: any) => {
+    await api.post("/api/products", p);
+    if (currentUser) fetchInitialData(currentUser);
+  };
+  const updateProduct = async (p: Product) => {
+    const { _id, ...rest } = p as any; // Extraemos _id para no enviarlo en el cuerpo
+    await api.put(`/api/products/${p.id}`, rest);
+    if (currentUser) fetchInitialData(currentUser);
+  };
+  const deleteProduct = async (id: string) => {
+    await api.delete(`/api/products/${id}`);
+    if (currentUser) fetchInitialData(currentUser);
   };
 
-  const markOrderMessagesAsRead = async (orderId: string) => {
-    try {
-      await api.put(`/messages/read/${orderId}`);
-      setUnreadCounts((prev) => {
-        const newCounts = { ...prev };
-        delete newCounts[orderId];
-        return newCounts;
-      });
-    } catch (e) {
-      console.error("Error marking messages as read", e);
-    }
+  const addColony = async (c: Colony) => {
+    await api.post("/api/colonies", c);
+    if (currentUser) fetchInitialData(currentUser);
+  };
+  const updateColony = async (c: Colony) => {
+    /* PUT */
+  };
+  const deleteColony = async (id: string) => {
+    await api.delete(`/api/colonies/${id}`);
+    if (currentUser) fetchInitialData(currentUser);
+  };
+  const updateSettings = async (s: SystemSettings) => {
+    await api.put("/api/settings", s);
+    if (currentUser) fetchInitialData(currentUser);
   };
 
-  const joinChatRoom = (orderId: string) => {
-    if (socket) socket.emit("join_order_room", orderId);
+  const addReview = async (r: any) => {
+    await api.post("/api/reviews", r);
   };
 
-  // --- REVIEWS ---
-  const addReview = async (data: any) => {
+  const getStoreReviews = async (sid: string) => {
+    // PROTECCIÓN: Si el ID es undefined, retornamos array vacío y no llamamos a la API
+    if (!sid || sid === "undefined") return [];
     try {
-      await api.post("/reviews", data);
+      const r = await api.get(`/api/reviews/${sid}`);
+      return r.data;
     } catch (e) {
-      console.error("Error adding review", e);
-    }
-  };
-
-  const getStoreReviews = async (storeId: string) => {
-    try {
-      const { data } = await api.get(`/reviews/${storeId}`);
-      return data;
-    } catch (e) {
-      console.error("Error fetching reviews", e);
+      console.error("Error getting reviews", e);
       return [];
     }
   };
 
-  // --- CART (Client side logic remains) ---
-  const addToCart = (product: Product) => {
-    const existing = cart.find((item) => item.product.id === product.id);
+  const addToCart = (product: Product, quantity: number = 1) => {
+    const existing = cart.find((i) => i.product.id === product.id);
     if (existing) {
       setCart(
-        cart.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item,
+        cart.map((i) =>
+          i.product.id === product.id
+            ? { ...i, quantity: (i.quantity || 0) + quantity }
+            : i,
         ),
       );
     } else {
-      if (cart.length > 0 && cart[0].product.storeId !== product.storeId) {
-        if (
-          window.confirm(
-            "Solo puedes pedir de una tienda a la vez. ¿Vaciar carrito?",
-          )
-        ) {
-          setCart([{ product, quantity: 1 }]);
-        }
-      } else {
-        setCart([...cart, { product, quantity: 1 }]);
-      }
+      setCart([...cart, { product, quantity }]);
     }
   };
 
-  const removeFromCart = (productId: string) => {
-    const existing = cart.find((item) => item.product.id === productId);
+  const removeFromCart = (pid: string) => {
+    const existing = cart.find((i) => i.product.id === pid);
     if (existing && existing.quantity > 1) {
       setCart(
-        cart.map((item) =>
-          item.product.id === productId
-            ? { ...item, quantity: item.quantity - 1 }
-            : item,
+        cart.map((i) =>
+          i.product.id === pid ? { ...i, quantity: i.quantity - 1 } : i,
         ),
       );
     } else {
-      setCart(cart.filter((item) => item.product.id !== productId));
+      setCart(cart.filter((i) => i.product.id !== pid));
     }
   };
 
   const clearCart = () => setCart([]);
   const cartTotal = cart.reduce(
-    (acc, item) => acc + item.product.price * item.quantity,
+    (acc, item) =>
+      acc + (Number(item.product.price) || 0) * (item.quantity || 1),
     0,
   );
 
@@ -515,25 +383,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         logout,
         register,
         users,
+        products,
+        orders,
+        colonies,
+        settings,
+        placeOrder,
+        updateOrderStatus,
         updateUser,
         deleteUser,
-        colonies,
-        addColony,
-        updateColony,
-        deleteColony,
-        settings,
-        updateSettings,
-        products,
         addProduct,
         updateProduct,
         deleteProduct,
-        orders,
-        placeOrder,
-        updateOrderStatus,
+        addColony,
+        updateColony,
+        deleteColony,
+        updateSettings,
         messages,
         fetchMessages,
         sendMessage,
         joinChatRoom,
+        markOrderMessagesAsRead,
+        unreadCounts,
         addReview,
         getStoreReviews,
         cart,
@@ -542,8 +412,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         clearCart,
         cartTotal,
         loading,
-        unreadCounts,
-        markOrderMessagesAsRead,
       }}
     >
       {children}
@@ -551,8 +419,4 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   );
 };
 
-export const useApp = () => {
-  const context = useContext(AppContext);
-  if (!context) throw new Error("useApp must be used within AppProvider");
-  return context;
-};
+export const useApp = () => useContext(AppContext);

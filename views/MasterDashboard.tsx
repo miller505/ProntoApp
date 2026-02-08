@@ -2,7 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useApp } from "../AppContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
-import { UserRole, SubscriptionType, StoreProfile, User, Order, OrderStatus } from "../types";
+import {
+  UserRole,
+  SubscriptionType,
+  StoreProfile,
+  User,
+  Order,
+  OrderStatus,
+} from "../types";
 
 export const MasterDashboard = () => {
   const {
@@ -19,11 +26,15 @@ export const MasterDashboard = () => {
     updateSettings,
     orders, // Needed for Finances
   } = useApp();
-  const [activeTab, setActiveTab] = useState<"users" | "requests" | "colonies" | "finances">("requests");
+  const [activeTab, setActiveTab] = useState<
+    "users" | "requests" | "colonies" | "finances"
+  >("requests");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("ALL");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | StoreProfile | null>(null);
+  const [editingUser, setEditingUser] = useState<User | StoreProfile | null>(
+    null,
+  );
   const [editFormData, setEditFormData] = useState<any>({});
 
   // Requests Logic
@@ -31,7 +42,7 @@ export const MasterDashboard = () => {
 
   // Users Logic
   const activeUsers = users.filter(
-    (u) => u.approved && u.role !== UserRole.MASTER
+    (u) => u.approved && u.role !== UserRole.MASTER,
   );
   const filteredUsers = activeUsers.filter((u) => {
     const matchesSearch = (u.firstName + " " + u.lastName)
@@ -53,7 +64,7 @@ export const MasterDashboard = () => {
 
   const handleChangeSubscription = (
     store: StoreProfile,
-    sub: SubscriptionType
+    sub: SubscriptionType,
   ) => {
     updateUser({ ...store, subscription: sub, isMasterUpdate: true } as any);
   };
@@ -143,10 +154,11 @@ export const MasterDashboard = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${activeTab === tab.id
+              className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                activeTab === tab.id
                   ? "bg-primary text-white shadow-md"
                   : "text-gray-500 hover:bg-gray-50"
-                }`}
+              }`}
             >
               {tab.icon}
               {tab.label}
@@ -268,10 +280,11 @@ export const MasterDashboard = () => {
                     <button
                       key={r}
                       onClick={() => setFilterRole(r)}
-                      className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${filterRole === r
+                      className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${
+                        filterRole === r
                           ? "bg-gray-800 text-white"
                           : "bg-white text-gray-600"
-                        }`}
+                      }`}
                     >
                       {getRoleLabel(r)}
                     </button>
@@ -345,7 +358,7 @@ export const MasterDashboard = () => {
                           onChange={(e) =>
                             handleChangeSubscription(
                               u as StoreProfile,
-                              e.target.value as SubscriptionType
+                              e.target.value as SubscriptionType,
                             )
                           }
                         >
@@ -400,12 +413,13 @@ export const MasterDashboard = () => {
         <Modal
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
-          title={`Editar ${editingUser?.role === UserRole.STORE
+          title={`Editar ${
+            editingUser?.role === UserRole.STORE
               ? "Tienda"
               : editingUser?.role === UserRole.DELIVERY
                 ? "Repartidor"
                 : "Cliente"
-            }`}
+          }`}
         >
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -597,7 +611,7 @@ const ColoniesPanel = ({
     }
     if (isNaN(lng) || lng < -180 || lng > 180) {
       return alert(
-        "Longitud inválida. Debe estar entre -180 y 180. (¿Falta un punto decimal?)"
+        "Longitud inválida. Debe estar entre -180 y 180. (¿Falta un punto decimal?)",
       );
     }
 
@@ -630,9 +644,7 @@ const ColoniesPanel = ({
 
   // Filter and Sort Logic
   const filteredAndSortedColonies = colonies
-    .filter((c: any) =>
-      c.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    .filter((c: any) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a: any, b: any) => {
       if (sortOrder === "asc") return a.name.localeCompare(b.name);
       return b.name.localeCompare(a.name);
@@ -650,8 +662,9 @@ const ColoniesPanel = ({
             Tarifas Globales de Envío
           </h3>
           <Icons.ChevronDown
-            className={`text-blue-900 transition-transform ${isSettingsOpen ? "rotate-180" : ""
-              }`}
+            className={`text-blue-900 transition-transform ${
+              isSettingsOpen ? "rotate-180" : ""
+            }`}
           />
         </button>
 
@@ -802,7 +815,7 @@ const ColoniesPanel = ({
 const FinancePanel = ({ orders }: { orders: Order[] }) => {
   // Only completed orders contribute to earnings
   const completedOrders = orders.filter(
-    (o) => o.status === OrderStatus.DELIVERED
+    (o) => o.status === OrderStatus.DELIVERED,
   );
 
   // Calculate Total Earnings (Commision = DeliveryFee - DriverFee)
@@ -816,8 +829,29 @@ const FinancePanel = ({ orders }: { orders: Order[] }) => {
 
   const totalEarnings = completedOrders.reduce(
     (acc, o) => acc + calculateCommission(o),
-    0
+    0,
   );
+
+  // Calculate current week stats
+  const now = new Date();
+  const currentDay = now.getDay();
+  const diff = now.getDate() - currentDay;
+  const currentWeekStart = new Date(now.setDate(diff)).setHours(0, 0, 0, 0);
+
+  let currentWeekEarnings = 0;
+  let currentWeekOrders = 0;
+
+  completedOrders.forEach((o) => {
+    const d = new Date(o.createdAt);
+    const day = d.getDay();
+    const diffDate = d.getDate() - day;
+    const weekStart = new Date(d.setDate(diffDate)).setHours(0, 0, 0, 0);
+
+    if (weekStart === currentWeekStart) {
+      currentWeekEarnings += calculateCommission(o);
+      currentWeekOrders += 1;
+    }
+  });
 
   // Group by Week
   const getWeekKey = (dateMs: number) => {
@@ -845,49 +879,99 @@ const FinancePanel = ({ orders }: { orders: Order[] }) => {
   return (
     <div className="space-y-6">
       {/* Summary Card */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white p-6">
-          <div className="flex items-center gap-3 mb-2 opacity-80">
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="bg-white border border-gray-100 p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-2 text-indigo-600">
             <Icons.DollarSign size={20} />
-            <h3 className="font-semibold text-sm">Ganancias Totales (Banderazos)</h3>
+            <h3 className="font-semibold text-sm text-gray-600">
+              Ganancias Totales (Banderazos)
+            </h3>
           </div>
-          <p className="text-4xl font-bold">
+          <p className="text-4xl font-bold text-gray-800">
             ${totalEarnings.toFixed(2)}
           </p>
-          <p className="text-xs mt-2 opacity-70">
+          <p className="text-xs mt-2 text-gray-400">
             Acumulado histórico de comisiones
           </p>
         </Card>
 
-        <Card className="bg-white p-6 flex flex-col justify-center items-center text-center">
-          <h3 className="text-gray-500 text-sm font-semibold mb-1">Pedidos Completados</h3>
-          <p className="text-3xl font-bold text-gray-800">{completedOrders.length}</p>
+        <Card className="bg-gradient-to-br from-green-600 to-green-800 text-white p-6">
+          <div className="flex items-center gap-3 mb-2 opacity-80">
+            <Icons.Calendar size={20} />
+            <h3 className="font-semibold text-sm">Ganancias Semanales</h3>
+          </div>
+          <p className="text-4xl font-bold">
+            ${currentWeekEarnings.toFixed(2)}
+          </p>
+          <p className="text-xs mt-2 opacity-70">Semana en curso</p>
+        </Card>
+
+        <Card className="bg-white border border-gray-100 p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-2 text-blue-600">
+            <Icons.ShoppingBag size={20} />
+            <h3 className="font-semibold text-sm text-gray-600">
+              Pedidos Completados
+            </h3>
+          </div>
+          <p className="text-4xl font-bold text-gray-800">
+            {completedOrders.length}
+          </p>
+          <p className="text-xs mt-2 text-gray-400">Acumulado histórico</p>
+        </Card>
+
+        <Card className="bg-white border border-gray-100 p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-2 text-green-600">
+            <Icons.ShoppingBag size={20} />
+            <h3 className="font-semibold text-sm text-gray-600">
+              Pedidos Semanales
+            </h3>
+          </div>
+          <p className="text-4xl font-bold text-gray-800">
+            {currentWeekOrders}
+          </p>
+          <p className="text-xs mt-2 text-gray-400">Semana en curso</p>
         </Card>
       </div>
 
       {/* Weekly Breakdown */}
       <div>
-        <h3 className="font-bold text-lg mb-4 text-gray-800">Resumen Semanal</h3>
+        <h3 className="font-bold text-lg mb-4 text-gray-800">
+          Resumen semanal
+        </h3>
         <div className="space-y-3">
           {sortedWeeks.length === 0 ? (
-            <p className="text-gray-400">No hay datos financieros registrados aún.</p>
+            <p className="text-gray-400">
+              No hay datos financieros registrados aún.
+            </p>
           ) : (
-            sortedWeeks.map(weekStart => {
+            sortedWeeks.map((weekStart) => {
               const date = new Date(weekStart);
-              const label = date.toLocaleDateString("es-MX", { day: 'numeric', month: 'long', year: 'numeric' });
+              const label = date.toLocaleDateString("es-MX", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              });
               // Calculate range end (Saturday)
               const weekEnd = new Date(weekStart);
               weekEnd.setDate(weekEnd.getDate() + 6);
-              const labelEnd = weekEnd.toLocaleDateString("es-MX", { day: 'numeric', month: 'numeric' });
+              const labelEnd = weekEnd.toLocaleDateString("es-MX", {
+                day: "numeric",
+                month: "numeric",
+              });
 
               return (
-                <div key={weekStart} className="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center group hover:bg-gray-50 transition-colors">
+                <div
+                  key={weekStart}
+                  className="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center group hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
                       <Icons.Calendar size={20} />
                     </div>
                     <div>
-                      <p className="font-bold text-gray-800">Semana del {label}</p>
+                      <p className="font-bold text-gray-800">
+                        Semana del {label}
+                      </p>
                       <p className="text-xs text-gray-400">Hasta {labelEnd}</p>
                     </div>
                   </div>
@@ -897,7 +981,7 @@ const FinancePanel = ({ orders }: { orders: Order[] }) => {
                     </p>
                   </div>
                 </div>
-              )
+              );
             })
           )}
         </div>

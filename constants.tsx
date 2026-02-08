@@ -33,6 +33,7 @@ import {
   ArrowDown,
   Calendar,
   MessageSquare,
+  Zap,
 } from "lucide-react";
 
 export const Icons = {
@@ -69,6 +70,7 @@ export const Icons = {
   ArrowDown,
   Calendar,
   MessageSquare,
+  Zap,
 };
 
 export const ALLOWED_EMAILS = [

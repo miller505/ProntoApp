@@ -6,12 +6,13 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: true,
       enum: ["MASTER", "STORE", "DELIVERY", "CLIENT"],
+      index: true, // Optimiza búsquedas por rol
     },
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     phone: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true }, // En producción, usar bcrypt para hashear
+    email: { type: String, required: true, unique: true, index: true }, // Optimiza login
+    password: { type: String, required: true },
     ineImage: String,
     approved: { type: Boolean, default: false },
     addresses: [
@@ -35,7 +36,7 @@ const UserSchema = new mongoose.Schema(
       default: "STANDARD",
     },
     subscriptionPriority: { type: Number, default: 0 },
-    isOpen: { type: Boolean, default: false },
+    isOpen: { type: Boolean, default: false, index: true }, // Optimiza mostrar tiendas abiertas
     logo: String,
     coverImage: String,
     description: String,
@@ -51,11 +52,12 @@ const ProductSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
+    index: true,
   },
   name: { type: String, required: true },
   description: String,
   price: { type: Number, required: true },
-  category: String,
+  category: { type: String, required: true },
   image: String,
   isVisible: { type: Boolean, default: true },
 });
@@ -66,48 +68,53 @@ const OrderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     storeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
-    driverId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    driverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+    }, // Puede ser null al inicio
     items: [
       {
         product: { type: Object, required: true }, // Guardamos snapshot del producto
-        quantity: Number,
+        quantity: { type: Number, required: true },
       },
     ],
-    status: { type: String, default: "PENDING" },
-    total: Number,
-    deliveryFee: Number,
-    driverFee: Number, // Portion of deliveryFee that goes to driver
-    isReviewed: { type: Boolean, default: false },
-    paymentMethod: String,
-    deliveryAddress: Object,
+    status: {
+      type: String,
+      enum: [
+        "PENDING",
+        "PREPARING",
+        "READY",
+        "ON_WAY",
+        "DELIVERED",
+        "REJECTED",
+      ],
+      default: "PENDING",
+      index: true,
+    },
+    total: { type: Number, required: true },
+    deliveryFee: { type: Number, required: true },
+    deliveryAddress: { type: Object, required: true },
+    storeName: String, // Snapshot para evitar lookups masivos
+    customerName: String,
+    driverName: String,
   },
   { timestamps: true },
 );
 
 const MessageSchema = new mongoose.Schema(
   {
-    orderId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Order",
-      required: true,
-    },
-    senderId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    // receiverId is useful for notifications, but not strictly required for the room logic
-    receiverId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
+    orderId: { type: String, required: true, index: true },
+    senderId: { type: String, required: true },
+    receiverId: { type: String, required: true },
     text: { type: String, required: true },
     read: { type: Boolean, default: false },
   },
@@ -118,12 +125,11 @@ const ColonySchema = new mongoose.Schema({
   name: { type: String, required: true },
   lat: { type: Number, default: 0 },
   lng: { type: Number, default: 0 },
-  // deliveryFee is deprecated in favor of dynamic calculation
 });
 
 const SettingsSchema = new mongoose.Schema({
-  baseFee: { type: Number, default: 15 }, // Banderazo (Commission)
-  kmRate: { type: Number, default: 5 }, // Tarifa por Km
+  baseFee: { type: Number, default: 15 },
+  kmRate: { type: Number, default: 5 },
 });
 
 const ReviewSchema = new mongoose.Schema(
@@ -137,6 +143,7 @@ const ReviewSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
