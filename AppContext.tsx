@@ -58,6 +58,7 @@ interface AppContextType {
   cart: any[];
   addToCart: (product: Product, quantity?: number) => void;
   removeFromCart: (productId: string) => void;
+  deleteFromCart: (productId: string) => void;
   clearCart: () => void;
   cartTotal: number;
   loading: boolean;
@@ -223,6 +224,41 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     init();
   }, [fetchInitialData]);
 
+  // --- LÓGICA DE CADUCIDAD DE SESIÓN (15 MINUTOS) ---
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const TIMEOUT_MS = 15 * 60 * 1000; // 15 minutos
+
+    const checkActivity = () => {
+      const lastActive = localStorage.getItem("lastActive");
+      if (lastActive && Date.now() - Number(lastActive) > TIMEOUT_MS) {
+        logout();
+      } else {
+        localStorage.setItem("lastActive", Date.now().toString());
+      }
+    };
+
+    // Chequeo inicial y listeners
+    checkActivity();
+    const handleActivity = () =>
+      localStorage.setItem("lastActive", Date.now().toString());
+    const intervalId = setInterval(checkActivity, 60000); // Revisar cada minuto
+
+    window.addEventListener("mousemove", handleActivity);
+    window.addEventListener("keypress", handleActivity);
+    window.addEventListener("click", handleActivity);
+    window.addEventListener("scroll", handleActivity);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("mousemove", handleActivity);
+      window.removeEventListener("keypress", handleActivity);
+      window.removeEventListener("click", handleActivity);
+      window.removeEventListener("scroll", handleActivity);
+    };
+  }, [currentUser]);
+
   const login = async (email: string, pass: string) => {
     try {
       const res = await api.post("/api/login", { email, password: pass });
@@ -246,6 +282,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("cart"); // Limpiamos carrito al salir
+    localStorage.removeItem("lastActive");
     setCurrentUser(null);
     setOrders([]);
     window.location.href = "/";
@@ -403,6 +440,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const deleteFromCart = (pid: string) => {
+    setCart((prevCart) => prevCart.filter((i) => i.product.id !== pid));
+  };
+
   const clearCart = () => setCart([]);
 
   const cartTotal = cart.reduce(
@@ -445,6 +486,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         cart,
         addToCart,
         removeFromCart,
+        deleteFromCart,
         clearCart,
         cartTotal,
         loading,
