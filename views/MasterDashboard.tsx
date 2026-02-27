@@ -887,7 +887,7 @@ const FinancePanel = ({ orders }: { orders: Order[] }) => {
               Ganancias Totales (Banderazos)
             </h3>
           </div>
-          <p className="text-4xl font-bold text-gray-800">
+          <p className="text-2xl md:text-4xl font-bold text-gray-800">
             ${totalEarnings.toFixed(2)}
           </p>
           <p className="text-xs mt-2 text-gray-400">
@@ -900,7 +900,7 @@ const FinancePanel = ({ orders }: { orders: Order[] }) => {
             <Icons.Calendar size={20} />
             <h3 className="font-semibold text-sm">Ganancias Semanales</h3>
           </div>
-          <p className="text-4xl font-bold">
+          <p className="text-2xl md:text-4xl font-bold">
             ${currentWeekEarnings.toFixed(2)}
           </p>
           <p className="text-xs mt-2 opacity-70">Semana en curso</p>

@@ -791,7 +791,7 @@ export const StoreDashboard = () => {
                     Ventas Totales
                   </h3>
                 </div>
-                <p className="text-4xl font-bold text-gray-800">
+                <p className="text-2xl md:text-4xl font-bold text-gray-800">
                   ${totalSales.toFixed(2)}
                 </p>
                 <p className="text-xs mt-2 text-gray-400">
@@ -804,7 +804,7 @@ export const StoreDashboard = () => {
                   <Icons.Calendar size={20} />
                   <h3 className="font-semibold text-sm">Ganancias Semanales</h3>
                 </div>
-                <p className="text-4xl font-bold">
+                <p className="text-2xl md:text-4xl font-bold">
                   ${currentWeekSales.toFixed(2)}
                 </p>
                 <p className="text-xs mt-2 opacity-70">Semana en curso</p>

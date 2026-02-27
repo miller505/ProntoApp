@@ -419,10 +419,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addReview = async (r: any) => {
+    // El backend ahora se encarga de actualizar la orden y la calificación de la tienda.
+    // Solo necesitamos volver a pedir los datos para que el frontend se actualice.
     await api.post("/api/reviews", r);
-    setOrders((prev) =>
-      prev.map((o) => (o.id === r.orderId ? { ...o, isReviewed: true } : o)),
-    );
+    if (currentUser) fetchInitialData(currentUser);
   };
 
   const getStoreReviews = async (sid: string) => {

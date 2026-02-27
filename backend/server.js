@@ -272,11 +272,9 @@ app.post("/api/products", verifyToken, async (req, res) => {
       if (user.subscription === "ULTRA") limit = 50;
 
       if (count >= limit) {
-        return res
-          .status(403)
-          .json({
-            error: `Has alcanzado el límite de ${limit} productos de tu plan ${user.subscription}.`,
-          });
+        return res.status(403).json({
+          error: `Has alcanzado el límite de ${limit} productos de tu plan ${user.subscription}.`,
+        });
       }
     }
 
@@ -373,8 +371,26 @@ app.get("/api/reviews/:storeId", async (req, res) => {
 
 app.post("/api/reviews", async (req, res) => {
   try {
+    // 1. Crear la nueva reseña
     const newReview = await Review.create(req.body);
-    res.json(newReview);
+
+    // 2. Calcular el nuevo promedio y contador de reseñas para la tienda
+    const reviews = await Review.find({ storeId: req.body.storeId });
+    const ratingCount = reviews.length;
+    const averageRating =
+      ratingCount > 0
+        ? reviews.reduce((sum, r) => sum + r.rating, 0) / ratingCount
+        : 0;
+
+    // 3. Actualizar el documento del usuario (tienda) con los nuevos datos
+    await User.findByIdAndUpdate(req.body.storeId, {
+      averageRating,
+      ratingCount,
+    });
+
+    // 4. Marcar el pedido como reseñado y responder
+    await Order.findByIdAndUpdate(req.body.orderId, { isReviewed: true });
+    res.status(201).json(newReview);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
