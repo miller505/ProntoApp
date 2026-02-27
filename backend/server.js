@@ -371,6 +371,15 @@ app.get("/api/reviews/:storeId", async (req, res) => {
 
 app.post("/api/reviews", async (req, res) => {
   try {
+    // --- NUEVA VALIDACIÓN ---
+    // Verificar si el pedido ya fue calificado para evitar duplicados.
+    const order = await Order.findById(req.body.orderId);
+    if (order && order.isReviewed) {
+      return res
+        .status(400)
+        .json({ error: "Este pedido ya ha sido calificado." });
+    }
+
     // 1. Crear la nueva reseña
     const newReview = await Review.create(req.body);
 

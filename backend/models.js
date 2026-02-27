@@ -100,6 +100,7 @@ const OrderSchema = new mongoose.Schema(
       default: "PENDING",
       index: true,
     },
+    isReviewed: { type: Boolean, default: false },
     total: { type: Number, required: true },
     deliveryFee: { type: Number, required: true },
     driverFee: { type: Number, default: 0 },
