@@ -363,8 +363,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addProduct = async (p: any) => {
-    await api.post("/api/products", p);
-    if (currentUser) fetchInitialData(currentUser);
+    // Validación de límite en frontend
+    if (currentUser?.role === "STORE") {
+      const myProducts = products.filter(
+        (prod) => prod.storeId === currentUser.id,
+      );
+      let limit = 10; // Standard
+      if (currentUser.subscription === "PREMIUM") limit = 30;
+      if (currentUser.subscription === "ULTRA") limit = 50;
+
+      if (myProducts.length >= limit) {
+        alert(
+          `Has alcanzado el límite de ${limit} productos (Plan ${currentUser.subscription || "STANDARD"}). Actualiza tu suscripción para agregar más.`,
+        );
+        return;
+      }
+    }
+
+    try {
+      await api.post("/api/products", p);
+      if (currentUser) fetchInitialData(currentUser);
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error al agregar producto");
+    }
   };
 
   const updateProduct = async (p: Product) => {

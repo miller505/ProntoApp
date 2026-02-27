@@ -260,8 +260,26 @@ app.get("/api/products", async (req, res) => {
   }
 });
 
-app.post("/api/products", async (req, res) => {
+app.post("/api/products", verifyToken, async (req, res) => {
   try {
+    // Validar límites de suscripción para tiendas
+    if (req.user.role === "STORE") {
+      const user = await User.findById(req.user.id);
+      const count = await Product.countDocuments({ storeId: req.user.id });
+
+      let limit = 10; // Standard
+      if (user.subscription === "PREMIUM") limit = 30;
+      if (user.subscription === "ULTRA") limit = 50;
+
+      if (count >= limit) {
+        return res
+          .status(403)
+          .json({
+            error: `Has alcanzado el límite de ${limit} productos de tu plan ${user.subscription}.`,
+          });
+      }
+    }
+
     const newProduct = await Product.create(req.body);
     res.status(201).json(newProduct);
   } catch (error) {

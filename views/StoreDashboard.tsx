@@ -922,6 +922,61 @@ export const StoreDashboard = () => {
         {/* --- PROFILE (Simplified) --- */}
         {activeTab === "profile" && (
           <div className="space-y-4">
+            {/* Tarjeta de Suscripción */}
+            <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 mb-6">
+              <div className="flex justify-between items-center mb-3">
+                <div>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
+                    Tu Plan Actual
+                  </p>
+                  <h3 className="text-2xl font-bold text-primary mt-1">
+                    {store.subscription || "STANDARD"}
+                  </h3>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-gray-500 block">Límite</span>
+                  <span className="font-bold text-gray-800 text-lg">
+                    {store.subscription === "ULTRA"
+                      ? "50"
+                      : store.subscription === "PREMIUM"
+                        ? "30"
+                        : "10"}
+                  </span>
+                  <span className="text-xs text-gray-400 ml-1">prods.</span>
+                </div>
+              </div>
+
+              {/* Barra de Progreso */}
+              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-1000 ${
+                    myProducts.length /
+                      (store.subscription === "ULTRA"
+                        ? 50
+                        : store.subscription === "PREMIUM"
+                          ? 30
+                          : 10) >
+                    0.9
+                      ? "bg-red-500"
+                      : "bg-primary"
+                  }`}
+                  style={{
+                    width: `${Math.min(100, (myProducts.length / (store.subscription === "ULTRA" ? 50 : store.subscription === "PREMIUM" ? 30 : 10)) * 100)}%`,
+                  }}
+                ></div>
+              </div>
+
+              <p className="text-xs text-gray-400 mt-2 text-center font-medium">
+                Has utilizado {myProducts.length} de{" "}
+                {store.subscription === "ULTRA"
+                  ? "50"
+                  : store.subscription === "PREMIUM"
+                    ? "30"
+                    : "10"}{" "}
+                espacios disponibles
+              </p>
+            </div>
+
             <Card>
               <button
                 onClick={() => setIsCustomizationOpen(!isCustomizationOpen)}
