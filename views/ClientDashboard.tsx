@@ -34,9 +34,13 @@ const ClientDashboard = () => {
   const [selectedStore, setSelectedStore] = useState<StoreProfile | null>(null);
 
   // Logic to separate stores
-  const stores = users.filter(
-    (u) => u.role === "STORE" && (u as StoreProfile).isOpen && u.approved,
-  ) as StoreProfile[];
+  const stores = useMemo(
+    () =>
+      users.filter(
+        (u) => u.role === "STORE" && (u as StoreProfile).isOpen && u.approved,
+      ) as StoreProfile[],
+    [users],
+  );
 
   // Fisher-Yates shuffle algorithm for random ordering
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -50,7 +54,6 @@ const ClientDashboard = () => {
 
   // Memoize the shuffled stores to prevent re-shuffling on every render
   const { ultraStores, otherStores } = useMemo(() => {
-    console.log("Shuffling stores...");
     const newUltraStores = shuffleArray(
       stores.filter((s) => s.subscription === SubscriptionType.ULTRA),
     );
@@ -529,7 +532,9 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
     }
 
     // Calcular tarifa de envío y total antes de enviar
-    let calculatedFee = 0;
+    // Inicializar con tarifa mínima para evitar $0 si falla el cálculo de distancia
+    let driverFee = settings.kmRate;
+    let calculatedFee = settings.kmRate + settings.baseFee;
     const destColony = colonies.find((c) => c.id === finalAddress.colonyId);
     if (destColony && cart.length > 0) {
       const store = users.find(
@@ -547,9 +552,8 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
           storeColony.lng,
         );
         const driverPart = Math.ceil(dist * settings.kmRate);
-        calculatedFee =
-          (driverPart < settings.kmRate ? settings.kmRate : driverPart) +
-          settings.baseFee;
+        driverFee = driverPart < settings.kmRate ? settings.kmRate : driverPart;
+        calculatedFee = driverFee + settings.baseFee;
       }
     }
 
@@ -560,6 +564,7 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
       paymentMethod: payMethod,
       deliveryAddress: finalAddress,
       deliveryFee: calculatedFee,
+      driverFee: driverFee,
       total: cartTotal + calculatedFee,
       status: OrderStatus.PENDING,
     } as any);
@@ -833,7 +838,13 @@ const OrdersView = () => {
         .filter((o) => o.customerId === currentUser!.id)
         .map((o) => {
           const driver = o.driverId
-            ? users.find((u) => u.id === o.driverId)
+            ? users.find((u) => u.id === o.driverId) ||
+              ({
+                id: o.driverId,
+                firstName: "Repartidor",
+                lastName: "",
+                role: "DELIVERY",
+              } as any)
             : null;
           return (
             <Card key={o.id}>
@@ -944,13 +955,13 @@ const OrdersView = () => {
                   onClick={() => setRatingOrder(o)}
                 >
                   <Icons.Star size={16} className="mr-2" />
-                  Calificar Restaurante
+                  Calificar Tienda
                 </Button>
               )}
               {o.status === OrderStatus.DELIVERED && o.isReviewed && (
                 <div className="w-full mt-3 py-2 text-sm bg-gray-100 text-gray-500 text-center rounded-xl font-medium flex items-center justify-center gap-2">
                   <Icons.Check size={16} />
-                  Restaurante calificado
+                  Tienda Calificada
                 </div>
               )}
               {o.status === OrderStatus.PENDING && (
@@ -976,7 +987,17 @@ const OrdersView = () => {
           isOpen={!!chatOrder}
           onClose={() => setChatOrder(null)}
           orderId={chatOrder.id}
-          otherParty={users.find((u) => u.id === chatOrder.driverId)!}
+          otherParty={
+            users.find((u) => u.id === chatOrder.driverId) ||
+            ({
+              id: chatOrder.driverId,
+              firstName: "Repartidor",
+              lastName: "",
+              role: "DELIVERY",
+              email: "",
+              phone: "",
+            } as any)
+          }
         />
       )}
       {ratingOrder && (
@@ -1118,12 +1139,12 @@ const StoreCard: React.FC<{ store: StoreProfile; onClick: () => void }> = ({
       <div className="absolute top-2 left-2 flex gap-1">
         {store.subscription === SubscriptionType.PREMIUM && (
           <span className="bg-yellow-400/90 backdrop-blur-sm text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-            PREMIUM
+            ★ Recomendado
           </span>
         )}
         {store.subscription === SubscriptionType.ULTRA && (
           <span className="bg-purple-500/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-            ULTRA
+            La mejor opción
           </span>
         )}
       </div>

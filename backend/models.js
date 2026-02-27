@@ -102,6 +102,7 @@ const OrderSchema = new mongoose.Schema(
     },
     total: { type: Number, required: true },
     deliveryFee: { type: Number, required: true },
+    driverFee: { type: Number, default: 0 },
     deliveryAddress: { type: Object, required: true },
     storeName: String, // Snapshot para evitar lookups masivos
     customerName: String,

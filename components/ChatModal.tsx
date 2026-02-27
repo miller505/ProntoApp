@@ -22,12 +22,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const [text, setText] = useState("");
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
+  // CORRECCIÓN: Arreglo de dependencias seguro gracias a useCallback en AppContext
   useEffect(() => {
     if (isOpen && orderId) {
       fetchMessages(orderId);
       joinChatRoom(orderId);
     }
-  }, [isOpen, orderId]);
+  }, [isOpen, orderId, fetchMessages, joinChatRoom]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -56,11 +57,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           {messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex ${
-                msg.senderId === currentUser?.id
-                  ? "justify-end"
-                  : "justify-start"
-              }`}
+              className={`flex ${msg.senderId === currentUser?.id ? "justify-end" : "justify-start"}`}
             >
               <div
                 className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow-sm ${

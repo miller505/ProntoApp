@@ -28,22 +28,22 @@ export const Login = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white relative overflow-hidden">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-primary relative overflow-hidden">
       {/* Animated Background */}
-      <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-3xl animate-pulse delay-700" />
+      <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-white/10 rounded-full blur-3xl animate-pulse" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-white/10 rounded-full blur-3xl animate-pulse delay-700" />
 
       {/* Logo fuera de la caja */}
-      <div className="z-10 mb-8 flex flex-col items-center animate-fade-in-down">
+      <div className="z-10 mb-4 flex flex-col items-center animate-fade-in-down">
         <img
-          src="/logo.svg"
+          src="/logowhite.svg"
           alt="Logo"
-          className="w-64 h-64 object-contain drop-shadow-xl"
+          className="w-40 h-40 object-contain drop-shadow-xl"
         />
       </div>
 
       {/* Formulario */}
-      <Card className="w-full max-w-md shadow-2xl z-10 bg-white/90 backdrop-blur-md border border-white/50">
+      <Card className="w-full max-w-md shadow-2xl z-10 bg-white backdrop-blur-md border border-white/50">
         <div className="text-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Bienvenido</h2>
           <p className="text-gray-400 text-sm">
@@ -90,7 +90,7 @@ export const Login = () => {
         </div>
       </Card>
 
-      <p className="text-center text-gray-400 text-xs mt-8 z-10">
+      <p className="text-center text-white/70 text-xs mt-8 z-10">
         © 2024 ProntoApp. Todos los derechos reservados.
       </p>
     </div>

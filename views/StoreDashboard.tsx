@@ -78,7 +78,14 @@ export const StoreDashboard = () => {
 
   useEffect(() => {
     if (activeTab === "reviews") {
-      getStoreReviews(store.id).then(setReviews);
+      getStoreReviews(store.id).then((data) => {
+        setReviews(
+          [...data].sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          ),
+        );
+      });
     }
   }, [activeTab]);
 

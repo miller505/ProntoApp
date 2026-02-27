@@ -199,7 +199,13 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
-              INE / Identificación
+              Identificación vigente
+              <br />
+              <span className="text-gray-300 text-xs mt-8 z-10">
+                {" "}
+                (Credencial de elector/ Licencia de conducir/ Credencial
+                escolar){" "}
+              </span>
             </label>
             <input
               type="file"
