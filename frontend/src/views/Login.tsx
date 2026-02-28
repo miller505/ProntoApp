@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useApp } from "../AppContext";
 import { Button, Input, Card } from "../components/UI";
 import { Register } from "./Register";
+import { Icons } from "@/constants";
 
 export const Login = () => {
   const { login } = useApp();
@@ -45,8 +46,11 @@ export const Login = () => {
       {/* Formulario */}
       <Card className="w-full max-w-md shadow-2xl z-10 bg-white backdrop-blur-md border border-white/50">
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">Bienvenido</h2>
-          <p className="text-gray-400 text-sm">
+          <h2 className="text-2xl font-bold text-gray-800 flex items-center justify-center gap-2">
+            <Icons.MapPin className="text-primary" />
+            Canatlán
+          </h2>
+          <p className="text-gray-500 text-sm">
             Ingresa a tu cuenta para continuar
           </p>
         </div>
@@ -91,7 +95,7 @@ export const Login = () => {
       </Card>
 
       <p className="text-center text-white/70 text-xs mt-8 z-10">
-        © 2024 ProntoApp. Todos los derechos reservados.
+        © 2026 ProntoApp. Todos los derechos reservados.
       </p>
     </div>
   );

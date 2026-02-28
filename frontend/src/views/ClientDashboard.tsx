@@ -562,7 +562,8 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center text-gray-400">
         <Icons.ShoppingCart size={48} className="mb-4 opacity-20" />
-        <p>Tu carrito está vacío</p>
+        <p className="mb-6">Tu carrito está vacío</p>
+        <Button onClick={() => setView("home")}>Comprar ahora</Button>
       </div>
     );
 
@@ -1017,20 +1018,44 @@ const ProfileView = () => {
     }
   };
 
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName?.charAt(0) || ""}${lastName?.charAt(0) || ""}`.toUpperCase();
+  };
+
+  const getColor = (name: string) => {
+    const colors = [
+      "bg-red-500",
+      "bg-blue-500",
+      "bg-green-500",
+      "bg-yellow-500",
+      "bg-purple-500",
+      "bg-pink-500",
+      "bg-indigo-500",
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
   return (
     <div className="p-6 pb-24">
-      <Card className="flex flex-col items-center py-10 space-y-4">
-        <div className="w-24 h-24 bg-gray-200 rounded-full mb-2 flex items-center justify-center text-3xl text-gray-400">
-          <Icons.User />
-        </div>
-
-        <div className="text-center w-full">
-          <h2 className="text-2xl font-bold text-iosText">
-            {currentUser?.firstName} {currentUser?.lastName}
-          </h2>
-          <p className="text-gray-500 font-medium">
-            {currentUser?.role === "CLIENT" ? "Cliente" : "Usuario"}
-          </p>
+      <Card className="flex flex-col py-6 space-y-4">
+        <div className="flex items-center gap-4 px-2">
+          <div
+            className={`w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-md ${getColor((currentUser?.firstName || "") + (currentUser?.lastName || ""))}`}
+          >
+            {getInitials(currentUser?.firstName, currentUser?.lastName)}
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-iosText">
+              {currentUser?.firstName} {currentUser?.lastName}
+            </h2>
+            <p className="text-gray-500 font-medium text-sm">
+              {currentUser?.role === "CLIENT" ? "Cliente" : "Usuario"}
+            </p>
+          </div>
         </div>
 
         <div className="w-full space-y-3 mt-4 text-left">
@@ -1153,15 +1178,9 @@ const StoreCard: React.FC<{ store: StoreProfile; onClick: () => void }> = ({
 
     <div className="p-3">
       <div className="flex justify-between items-start">
-        <h3 className="font-bold text-gray-800 text-sm line-clamp-1 flex-1">
+        <h3 className="font-bold text-gray-800 text-sm line-clamp-2 flex-1">
           {store.storeName}
         </h3>
-        {store.averageRating !== undefined && (
-          <span className="flex items-center gap-1 text-xs font-bold text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded-lg">
-            <Icons.Star size={10} fill="currentColor" />
-            {store.averageRating > 0 ? store.averageRating.toFixed(1) : "N"}
-          </span>
-        )}
       </div>
 
       <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 min-h-[2.5em]">
@@ -1172,9 +1191,12 @@ const StoreCard: React.FC<{ store: StoreProfile; onClick: () => void }> = ({
         <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg">
           <Icons.Clock size={12} /> {store.prepTime || "30m"}
         </span>
-        <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg text-green-600 font-medium">
-          <Icons.Zap size={12} /> Disponible
-        </span>
+        {store.averageRating !== undefined && (
+          <span className="flex items-center gap-1 text-xs font-bold text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded-lg">
+            <Icons.Star size={10} fill="currentColor" />
+            {store.averageRating > 0 ? store.averageRating.toFixed(1) : "N"}
+          </span>
+        )}
       </div>
     </div>
   </div>
