@@ -1,16 +1,22 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../AppContext";
 import { Button, Input, Card } from "../components/UI";
 import { Register } from "./Register";
 import { Icons } from "../constants";
 
 export const Login = () => {
-  const { login, colonies } = useApp();
+  const { login, colonies, fetchColonies } = useApp();
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if ((!colonies || colonies.length === 0) && fetchColonies) {
+      fetchColonies();
+    }
+  }, [colonies, fetchColonies]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

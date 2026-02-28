@@ -46,6 +46,7 @@ interface AppContextType {
   addColony: (colony: Colony) => Promise<void>;
   updateColony: (colony: Colony) => Promise<void>;
   deleteColony: (id: string) => Promise<void>;
+  fetchColonies: () => Promise<void>;
   updateSettings: (settings: SystemSettings) => Promise<void>;
   messages: Message[];
   fetchMessages: (orderId: string) => Promise<void>;
@@ -151,6 +152,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       newSocket.close();
     };
+  }, []);
+
+  const fetchColonies = useCallback(async () => {
+    try {
+      const res = await api.get("/api/colonies");
+      const normalize = (data: any[]) => {
+        if (!Array.isArray(data)) return [];
+        return data.map((item) => ({ ...item, id: item._id || item.id }));
+      };
+      setColonies(normalize(res.data));
+    } catch (error) {
+      console.error("Error fetching colonies:", error);
+    }
   }, []);
 
   const fetchInitialData = useCallback(async (user: any) => {
@@ -495,6 +509,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         addColony,
         updateColony,
         deleteColony,
+        fetchColonies,
         updateSettings,
         messages,
         fetchMessages,
