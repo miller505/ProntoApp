@@ -37,6 +37,9 @@ export const MasterDashboard = () => {
   );
   const [editFormData, setEditFormData] = useState<any>({});
 
+  // ESTADO NUEVO: Controla las acciones en proceso para mostrar retroalimentación
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+
   // Requests Logic
   const pendingUsers = users.filter((u) => !u.approved);
 
@@ -58,15 +61,38 @@ export const MasterDashboard = () => {
     return (matchesSearch || matchesStoreName) && matchesRole;
   });
 
-  const handleApprove = (u: User | StoreProfile) => {
-    updateUser({ ...u, approved: true, isMasterUpdate: true } as any);
+  const handleApprove = async (u: User | StoreProfile) => {
+    setLoadingAction(`approve-${u.id}`);
+    try {
+      await updateUser({ ...u, approved: true, isMasterUpdate: true } as any);
+    } finally {
+      setLoadingAction(null);
+    }
   };
 
-  const handleChangeSubscription = (
+  const handleChangeSubscription = async (
     store: StoreProfile,
     sub: SubscriptionType,
   ) => {
-    updateUser({ ...store, subscription: sub, isMasterUpdate: true } as any);
+    setLoadingAction(`sub-${store.id}`);
+    try {
+      await updateUser({
+        ...store,
+        subscription: sub,
+        isMasterUpdate: true,
+      } as any);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    setLoadingAction(`delete-${id}`);
+    try {
+      await deleteUser(id);
+    } finally {
+      setLoadingAction(null);
+    }
   };
 
   const handleEditClick = (user: User | StoreProfile) => {
@@ -85,8 +111,9 @@ export const MasterDashboard = () => {
     setIsEditModalOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingUser) return;
+    setLoadingAction(`edit-${editingUser.id}`);
 
     const updatedUser: any = {
       ...editingUser,
@@ -98,9 +125,13 @@ export const MasterDashboard = () => {
       delete updatedUser.password;
     }
 
-    updateUser(updatedUser);
-    setIsEditModalOpen(false);
-    setEditingUser(null);
+    try {
+      await updateUser(updatedUser);
+      setIsEditModalOpen(false);
+      setEditingUser(null);
+    } finally {
+      setLoadingAction(null);
+    }
   };
 
   return (
@@ -224,17 +255,23 @@ export const MasterDashboard = () => {
                   <div className="flex gap-2 pt-2">
                     <Button
                       variant="danger"
-                      className="flex-1 py-2 text-sm"
-                      onClick={() => deleteUser(u.id)}
+                      className="flex-1 py-2 text-sm disabled:opacity-50"
+                      onClick={() => handleDeleteUser(u.id)}
+                      disabled={loadingAction !== null}
                     >
-                      Rechazar
+                      {loadingAction === `delete-${u.id}`
+                        ? "Procesando..."
+                        : "Rechazar"}
                     </Button>
                     <Button
                       variant="primary"
-                      className="flex-1 py-2 text-sm"
+                      className="flex-1 py-2 text-sm disabled:opacity-50"
                       onClick={() => handleApprove(u)}
+                      disabled={loadingAction !== null}
                     >
-                      Aceptar
+                      {loadingAction === `approve-${u.id}`
+                        ? "Aceptando..."
+                        : "Aceptar"}
                     </Button>
                   </div>
                 </Card>
@@ -352,39 +389,56 @@ export const MasterDashboard = () => {
                             ? (u as StoreProfile).averageRating?.toFixed(1)
                             : "N/A"}
                         </div>
-                        <select
-                          className="text-xs p-1.5 rounded-lg bg-gray-100 border-none"
-                          value={(u as StoreProfile).subscription}
-                          onChange={(e) =>
-                            handleChangeSubscription(
-                              u as StoreProfile,
-                              e.target.value as SubscriptionType,
-                            )
-                          }
-                        >
-                          <option value={SubscriptionType.STANDARD}>
-                            STANDARD
-                          </option>
-                          <option value={SubscriptionType.PREMIUM}>
-                            PREMIUM
-                          </option>
-                          <option value={SubscriptionType.ULTRA}>ULTRA</option>
-                        </select>
+                        {loadingAction === `sub-${u.id}` ? (
+                          <span className="text-xs font-semibold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg animate-pulse">
+                            Cambiando...
+                          </span>
+                        ) : (
+                          <select
+                            className="text-xs p-1.5 rounded-lg bg-gray-100 border-none disabled:opacity-50"
+                            value={(u as StoreProfile).subscription}
+                            onChange={(e) =>
+                              handleChangeSubscription(
+                                u as StoreProfile,
+                                e.target.value as SubscriptionType,
+                              )
+                            }
+                            disabled={loadingAction !== null}
+                          >
+                            <option value={SubscriptionType.STANDARD}>
+                              STANDARD
+                            </option>
+                            <option value={SubscriptionType.PREMIUM}>
+                              PREMIUM
+                            </option>
+                            <option value={SubscriptionType.ULTRA}>
+                              ULTRA
+                            </option>
+                          </select>
+                        )}
                       </div>
                     )}
                     <div className="flex gap-2 ml-auto">
                       <Button
                         variant="secondary"
-                        className="px-3 py-1.5 text-xs h-8"
+                        className="px-3 py-1.5 text-xs h-8 disabled:opacity-50"
                         onClick={() => handleEditClick(u)}
+                        disabled={loadingAction !== null}
                       >
                         Editar
                       </Button>
                       <button
-                        onClick={() => deleteUser(u.id)}
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        onClick={() => handleDeleteUser(u.id)}
+                        disabled={loadingAction !== null}
+                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center min-w-[32px]"
                       >
-                        <Icons.Trash2 size={16} />
+                        {loadingAction === `delete-${u.id}` ? (
+                          <span className="text-xs font-bold animate-pulse">
+                            ...
+                          </span>
+                        ) : (
+                          <Icons.Trash2 size={16} />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -547,8 +601,12 @@ export const MasterDashboard = () => {
                 />
               </div>
             )}
-            <Button onClick={handleSaveEdit} className="w-full">
-              Guardar Cambios
+            <Button
+              onClick={handleSaveEdit}
+              className="w-full disabled:opacity-50"
+              disabled={loadingAction !== null}
+            >
+              {loadingAction ? "Guardando..." : "Guardar Cambios"}
             </Button>
           </div>
         </Modal>
