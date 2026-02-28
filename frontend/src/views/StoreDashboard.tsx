@@ -6,7 +6,7 @@ import { StoreProfile, Product, Order, OrderStatus } from "../types";
 import {
   getOrderStatusLabel,
   getOrderStatusColor,
-} from "../src/orderStatusTranslations";
+} from "../orderStatusTranslations";
 import { formatDate } from "../utils";
 
 export const StoreDashboard = () => {
