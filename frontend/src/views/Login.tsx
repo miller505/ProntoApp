@@ -5,7 +5,7 @@ import { Register } from "./Register";
 import { Icons } from "../constants";
 
 export const Login = () => {
-  const { login } = useApp();
+  const { login, colonies } = useApp();
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +25,9 @@ export const Login = () => {
   };
 
   if (isRegistering) {
-    return <Register onBack={() => setIsRegistering(false)} />;
+    return (
+      <Register onBack={() => setIsRegistering(false)} colonies={colonies} />
+    );
   }
 
   return (
