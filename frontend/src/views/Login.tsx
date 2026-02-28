@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useApp } from "../AppContext";
 import { Button, Input, Card } from "../components/UI";
 import { Register } from "./Register";
-import { Icons } from "@/constants";
+import { Icons } from "../constants";
 
 export const Login = () => {
   const { login } = useApp();

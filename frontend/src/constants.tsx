@@ -36,6 +36,9 @@ import {
   Zap,
 } from "lucide-react";
 
+// URL del backend. En producción Vercel usará la variable de entorno, en local usará localhost.
+export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 export const Icons = {
   ShoppingBag,
   ShoppingCart,
