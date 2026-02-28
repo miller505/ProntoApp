@@ -16,7 +16,7 @@ import {
   Message,
   SystemSettings,
 } from "./types";
-import { api } from "./src/api"; // Asegúrate de que la ruta sea correcta
+import { api } from "./api"; // Asegúrate de que la ruta sea correcta
 import { io, Socket } from "socket.io-client";
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";

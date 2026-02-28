@@ -1,9 +1,5 @@
-/// <reference types="vite/client" />
 import axios from "axios";
-
-// Detecta si estamos en prod o dev
-// EN VERCEL: Debes configurar la variable de entorno VITE_API_URL
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import { API_URL } from "./constants";
 
 export const api = axios.create({
   baseURL: API_URL,
