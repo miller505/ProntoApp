@@ -34,6 +34,7 @@ import {
   Calendar,
   MessageSquare,
   Zap,
+  TrendingUp,
 } from "lucide-react";
 
 // URL del backend. En producción Vercel usará la variable de entorno, en local usará localhost.
@@ -74,6 +75,7 @@ export const Icons = {
   Calendar,
   MessageSquare,
   Zap,
+  TrendingUp,
 };
 
 export const ALLOWED_EMAILS = [

@@ -81,6 +81,7 @@ export interface Product {
   price: number;
   category: string;
   image?: string;
+  isAvailable?: boolean;
 }
 
 export interface Address {

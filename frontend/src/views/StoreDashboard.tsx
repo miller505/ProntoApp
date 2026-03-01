@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../AppContext";
+import { useAuth } from "../contexts/AuthContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
 import { StoreProfile, Product, Order, OrderStatus } from "../types";
@@ -11,18 +12,18 @@ import { formatDate } from "../utils";
 
 export const StoreDashboard = () => {
   const {
-    currentUser,
-    updateUser,
     products,
     addProduct,
     updateProduct,
     deleteProduct,
     orders,
     updateOrderStatus,
-    logout,
     colonies,
     getStoreReviews,
   } = useApp();
+
+  const { currentUser, updateUser, logout } = useAuth();
+
   const store = currentUser as StoreProfile;
 
   const [activeTab, setActiveTab] = useState<
@@ -63,24 +64,24 @@ export const StoreDashboard = () => {
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
-    prepTime: extractPrepTime(store.prepTime),
-    description: store.description || "",
-    logo: store.logo || "",
-    coverImage: store.coverImage || "",
+    prepTime: extractPrepTime(store?.prepTime),
+    description: store?.description || "",
+    logo: store?.logo || "",
+    coverImage: store?.coverImage || "",
   });
 
   // Sync profileForm with store data when it changes
   useEffect(() => {
     setProfileForm({
-      prepTime: extractPrepTime(store.prepTime),
-      description: store.description || "",
-      logo: store.logo || "",
-      coverImage: store.coverImage || "",
+      prepTime: extractPrepTime(store?.prepTime),
+      description: store?.description || "",
+      logo: store?.logo || "",
+      coverImage: store?.coverImage || "",
     });
-  }, [store.prepTime, store.description, store.logo, store.coverImage]);
+  }, [store?.prepTime, store?.description, store?.logo, store?.coverImage]);
 
   useEffect(() => {
-    if (activeTab === "reviews") {
+    if (activeTab === "reviews" && store) {
       getStoreReviews(store.id).then((data) => {
         setReviews(
           [...data].sort(
@@ -94,8 +95,13 @@ export const StoreDashboard = () => {
 
   const [saveFeedback, setSaveFeedback] = useState("");
 
-  const myOrders = orders.filter((o) => o.storeId === store.id);
-  const myProducts = products.filter((p) => p.storeId === store.id);
+  const myOrders = orders.filter((o) => o.storeId === store?.id);
+  const activeOrdersCount = myOrders.filter(
+    (o) =>
+      o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.REJECTED,
+  ).length;
+
+  const myProducts = products.filter((p) => p.storeId === store?.id);
 
   // Filter and sort products, memoized for performance
   const filteredAndSortedProducts = useMemo(() => {
@@ -107,7 +113,7 @@ export const StoreDashboard = () => {
         const matchesCategory =
           prodFilterCategory === "ALL" || p.category === prodFilterCategory;
 
-        const isHidden = (p as any).isVisible === false;
+        const isHidden = p.isAvailable === false;
         const matchesVisibility =
           prodFilterVisibility === "ALL" ||
           (prodFilterVisibility === "VISIBLE" && !isHidden) ||
@@ -161,7 +167,7 @@ export const StoreDashboard = () => {
 
       const now = new Date();
       const currentDay = now.getDay();
-      const diff = now.getDate() - currentDay;
+      const diff = now.getDate() - currentDay + (currentDay === 0 ? -6 : 1); // Adjust to Monday
       const currentWeekStart = new Date(now.setDate(diff)).setHours(0, 0, 0, 0);
 
       let weekTotal = 0;
@@ -170,7 +176,7 @@ export const StoreDashboard = () => {
       deliveredOrders.forEach((o) => {
         const d = new Date(o.createdAt);
         const day = d.getDay();
-        const diffDate = d.getDate() - day;
+        const diffDate = d.getDate() - day + (day === 0 ? -6 : 1);
         const weekStart = new Date(d.setDate(diffDate)).setHours(0, 0, 0, 0);
 
         if (weekStart === currentWeekStart) {
@@ -190,7 +196,55 @@ export const StoreDashboard = () => {
       };
     }, [myOrders]);
 
+  // Calculate Weekly Breakdown for the List
+  const weeklyStats = useMemo(() => {
+    const deliveredOrders = myOrders.filter(
+      (o) => o.status === OrderStatus.DELIVERED,
+    );
+
+    const stats: Record<
+      string,
+      { total: number; count: number; startDate: Date }
+    > = {};
+
+    deliveredOrders.forEach((o) => {
+      const d = new Date(o.createdAt);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+      const weekStart = new Date(d.setDate(diff));
+      weekStart.setHours(0, 0, 0, 0);
+      const key = weekStart.getTime().toString();
+
+      if (!stats[key]) {
+        stats[key] = { total: 0, count: 0, startDate: weekStart };
+      }
+
+      const orderTotal = o.items.reduce(
+        (sum, item) => sum + item.product.price * item.quantity,
+        0,
+      );
+
+      stats[key].total += orderTotal;
+      stats[key].count += 1;
+    });
+
+    return Object.values(stats).sort(
+      (a, b) => b.startDate.getTime() - a.startDate.getTime(),
+    );
+  }, [myOrders]);
+
+  // Calculate stats from reviews state for the Reviews tab (Real-time calculation)
+  const reviewStats = useMemo(() => {
+    if (reviews.length === 0) return { average: 0, count: 0 };
+    const total = reviews.reduce((acc, r) => acc + r.rating, 0);
+    return {
+      average: total / reviews.length,
+      count: reviews.length,
+    };
+  }, [reviews]);
+
   const handleToggleOpen = async () => {
+    if (!store) return;
     setIsTogglingStatus(true);
     try {
       await updateUser({ ...store, isOpen: !store.isOpen });
@@ -210,8 +264,8 @@ export const StoreDashboard = () => {
   };
 
   const handleToggleProductVisibility = (p: Product) => {
-    const currentVisibility = (p as any).isVisible !== false; // Por defecto es true si es undefined
-    updateProduct({ ...p, isVisible: !currentVisibility } as any);
+    const currentVisibility = p.isAvailable !== false; // Por defecto es true si es undefined
+    updateProduct({ ...p, isAvailable: !currentVisibility });
     setSaveFeedback(
       !currentVisibility ? "Producto visible" : "Producto oculto",
     );
@@ -220,6 +274,7 @@ export const StoreDashboard = () => {
 
   const handleProductSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!store) return;
 
     const errors: any = {};
     const name = (prodForm.name || "").toString();
@@ -246,13 +301,13 @@ export const StoreDashboard = () => {
     setProdErrors({});
 
     const payload: any = {
-      storeId: store.id,
+      storeId: currentUser?.id, // Asegurar que usamos el ID de la sesión real
       name: name.trim(),
       description: description.trim(),
       price: priceNum,
       category: category.trim(),
       image: prodForm.image || "https://picsum.photos/200",
-      isVisible: editingProduct ? (editingProduct as any).isVisible : true,
+      isAvailable: editingProduct ? editingProduct.isAvailable : true,
     };
 
     if (editingProduct) {
@@ -308,6 +363,7 @@ export const StoreDashboard = () => {
   };
 
   const handleSaveProfile = async () => {
+    if (!store) return;
     let prep = Number(profileForm.prepTime);
     if (isNaN(prep)) prep = 0;
     if (prep < 0) prep = 0;
@@ -369,6 +425,8 @@ export const StoreDashboard = () => {
     setProductModalOpen(true);
   };
 
+  if (!store) return null; // Prevención de errores si aún está cargando la sesión
+
   return (
     <div className="min-h-screen bg-secondary pb-24">
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
@@ -424,7 +482,7 @@ export const StoreDashboard = () => {
         <div className="flex gap-2 p-1 bg-white rounded-2xl shadow-sm">
           <TabButton
             id="orders"
-            label="Pedidos"
+            label={`Pedidos (${activeOrdersCount})`}
             icon={<Icons.ShoppingBag size={18} />}
             active={activeTab}
             set={setActiveTab}
@@ -714,14 +772,14 @@ export const StoreDashboard = () => {
                         <div className="flex gap-1 flex-shrink-0">
                           <button
                             onClick={() => handleToggleProductVisibility(p)}
-                            className={`p-1.5 rounded-lg transition-colors ${(p as any).isVisible === false ? "bg-gray-200 text-gray-500" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}
+                            className={`p-1.5 rounded-lg transition-colors ${p.isAvailable === false ? "bg-gray-200 text-gray-500" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}
                             title={
-                              (p as any).isVisible === false
+                              p.isAvailable === false
                                 ? "Mostrar producto"
                                 : "Ocultar producto"
                             }
                           >
-                            {(p as any).isVisible === false ? (
+                            {p.isAvailable === false ? (
                               <Icons.EyeOff size={14} />
                             ) : (
                               <Icons.Eye size={14} />
@@ -760,9 +818,28 @@ export const StoreDashboard = () => {
         {/* --- REVIEWS --- */}
         {activeTab === "reviews" && (
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-gray-800 ml-1">
-              Reseñas de Clientes
-            </h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-lg font-bold text-gray-800 ml-1">
+                Reseñas de Clientes
+              </h2>
+              <div className="flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-xl border border-yellow-100">
+                <Icons.Star
+                  size={20}
+                  className="text-yellow-500"
+                  fill="currentColor"
+                />
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-gray-800 leading-none">
+                    {reviewStats.average > 0
+                      ? reviewStats.average.toFixed(1)
+                      : "N/A"}
+                  </span>
+                  <span className="text-[10px] text-gray-500 leading-none">
+                    {reviewStats.count} reseñas
+                  </span>
+                </div>
+              </div>
+            </div>
             {reviews.length === 0 && (
               <div className="text-center py-10 text-gray-400">
                 Aún no tienes reseñas.
@@ -809,7 +886,9 @@ export const StoreDashboard = () => {
                   ${totalSales.toFixed(2)}
                 </p>
               </Card>
-              <Card className="bg-green-600 text-white p-4 shadow-sm">
+
+              {/* CORRECCIÓN: Usar div en lugar de Card para evitar conflictos de estilos (fondo blanco forzado) */}
+              <div className="bg-green-600 text-white p-4 rounded-2xl shadow-sm">
                 <div className="flex items-center gap-2 mb-1 opacity-80">
                   <Icons.TrendingUp size={18} />
                   <h3 className="font-semibold text-xs">Ventas (Semana)</h3>
@@ -817,7 +896,8 @@ export const StoreDashboard = () => {
                 <p className="text-xl font-bold">
                   ${currentWeekSales.toFixed(2)}
                 </p>
-              </Card>
+              </div>
+
               <Card className="bg-white border border-gray-100 p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-1 text-blue-600">
                   <Icons.ShoppingBag size={18} />
@@ -827,94 +907,256 @@ export const StoreDashboard = () => {
                 </div>
                 <p className="text-xl font-bold text-gray-800">{totalOrders}</p>
               </Card>
-              <Card className="bg-green-600 text-white p-4 shadow-sm">
+
+              {/* CORRECCIÓN: Usar div en lugar de Card */}
+              <div className="bg-green-600 text-white p-4 rounded-2xl shadow-sm">
                 <div className="flex items-center gap-2 mb-1 opacity-80">
                   <Icons.ShoppingBag size={18} />
                   <h3 className="font-semibold text-xs">Pedidos (Semana)</h3>
                 </div>
                 <p className="text-xl font-bold">{currentWeekOrders}</p>
-              </Card>
+              </div>
+            </div>
+
+            {/* NUEVO: Resumen Semanal */}
+            <h3 className="font-bold text-lg mb-4 text-gray-800">
+              Resumen Semanal
+            </h3>
+            <div className="space-y-3">
+              {weeklyStats.length === 0 && (
+                <p className="text-gray-400 text-center">
+                  No hay ventas registradas.
+                </p>
+              )}
+              {weeklyStats.map((stat) => {
+                const labelStart = stat.startDate.toLocaleDateString("es-MX", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                });
+                const endDate = new Date(stat.startDate);
+                endDate.setDate(endDate.getDate() + 6);
+                const labelEnd = endDate.toLocaleDateString("es-MX", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                });
+
+                return (
+                  <Card
+                    key={stat.startDate.getTime()}
+                    className="flex justify-between items-center"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                        <Icons.Calendar size={20} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-800">
+                          {labelStart} - {labelEnd}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {stat.count} pedidos
+                        </p>
+                      </div>
+                    </div>
+                    <p className="font-bold text-lg text-green-600">
+                      ${stat.total.toFixed(2)}
+                    </p>
+                  </Card>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* --- PROFILE --- */}
+        {/* --- PROFILE (Simplified) --- */}
         {activeTab === "profile" && (
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-gray-800 ml-1">Mi Tienda</h2>
-            <Card className="space-y-4">
-              <Input
-                label="Tiempo de Preparación Promedio (minutos)"
-                type="number"
-                value={profileForm.prepTime}
-                onChange={(e: any) =>
-                  setProfileForm({ ...profileForm, prepTime: e.target.value })
-                }
-                placeholder="Ej. 20"
-              />
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700 ml-1">
-                  Descripción Corta
-                </label>
-                <textarea
-                  className="w-full px-4 py-3 rounded-2xl bg-gray-100 border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none transition-colors text-iosText resize-none"
-                  rows={3}
-                  value={profileForm.description}
-                  onChange={(e) =>
-                    setProfileForm({
-                      ...profileForm,
-                      description: e.target.value,
-                    })
-                  }
-                  maxLength={70}
-                  placeholder="Describe tu tienda en pocas palabras..."
+            <Card>
+              <button
+                onClick={() => setIsCustomizationOpen(!isCustomizationOpen)}
+                className="flex justify-between items-center w-full"
+              >
+                <h3 className="font-bold text-lg">
+                  Personalización de la tienda
+                </h3>
+                <Icons.ChevronDown
+                  className={`transition-transform duration-300 ${isCustomizationOpen ? "rotate-180" : ""}`}
                 />
-                <p className="text-xs text-right text-gray-400">
-                  {profileForm.description.length}/70
-                </p>
-              </div>
+              </button>
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700 ml-1">
-                  Logo de la Tienda
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleProfileImageUpload(e, "logo")}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
-                />
-                {profileForm.logo && (
-                  <img
-                    src={profileForm.logo}
-                    alt="Logo"
-                    className="w-20 h-20 object-cover rounded-full mt-2"
-                  />
-                )}
-              </div>
+              {isCustomizationOpen && (
+                <div className="space-y-6 mt-4 pt-4 border-t border-gray-100">
+                  {/* Cover Image Upload */}
+                  <div className="flex flex-col items-center">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Portada de Tienda
+                    </label>
+                    <div className="flex items-center gap-4">
+                      {profileForm.coverImage && (
+                        <img
+                          src={profileForm.coverImage}
+                          alt="Cover"
+                          className="w-32 h-20 rounded-xl object-cover border border-gray-200"
+                        />
+                      )}
+                      <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Icons.Camera size={18} />
+                          <span>
+                            {profileForm.coverImage ? "Cambiar" : "Subir"}
+                          </span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) =>
+                            handleProfileImageUpload(e, "coverImage")
+                          }
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700 ml-1">
-                  Imagen de Portada
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleProfileImageUpload(e, "coverImage")}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
-                />
-                {profileForm.coverImage && (
-                  <img
-                    src={profileForm.coverImage}
-                    alt="Cover"
-                    className="w-full h-32 object-cover rounded-xl mt-2"
-                  />
-                )}
-              </div>
+                  {/* Logo Upload */}
+                  <div className="flex flex-col items-center">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Avatar de Tienda
+                    </label>
+                    <div className="flex items-center gap-4">
+                      {profileForm.logo && (
+                        <img
+                          src={profileForm.logo}
+                          alt="Logo"
+                          className="w-20 h-20 rounded-full object-cover border border-gray-200"
+                        />
+                      )}
+                      <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Icons.Camera size={18} />
+                          <span>{profileForm.logo ? "Cambiar" : "Subir"}</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleProfileImageUpload(e, "logo")}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
 
-              <Button onClick={handleSaveProfile} className="w-full">
-                Guardar Cambios
-              </Button>
+                  <div>
+                    <div className="flex justify-between items-baseline">
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Tiempo estimado de preparación
+                      </label>
+                      <span className="text-xs text-gray-400">Máx 120 min</span>
+                    </div>
+                    <Input
+                      type="number"
+                      placeholder="Ej. 20"
+                      value={profileForm.prepTime}
+                      onChange={(e: any) =>
+                        setProfileForm({
+                          ...profileForm,
+                          prepTime: e.target.value,
+                        })
+                      }
+                      min={0}
+                      max={120}
+                      step={1}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-baseline">
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Descripción de la tienda
+                      </label>
+                      <span className="text-xs text-gray-400">
+                        {(profileForm.description || "").length}/70
+                      </span>
+                    </div>
+                    <Input
+                      value={profileForm.description}
+                      onChange={(e: any) =>
+                        setProfileForm({
+                          ...profileForm,
+                          description: e.target.value,
+                        })
+                      }
+                      maxLength={70}
+                    />
+                  </div>
+                  <Button className="w-full mt-4" onClick={handleSaveProfile}>
+                    Guardar Cambios
+                  </Button>
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <h3 className="font-bold text-lg mb-4">
+                Información del Propietario
+              </h3>
+              <div className="space-y-4 text-sm">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-gray-400 text-xs block">Nombre</span>
+                    <p className="font-medium text-gray-800">
+                      {store.firstName}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-xs block">
+                      Apellido
+                    </span>
+                    <p className="font-medium text-gray-800">
+                      {store.lastName}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs block">
+                    Número asociado
+                  </span>
+                  <p className="font-medium text-gray-800">{store.phone}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs block">
+                    Correo electrónico
+                  </span>
+                  <p className="font-medium text-gray-800">{store.email}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs block">
+                    Dirección de la tienda
+                  </span>
+                  <p className="font-medium text-gray-800">
+                    {store.storeAddress.street} #{store.storeAddress.number}
+                    {store.storeAddress.colonyId && colonies
+                      ? `, ${colonies.find((c) => c.id === store.storeAddress.colonyId)?.name}`
+                      : ""}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs block mb-2">
+                    Identificación (INE)
+                  </span>
+                  {store.ineImage ? (
+                    <img
+                      src={store.ineImage}
+                      alt="INE"
+                      className="w-full h-48 object-cover rounded-xl border border-gray-200"
+                    />
+                  ) : (
+                    <p className="text-gray-400 italic">No disponible</p>
+                  )}
+                </div>
+              </div>
             </Card>
           </div>
         )}

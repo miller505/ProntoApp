@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../AppContext";
+import { useAuth } from "../contexts/AuthContext"; // <-- Importamos AuthContext
 import { Modal, Input, Button } from "./UI";
 import { Icons } from "../constants";
 import { User, StoreProfile } from "../types";
@@ -17,8 +18,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   orderId,
   otherParty,
 }) => {
-  const { currentUser, messages, fetchMessages, sendMessage, joinChatRoom } =
-    useApp();
+  const { messages, fetchMessages, sendMessage, joinChatRoom } = useApp();
+  const { currentUser } = useAuth(); // <-- currentUser ahora viene de useAuth
+
   const [text, setText] = useState("");
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
@@ -54,7 +56,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     >
       <div className="flex flex-col h-[60vh]">
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 rounded-lg">
-          {messages.map((msg) => (
+          {(messages || []).map((msg) => (
             <div
               key={msg.id}
               className={`flex ${msg.senderId === currentUser?.id ? "justify-end" : "justify-start"}`}

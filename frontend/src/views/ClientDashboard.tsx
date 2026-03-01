@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useApp } from "../AppContext";
+import { useAuth } from "../contexts/AuthContext";
+import { useCart } from "../contexts/CartContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
 import { StoreProfile, SubscriptionType, Product, OrderStatus } from "../types";
@@ -14,30 +16,28 @@ const ClientDashboard = () => {
   const {
     users,
     products,
-    cart,
-    addToCart,
-    removeFromCart,
-    cartTotal,
-    currentUser,
-    updateUser,
     placeOrder,
     orders,
-    logout,
     colonies,
     addReview,
     unreadCounts,
     markOrderMessagesAsRead,
   } = useApp();
+
+  const { currentUser } = useAuth();
+  const { cart } = useCart();
+
   const [view, setView] = useState<"home" | "cart" | "orders" | "profile">(
     "home",
   );
   const [selectedStore, setSelectedStore] = useState<StoreProfile | null>(null);
 
-  // Logic to separate stores
+  // Lógica más resistente: Si la tienda llega del endpoint /api/stores, sabemos que
+  // ya está abierta y aprobada desde el backend, pero validamos por seguridad.
   const stores = useMemo(
     () =>
       users.filter(
-        (u) => u.role === "STORE" && (u as StoreProfile).isOpen && u.approved,
+        (u) => u.role === "STORE" && (u as StoreProfile).isOpen !== false,
       ) as StoreProfile[],
     [users],
   );
@@ -54,16 +54,14 @@ const ClientDashboard = () => {
 
   // Memoize the shuffled stores to prevent re-shuffling on every render
   const { ultraStores, otherStores } = useMemo(() => {
+    // Filtramos las Ultra
     const newUltraStores = shuffleArray(
       stores.filter((s) => s.subscription === SubscriptionType.ULTRA),
     );
-    const newPremiumStores = shuffleArray(
-      stores.filter((s) => s.subscription === SubscriptionType.PREMIUM),
+    // TODAS las demás caen aquí (incluso si no tienen suscripción definida)
+    const newOtherStores = shuffleArray(
+      stores.filter((s) => s.subscription !== SubscriptionType.ULTRA),
     );
-    const newStandardStores = shuffleArray(
-      stores.filter((s) => s.subscription === SubscriptionType.STANDARD),
-    );
-    const newOtherStores = [...newPremiumStores, ...newStandardStores];
 
     return {
       ultraStores: newUltraStores,
@@ -150,7 +148,7 @@ const ClientDashboard = () => {
   );
 };
 
-// --- Sub-View Components (Defined outside to prevent re-renders/focus loss) ---
+// --- Sub-View Components ---
 
 const StoreView = ({
   store,
@@ -161,7 +159,8 @@ const StoreView = ({
   onBack: () => void;
   onGoToCart: () => void;
 }) => {
-  const { products, addToCart, cart } = useApp();
+  const { products } = useApp();
+  const { addToCart, cart } = useCart();
   const [activeCategory, setActiveCategory] = useState("ALL");
   const [notification, setNotification] = useState("");
 
@@ -172,7 +171,7 @@ const StoreView = ({
   };
 
   const storeProducts = products.filter(
-    (p) => p.storeId === store.id && (p as any).isVisible !== false,
+    (p) => p.storeId === store.id && p.isAvailable !== false,
   );
   const categories = ["ALL", ...new Set(storeProducts.map((p) => p.category))];
   const filteredProducts =
@@ -230,7 +229,7 @@ const StoreView = ({
               <Icons.Clock size={16} /> {store.prepTime || "30m"}
             </span>
             <span className="flex items-center gap-1">
-              <Icons.MapPin size={16} /> {store.storeAddress.street}
+              <Icons.MapPin size={16} /> {store.storeAddress?.street}
             </span>
             {store.averageRating !== undefined && (
               <span className="flex items-center gap-1 text-yellow-500 font-bold">
@@ -298,10 +297,10 @@ const HomeView = ({
         (p: Product) =>
           p.storeId === s.id &&
           p.name.toLowerCase().includes(search.toLowerCase()) &&
-          (p as any).isVisible !== false,
+          p.isAvailable !== false,
       );
       const matchesName = s.storeName
-        .toLowerCase()
+        ?.toLowerCase()
         .includes(search.toLowerCase());
       return hasProduct || matchesName;
     });
@@ -330,7 +329,7 @@ const HomeView = ({
         <div className="px-4 space-y-4">
           <h2 className="font-bold text-lg mb-4 text-gray-800">Resultados</h2>
           <div className="grid grid-cols-2 gap-4">
-            {filteredStores.map((s) => (
+            {filteredStores.map((s: StoreProfile) => (
               <StoreCard
                 key={s.id}
                 store={s}
@@ -362,7 +361,7 @@ const HomeView = ({
                     "rgba(var(--primary-rgb, 59, 130, 246), 0.3) transparent",
                 }}
               >
-                {ultraStores.map((s) => (
+                {ultraStores.map((s: StoreProfile) => (
                   <div
                     key={s.id}
                     onClick={() => onStoreSelect(s)}
@@ -396,6 +395,11 @@ const HomeView = ({
                             {s.averageRating > 0
                               ? s.averageRating.toFixed(1)
                               : "Nuevo"}
+                            {s.ratingCount !== undefined && (
+                              <span className="text-gray-400 font-normal ml-0.5">
+                                ({s.ratingCount})
+                              </span>
+                            )}
                           </span>
                         )}
                       </div>
@@ -407,16 +411,21 @@ const HomeView = ({
           )}
 
           {/* Vertical Feed */}
-          <div className="px-4 pb-20">
-            <h2 className="font-bold text-lg mb-2 mt-1">Para ti</h2>
+          <div className="px-4 pb-20 mt-4">
+            <h2 className="font-bold text-lg mb-2">Para ti</h2>
             <div className="grid grid-cols-2 gap-3">
-              {otherStores.map((s) => (
+              {otherStores.map((s: StoreProfile) => (
                 <StoreCard
                   key={s.id}
                   store={s}
                   onClick={() => onStoreSelect(s)}
                 />
               ))}
+              {otherStores.length === 0 && ultraStores.length === 0 && (
+                <p className="text-gray-400 text-center col-span-2 py-10">
+                  No hay tiendas abiertas en este momento.
+                </p>
+              )}
             </div>
           </div>
         </>
@@ -426,19 +435,11 @@ const HomeView = ({
 };
 
 const CartView = ({ setView }: { setView: (view: any) => void }) => {
-  const {
-    cart,
-    removeFromCart,
-    addToCart,
-    deleteFromCart,
-    currentUser,
-    colonies,
-    cartTotal,
-    placeOrder,
-    updateUser,
-    users,
-    settings,
-  } = useApp();
+  const { colonies, placeOrder, users, settings } = useApp();
+  const { cart, removeFromCart, addToCart, deleteFromCart, cartTotal } =
+    useCart();
+  const { currentUser, updateUser } = useAuth();
+
   const [addressStep, setAddressStep] = useState(false);
   const [newAddress, setNewAddress] = useState({
     street: "",
@@ -506,7 +507,7 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
     // 2. Flujo de Dirección Guardada
     else if (selectedAddressId) {
       finalAddress = currentUser?.addresses?.find(
-        (a) => (a.id || (a as any)._id) === selectedAddressId,
+        (a: any) => (a.id || a._id) === selectedAddressId,
       );
     }
 
@@ -517,7 +518,6 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
     }
 
     // Calcular tarifa de envío y total antes de enviar
-    // Inicializar con tarifa mínima para evitar $0 si falla el cálculo de distancia
     let driverFee = settings.kmRate;
     let calculatedFee = settings.kmRate + settings.baseFee;
     const destColony = colonies.find((c) => c.id === finalAddress.colonyId);
@@ -542,16 +542,32 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
       }
     }
 
+    // --- CORRECCIÓN CLAVE AQUÍ ---
+    // Mapeamos los items del carrito para que coincidan exactamente con lo que pide Mongoose
+    const formattedItems = cart.map((item) => ({
+      product: item.product,
+      productId: item.product.id || item.product._id,
+      quantity: item.quantity,
+      price: Number(item.product.price || 0),
+      customizations: [],
+    }));
+
     await placeOrder({
       storeId: cart[0].product.storeId,
       customerId: currentUser!.id,
-      items: cart,
-      paymentMethod: payMethod,
-      deliveryAddress: finalAddress,
-      deliveryFee: calculatedFee,
-      driverFee: driverFee,
+      items: formattedItems,
+      subtotal: cartTotal,
+      deliveryFee: calculatedFee, // Lo que paga el cliente en total de envío
+      driverFee: driverFee, // Lo que se lleva el repartidor
       total: cartTotal + calculatedFee,
-      status: OrderStatus.PENDING,
+      paymentMethod: payMethod,
+      deliveryAddress: {
+        street: finalAddress.street,
+        number: finalAddress.number,
+        colonyId: finalAddress.colonyId,
+        reference: finalAddress.reference || "",
+      },
+      status: "PENDING",
     } as any);
 
     alert("¡Pedido realizado con éxito!");
@@ -568,7 +584,7 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
     );
 
   const selectedSavedAddress = currentUser?.addresses?.find(
-    (a) => (a.id || (a as any)._id) === selectedAddressId,
+    (a: any) => (a.id || a._id) === selectedAddressId,
   );
 
   const clientColony =
@@ -653,8 +669,8 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
           <h3 className="font-bold">Dirección de Entrega</h3>
           {(currentUser?.addresses || []).length > 0 ? (
             <div className="space-y-2">
-              {currentUser?.addresses?.map((addr) => {
-                const addrId = addr.id || (addr as any)._id;
+              {currentUser?.addresses?.map((addr: any) => {
+                const addrId = addr.id || addr._id;
                 return (
                   <div
                     key={addrId}
@@ -812,14 +828,14 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
 const OrdersView = () => {
   const {
     orders,
-    currentUser,
     users,
     updateOrderStatus,
-    products,
     addReview,
     unreadCounts,
     markOrderMessagesAsRead,
   } = useApp();
+
+  const { currentUser } = useAuth();
   const [chatOrder, setChatOrder] = useState<any | null>(null);
   const [ratingOrder, setRatingOrder] = useState<any | null>(null);
 
@@ -1005,14 +1021,15 @@ const OrdersView = () => {
 };
 
 const ProfileView = () => {
-  const { currentUser, colonies, logout, updateUser } = useApp();
+  const { colonies } = useApp();
+  const { currentUser, logout, updateUser } = useAuth();
 
   const handleDeleteAddress = (addressId: string) => {
     if (!currentUser?.addresses) return;
 
     if (window.confirm("¿Seguro que deseas eliminar esta dirección?")) {
       const updatedAddresses = currentUser.addresses.filter(
-        (addr) => (addr.id || (addr as any)._id) !== addressId,
+        (addr: any) => (addr.id || addr._id) !== addressId,
       );
       updateUser({ ...currentUser, addresses: updatedAddresses } as any);
     }
@@ -1089,9 +1106,9 @@ const ProfileView = () => {
               Direcciones
             </h3>
             <div className="space-y-2">
-              {currentUser.addresses.map((addr, idx) => {
+              {currentUser.addresses.map((addr: any, idx: number) => {
                 const col = colonies.find((c) => c.id === addr.colonyId);
-                const addrId = addr.id || (addr as any)._id;
+                const addrId = addr.id || addr._id;
                 return (
                   <div
                     key={addrId || idx}
@@ -1195,6 +1212,11 @@ const StoreCard: React.FC<{ store: StoreProfile; onClick: () => void }> = ({
           <span className="flex items-center gap-1 text-xs font-bold text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded-lg">
             <Icons.Star size={10} fill="currentColor" />
             {store.averageRating > 0 ? store.averageRating.toFixed(1) : "N"}
+            {store.ratingCount !== undefined && (
+              <span className="text-gray-400 font-normal ml-0.5">
+                ({store.ratingCount})
+              </span>
+            )}
           </span>
         )}
       </div>

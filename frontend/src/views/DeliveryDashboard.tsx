@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useApp } from "../AppContext";
+import { useAuth } from "../contexts/AuthContext";
 import { Button, Card, Badge } from "../components/UI";
 import { Icons } from "../constants";
 import { OrderStatus, StoreProfile, User } from "../types";
@@ -9,14 +10,15 @@ import { formatDate } from "../utils";
 export const DeliveryDashboard = () => {
   const {
     orders,
-    currentUser,
     updateOrderStatus,
     users,
-    logout,
     colonies,
     unreadCounts,
     markOrderMessagesAsRead,
   } = useApp();
+
+  const { currentUser, logout } = useAuth();
+
   const [activeTab, setActiveTab] = useState<
     "available" | "mine" | "profile" | "finances"
   >("available");
@@ -411,123 +413,115 @@ export const DeliveryDashboard = () => {
         {activeTab === "finances" && (
           <div className="pb-24">
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <Card className="bg-white border border-gray-100 p-6 shadow-sm">
-                <div className="flex items-center gap-3 mb-2 text-green-600">
-                  <Icons.DollarSign size={20} />
-                  <h3 className="font-semibold text-sm text-gray-600">
+              <Card className="bg-white border border-gray-100 p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-1 text-indigo-600">
+                  <Icons.DollarSign size={18} />
+                  <h3 className="font-semibold text-xs text-gray-600">
                     Ganancias Totales
                   </h3>
                 </div>
-                <p className="text-2xl md:text-4xl font-bold text-gray-800">
+                <p className="text-xl font-bold text-gray-800">
                   ${totalEarnings.toFixed(2)}
                 </p>
-                <p className="text-xs mt-2 text-gray-400">
-                  Acumulado histórico de pedidos entregados
-                </p>
               </Card>
 
-              <Card className="bg-gradient-to-br from-green-600 to-green-800 text-white p-6">
-                <div className="flex items-center gap-3 mb-2 opacity-80">
-                  <Icons.Calendar size={20} />
-                  <h3 className="font-semibold text-sm">Ganancias Semanales</h3>
+              <div className="bg-green-600 text-white p-4 rounded-2xl shadow-sm">
+                <div className="flex items-center gap-2 mb-1 opacity-80">
+                  <Icons.TrendingUp size={18} />
+                  <h3 className="font-semibold text-xs">Ganancias (Semana)</h3>
                 </div>
-                <p className="text-2xl md:text-4xl font-bold">
+                <p className="text-xl font-bold">
                   ${currentWeekEarnings.toFixed(2)}
                 </p>
-                <p className="text-xs mt-2 opacity-70">Semana en curso</p>
-              </Card>
+              </div>
 
-              <Card className="bg-white border border-gray-100 p-6 shadow-sm">
-                <div className="flex items-center gap-3 mb-2 text-blue-600">
-                  <Icons.ShoppingBag size={20} />
-                  <h3 className="font-semibold text-sm text-gray-600">
+              <Card className="bg-white border border-gray-100 p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-1 text-blue-600">
+                  <Icons.ShoppingBag size={18} />
+                  <h3 className="font-semibold text-xs text-gray-600">
                     Entregas Totales
                   </h3>
                 </div>
-                <p className="text-4xl font-bold text-gray-800">
+                <p className="text-xl font-bold text-gray-800">
                   {myCompletedDeliveries.length}
-                </p>
-                <p className="text-xs mt-2 text-gray-400">
-                  Acumulado histórico
                 </p>
               </Card>
 
-              <Card className="bg-white border border-gray-100 p-6 shadow-sm">
-                <div className="flex items-center gap-3 mb-2 text-indigo-600">
-                  <Icons.ShoppingBag size={20} />
-                  <h3 className="font-semibold text-sm text-gray-600">
-                    Entregas Semanales
-                  </h3>
+              <div className="bg-green-600 text-white p-4 rounded-2xl shadow-sm">
+                <div className="flex items-center gap-2 mb-1 opacity-80">
+                  <Icons.ShoppingBag size={18} />
+                  <h3 className="font-semibold text-xs">Entregas (Semana)</h3>
                 </div>
-                <p className="text-4xl font-bold text-gray-800">
-                  {currentWeekOrders}
-                </p>
-                <p className="text-xs mt-2 text-gray-400">Semana en curso</p>
-              </Card>
+                <p className="text-xl font-bold">{currentWeekOrders}</p>
+              </div>
             </div>
 
             <div>
-              <h3 className="font-bold text-lg mb-4">Resumen semanal</h3>
-              {Object.entries(
-                myCompletedDeliveries.reduce((acc: any, order) => {
-                  const d = new Date(order.createdAt);
-                  const day = d.getDay();
-                  const diff = d.getDate() - day;
-                  const weekStart = new Date(d.setDate(diff)).setHours(
-                    0,
-                    0,
-                    0,
-                    0,
-                  );
+              <h3 className="font-bold text-lg mb-4 text-gray-800">
+                Resumen Semanal
+              </h3>
+              <div className="space-y-3">
+                {Object.entries(
+                  myCompletedDeliveries.reduce((acc: any, order) => {
+                    const d = new Date(order.createdAt);
+                    const day = d.getDay();
+                    const diff = d.getDate() - day;
+                    const weekStart = new Date(d.setDate(diff)).setHours(
+                      0,
+                      0,
+                      0,
+                      0,
+                    );
 
-                  if (!acc[weekStart])
-                    acc[weekStart] = { total: 0, orders: 0, date: weekStart };
+                    if (!acc[weekStart])
+                      acc[weekStart] = { total: 0, orders: 0, date: weekStart };
 
-                  acc[weekStart].total += order.driverFee || 0;
-                  acc[weekStart].orders += 1;
-                  return acc;
-                }, {}),
-              )
-                .sort((a: any, b: any) => Number(b[0]) - Number(a[0]))
-                .map(([key, data]: any) => {
-                  const startDate = new Date(Number(key));
-                  const labelStart = startDate.toLocaleDateString("es-MX", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  });
-                  const endDate = new Date(startDate);
-                  endDate.setDate(endDate.getDate() + 6);
-                  const labelEnd = endDate.toLocaleDateString("es-MX", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  });
+                    acc[weekStart].total += order.driverFee || 0;
+                    acc[weekStart].orders += 1;
+                    return acc;
+                  }, {}),
+                )
+                  .sort((a: any, b: any) => Number(b[0]) - Number(a[0]))
+                  .map(([key, data]: any) => {
+                    const startDate = new Date(Number(key));
+                    const labelStart = startDate.toLocaleDateString("es-MX", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    });
+                    const endDate = new Date(startDate);
+                    endDate.setDate(endDate.getDate() + 6);
+                    const labelEnd = endDate.toLocaleDateString("es-MX", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    });
 
-                  return (
-                    <Card
-                      key={key}
-                      className="mb-3 flex justify-between items-center group hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                          <Icons.Calendar size={20} />
+                    return (
+                      <Card
+                        key={key}
+                        className="flex justify-between items-center"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                            <Icons.Calendar size={20} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-800">
+                              {labelStart} - {labelEnd}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {data.orders} entregas
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-gray-800">
-                            Semana del {labelStart}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            Hasta {labelEnd} • {data.orders} entregas
-                          </p>
-                        </div>
-                      </div>
-                      <span className="font-bold text-green-600 text-lg">
-                        ${data.total.toFixed(2)}
-                      </span>
-                    </Card>
-                  );
-                })}
+                        <span className="font-bold text-lg text-green-600">
+                          ${data.total.toFixed(2)}
+                        </span>
+                      </Card>
+                    );
+                  })}
+              </div>
               {myCompletedDeliveries.length === 0 && (
                 <p className="text-gray-400 text-center py-10">
                   Aún no tienes ganancias registradas.
@@ -547,7 +541,11 @@ export const DeliveryDashboard = () => {
             ({
               firstName: "Cliente",
               lastName: "",
+              role: "CLIENT",
+              email: "",
+              phone: "",
               id: chatOrder.customerId,
+              approved: true,
             } as User)
           }
         />

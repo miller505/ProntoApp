@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../AppContext";
+import { useAuth } from "../contexts/AuthContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
 import {
@@ -14,9 +15,6 @@ import {
 export const MasterDashboard = () => {
   const {
     users,
-    currentUser,
-    logout,
-    updateUser,
     deleteUser,
     colonies,
     addColony,
@@ -26,6 +24,9 @@ export const MasterDashboard = () => {
     updateSettings,
     orders, // Needed for Finances
   } = useApp();
+
+  const { currentUser, logout, updateUser } = useAuth();
+
   const [activeTab, setActiveTab] = useState<
     "users" | "requests" | "colonies" | "finances"
   >("requests");
@@ -155,7 +156,7 @@ export const MasterDashboard = () => {
 
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         {/* Navigation Tabs */}
-        <div className="flex p-1 bg-white rounded-2xl shadow-sm overflow-x-auto no-scrollbar">
+        <div className="flex gap-2 p-1 bg-white rounded-2xl shadow-sm overflow-x-auto no-scrollbar">
           {[
             {
               id: "requests",
@@ -185,19 +186,16 @@ export const MasterDashboard = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+              className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${
                 activeTab === tab.id
                   ? "bg-primary text-white shadow-md"
-                  : "text-gray-500 hover:bg-gray-50"
+                  : "text-gray-400"
               }`}
             >
               {tab.icon}
-              {tab.label}
-              {tab.count > 0 && (
-                <span className="bg-white text-primary text-xs px-2 py-0.5 rounded-full">
-                  {tab.count}
-                </span>
-              )}
+              <span className="text-[10px] font-medium mt-1">
+                {tab.label} {tab.count > 0 ? `(${tab.count})` : ""}
+              </span>
             </button>
           ))}
         </div>
@@ -922,12 +920,13 @@ const FinancePanel = ({ orders }: { orders: Order[] }) => {
     return weekStart.getTime();
   };
 
-  const weeklyData: Record<number, number> = {};
+  const weeklyData: Record<number, { total: number; count: number }> = {};
 
   completedOrders.forEach((o) => {
     const weekStart = getWeekKey(o.createdAt);
-    if (!weeklyData[weekStart]) weeklyData[weekStart] = 0;
-    weeklyData[weekStart] += calculateCommission(o);
+    if (!weeklyData[weekStart]) weeklyData[weekStart] = { total: 0, count: 0 };
+    weeklyData[weekStart].total += calculateCommission(o);
+    weeklyData[weekStart].count += 1;
   });
 
   const sortedWeeks = Object.keys(weeklyData)
@@ -935,76 +934,63 @@ const FinancePanel = ({ orders }: { orders: Order[] }) => {
     .sort((a, b) => b - a); // Descending date
 
   return (
-    <div className="space-y-6">
-      {/* Summary Card */}
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="bg-white border border-gray-100 p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-2 text-indigo-600">
-            <Icons.DollarSign size={20} />
-            <h3 className="font-semibold text-sm text-gray-600">
-              Ganancias Totales (Banderazos)
+    <div className="pb-24">
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <Card className="bg-white border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-1 text-indigo-600">
+            <Icons.DollarSign size={18} />
+            <h3 className="font-semibold text-xs text-gray-600">
+              Ganancias Totales
             </h3>
           </div>
-          <p className="text-2xl md:text-4xl font-bold text-gray-800">
+          <p className="text-xl font-bold text-gray-800">
             ${totalEarnings.toFixed(2)}
           </p>
-          <p className="text-xs mt-2 text-gray-400">
-            Acumulado histórico de comisiones
-          </p>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-600 to-green-800 text-white p-6">
-          <div className="flex items-center gap-3 mb-2 opacity-80">
-            <Icons.Calendar size={20} />
-            <h3 className="font-semibold text-sm">Ganancias Semanales</h3>
+        <div className="bg-green-600 text-white p-4 rounded-2xl shadow-sm">
+          <div className="flex items-center gap-2 mb-1 opacity-80">
+            <Icons.TrendingUp size={18} />
+            <h3 className="font-semibold text-xs">Ganancias (Semana)</h3>
           </div>
-          <p className="text-2xl md:text-4xl font-bold">
-            ${currentWeekEarnings.toFixed(2)}
-          </p>
-          <p className="text-xs mt-2 opacity-70">Semana en curso</p>
-        </Card>
+          <p className="text-xl font-bold">${currentWeekEarnings.toFixed(2)}</p>
+        </div>
 
-        <Card className="bg-white border border-gray-100 p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-2 text-blue-600">
-            <Icons.ShoppingBag size={20} />
-            <h3 className="font-semibold text-sm text-gray-600">
+        <Card className="bg-white border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-1 text-blue-600">
+            <Icons.ShoppingBag size={18} />
+            <h3 className="font-semibold text-xs text-gray-600">
               Pedidos Completados
             </h3>
           </div>
-          <p className="text-4xl font-bold text-gray-800">
+          <p className="text-xl font-bold text-gray-800">
             {completedOrders.length}
           </p>
-          <p className="text-xs mt-2 text-gray-400">Acumulado histórico</p>
         </Card>
 
-        <Card className="bg-white border border-gray-100 p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-2 text-green-600">
-            <Icons.ShoppingBag size={20} />
-            <h3 className="font-semibold text-sm text-gray-600">
-              Pedidos Semanales
-            </h3>
+        <div className="bg-green-600 text-white p-4 rounded-2xl shadow-sm">
+          <div className="flex items-center gap-2 mb-1 opacity-80">
+            <Icons.ShoppingBag size={18} />
+            <h3 className="font-semibold text-xs">Pedidos (Semana)</h3>
           </div>
-          <p className="text-4xl font-bold text-gray-800">
-            {currentWeekOrders}
-          </p>
-          <p className="text-xs mt-2 text-gray-400">Semana en curso</p>
-        </Card>
+          <p className="text-xl font-bold">{currentWeekOrders}</p>
+        </div>
       </div>
 
       {/* Weekly Breakdown */}
       <div>
         <h3 className="font-bold text-lg mb-4 text-gray-800">
-          Resumen semanal
+          Resumen Semanal
         </h3>
         <div className="space-y-3">
           {sortedWeeks.length === 0 ? (
-            <p className="text-gray-400">
+            <p className="text-gray-400 text-center">
               No hay datos financieros registrados aún.
             </p>
           ) : (
             sortedWeeks.map((weekStart) => {
               const date = new Date(weekStart);
-              const label = date.toLocaleDateString("es-MX", {
+              const labelStart = date.toLocaleDateString("es-MX", {
                 day: "numeric",
                 month: "long",
                 year: "numeric",
@@ -1014,31 +1000,32 @@ const FinancePanel = ({ orders }: { orders: Order[] }) => {
               weekEnd.setDate(weekEnd.getDate() + 6);
               const labelEnd = weekEnd.toLocaleDateString("es-MX", {
                 day: "numeric",
-                month: "numeric",
+                month: "long",
+                year: "numeric",
               });
 
               return (
-                <div
+                <Card
                   key={weekStart}
-                  className="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center group hover:bg-gray-50 transition-colors"
+                  className="flex justify-between items-center"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                    <div className="p-2 bg-green-50 text-green-600 rounded-lg">
                       <Icons.Calendar size={20} />
                     </div>
                     <div>
                       <p className="font-bold text-gray-800">
-                        Semana del {label}
+                        {labelStart} - {labelEnd}
                       </p>
-                      <p className="text-xs text-gray-400">Hasta {labelEnd}</p>
+                      <p className="text-xs text-gray-400">
+                        {weeklyData[weekStart].count} pedidos
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-lg text-indigo-600">
-                      +${weeklyData[weekStart].toFixed(2)}
-                    </p>
-                  </div>
-                </div>
+                  <p className="font-bold text-lg text-green-600">
+                    ${weeklyData[weekStart].total.toFixed(2)}
+                  </p>
+                </Card>
               );
             })
           )}

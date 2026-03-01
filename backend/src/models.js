@@ -6,12 +6,12 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: true,
       enum: ["MASTER", "STORE", "DELIVERY", "CLIENT"],
-      index: true, // Optimiza búsquedas por rol
+      index: true,
     },
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     phone: { type: String, required: true },
-    email: { type: String, required: true, unique: true, index: true }, // Optimiza login
+    email: { type: String, required: true, unique: true, index: true },
     password: { type: String, required: true },
     ineImage: String,
     approved: { type: Boolean, default: false },
@@ -36,7 +36,7 @@ const UserSchema = new mongoose.Schema(
       default: "STANDARD",
     },
     subscriptionPriority: { type: Number, default: 0 },
-    isOpen: { type: Boolean, default: false, index: true }, // Optimiza mostrar tiendas abiertas
+    isOpen: { type: Boolean, default: false, index: true },
     logo: String,
     coverImage: String,
     description: String,
@@ -47,20 +47,46 @@ const UserSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-const ProductSchema = new mongoose.Schema({
-  storeId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-    index: true,
+// === FILTRO DE SEGURIDAD (EVITA FUGA DE DATOS AL FRONTEND) ===
+UserSchema.set("toJSON", {
+  transform: function (doc, ret, options) {
+    delete ret.password; // Nunca envía la contraseña
+    // CORRECCIÓN: No eliminamos ineImage aquí porque el Master necesita verla para aprobar.
+    // Al usar Cloudinary, esto será una URL segura, no un string base64 gigante.
+    return ret;
   },
-  name: { type: String, required: true },
-  description: String,
-  price: { type: Number, required: true },
-  category: { type: String, required: true },
-  image: String,
-  isVisible: { type: Boolean, default: true },
 });
+
+const ProductSchema = new mongoose.Schema(
+  {
+    storeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    name: { type: String, required: true },
+    description: { type: String, required: true },
+    price: { type: Number, required: true },
+    category: { type: String, required: true },
+    image: String,
+    isAvailable: { type: Boolean, default: true },
+    customizations: [
+      {
+        name: String,
+        options: [
+          {
+            name: String,
+            additionalPrice: Number,
+          },
+        ],
+        required: Boolean,
+        multiple: Boolean,
+      },
+    ],
+  },
+  { timestamps: true },
+);
 
 const OrderSchema = new mongoose.Schema(
   {
@@ -80,43 +106,75 @@ const OrderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       index: true,
-    }, // Puede ser null al inicio
+    },
     items: [
       {
-        product: { type: Object, required: true }, // Guardamos snapshot del producto
+        product: { type: Object },
+        productId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Product",
+          required: true,
+        },
         quantity: { type: Number, required: true },
+        price: { type: Number, required: true },
+        customizations: [
+          {
+            name: String,
+            option: String,
+            additionalPrice: Number,
+          },
+        ],
       },
     ],
+    subtotal: { type: Number, required: true },
+    deliveryFee: { type: Number, required: true },
+    driverFee: { type: Number, required: true },
+    total: { type: Number, required: true },
     status: {
       type: String,
       enum: [
         "PENDING",
+        "ACCEPTED",
         "PREPARING",
         "READY",
         "ON_WAY",
         "DELIVERED",
-        "REJECTED",
+        "CANCELLED",
+        "REJECTED", // Agregado REJECTED que faltaba en el enum pero se usa en frontend
       ],
       default: "PENDING",
       index: true,
     },
+    deliveryAddress: {
+      street: String,
+      number: String,
+      colonyId: String,
+      reference: String,
+    },
+    paymentMethod: { type: String, enum: ["CASH", "CARD"], required: true },
     isReviewed: { type: Boolean, default: false },
-    total: { type: Number, required: true },
-    deliveryFee: { type: Number, required: true },
-    driverFee: { type: Number, default: 0 },
-    deliveryAddress: { type: Object, required: true },
-    storeName: String, // Snapshot para evitar lookups masivos
-    customerName: String,
-    driverName: String,
   },
   { timestamps: true },
 );
 
 const MessageSchema = new mongoose.Schema(
   {
-    orderId: { type: String, required: true, index: true },
-    senderId: { type: String, required: true },
-    receiverId: { type: String, required: true },
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      required: true,
+      index: true,
+    },
+    senderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    receiverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
     text: { type: String, required: true },
     read: { type: Boolean, default: false },
   },

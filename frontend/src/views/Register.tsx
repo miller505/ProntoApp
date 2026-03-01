@@ -1,11 +1,14 @@
 import React, { useState } from "react";
 import { useApp } from "../AppContext";
+import { useAuth } from "../contexts/AuthContext"; // <-- Importamos AuthContext
 import { UserRole, Colony, SubscriptionType, User } from "../types";
 import { Button, Input, Card } from "../components/UI";
 import { Icons, ALLOWED_EMAILS } from "../constants";
 
 export const Register = ({ onBack }: { onBack: () => void }) => {
-  const { register, colonies } = useApp();
+  const { colonies } = useApp();
+  const { register } = useAuth(); // <-- register ahora viene de useAuth
+
   const [role, setRole] = useState<UserRole>(UserRole.CLIENT);
   const [formData, setFormData] = useState<any>({
     firstName: "",
