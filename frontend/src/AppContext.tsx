@@ -45,6 +45,7 @@ interface AppContextType {
   markOrderMessagesAsRead: (orderId: string) => void;
   addReview: (review: any) => Promise<void>;
   getStoreReviews: (storeId: string) => Promise<any[]>;
+  refreshData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
@@ -187,6 +188,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const refreshData = async () => {
+    if (currentUser) await fetchInitialData(currentUser);
+  };
+
   useEffect(() => {
     if (currentUser) {
       fetchInitialData(currentUser).then(() => setLoading(false));
@@ -196,13 +201,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser, fetchInitialData]);
 
   const placeOrder = async (order: Order) => {
-    try {
-      await api.post("/api/orders", order);
-      clearCart();
-      if (currentUser) fetchInitialData(currentUser);
-    } catch (e: any) {
-      alert(e.response?.data?.error || "Error al realizar pedido");
-    }
+    // Eliminamos el try/catch y clearCart aquí para manejar múltiples pedidos en el frontend
+    // Si falla uno, el frontend decidirá qué hacer.
+    await api.post("/api/orders", order);
   };
 
   const updateOrderStatus = async (
@@ -253,6 +254,54 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (currentUser) fetchInitialData(currentUser);
     } catch (e) {
       alert("Error al eliminar");
+    }
+  };
+
+  const deleteUser = async (id: string) => {
+    try {
+      await api.delete(`/api/users/${id}`);
+      // Optimización Profesional: Actualizar estado local en vez de recargar todo
+      setUsers((prev) => prev.filter((u) => (u.id || u._id) !== id));
+    } catch (e) {
+      console.error(e);
+      alert("Error al eliminar usuario");
+    }
+  };
+
+  const addColony = async (colony: Colony) => {
+    try {
+      const res = await api.post("/api/colonies", colony);
+      // Optimización: Agregar al estado inmediatamente
+      const newColony = { ...res.data, id: res.data._id || res.data.id };
+      setColonies((prev) => [...prev, newColony]);
+    } catch (e) {
+      console.error(e);
+      alert("Error al agregar colonia");
+    }
+  };
+
+  const updateColony = async (colony: Colony) => {
+    try {
+      const res = await api.put(`/api/colonies/${colony.id}`, colony);
+      // Optimización: Actualizar solo el elemento modificado
+      const updated = { ...res.data, id: res.data._id || res.data.id };
+      setColonies((prev) =>
+        prev.map((c) => (c.id === updated.id ? updated : c)),
+      );
+    } catch (e) {
+      console.error(e);
+      alert("Error al actualizar colonia");
+    }
+  };
+
+  const deleteColony = async (id: string) => {
+    try {
+      await api.delete(`/api/colonies/${id}`);
+      // Optimización: Eliminar del estado localmente
+      setColonies((prev) => prev.filter((c) => c.id !== id));
+    } catch (e) {
+      console.error(e);
+      alert("Error al eliminar colonia");
     }
   };
 
@@ -322,6 +371,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         addProduct,
         updateProduct,
         deleteProduct,
+        deleteUser,
+        addColony,
+        updateColony,
+        deleteColony,
         fetchColonies,
         fetchMessages,
         sendMessage,
@@ -330,6 +383,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         unreadCounts,
         addReview,
         getStoreReviews,
+        refreshData,
         updateSettings: async (s: any) => {
           await api.put("/api/settings", s);
           if (currentUser) fetchInitialData(currentUser);

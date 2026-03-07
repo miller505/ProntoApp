@@ -10,7 +10,7 @@ import {
   getOrderStatusColor,
 } from "../orderStatusTranslations";
 import { ChatModal } from "../components/ChatModal";
-import { formatDate } from "../utils";
+import { formatDate, calculateDistance } from "../utils";
 
 const ClientDashboard = () => {
   const {
@@ -435,9 +435,15 @@ const HomeView = ({
 };
 
 const CartView = ({ setView }: { setView: (view: any) => void }) => {
-  const { colonies, placeOrder, users, settings } = useApp();
-  const { cart, removeFromCart, addToCart, deleteFromCart, cartTotal } =
-    useCart();
+  const { colonies, placeOrder, users, settings, refreshData } = useApp();
+  const {
+    cart,
+    removeFromCart,
+    addToCart,
+    deleteFromCart,
+    cartTotal,
+    clearCart,
+  } = useCart();
   const { currentUser, updateUser } = useAuth();
 
   const [addressStep, setAddressStep] = useState(false);
@@ -451,30 +457,73 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [payMethod, setPayMethod] = useState<"CARD" | "CASH">("CARD");
 
-  // Haversine formula to calculate distance in km
-  const calculateDistance = (
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number,
-  ) => {
-    const R = 6371; // Radius of the earth in km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(deg2rad(lat1)) *
-        Math.cos(deg2rad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const d = R * c; // Distance in km
-    return d;
-  };
+  // Agrupar ítems por tienda para manejar pedidos múltiples
+  const itemsByStore = useMemo(() => {
+    const groups: Record<string, typeof cart> = {};
+    cart.forEach((item) => {
+      const sId = item.product.storeId;
+      if (!groups[sId]) groups[sId] = [];
+      groups[sId].push(item);
+    });
+    return groups;
+  }, [cart]);
 
-  const deg2rad = (deg: number) => {
-    return deg * (Math.PI / 180);
-  };
+  // Calcular tarifas de envío por tienda
+  const { totalDeliveryFee, storeFees } = useMemo(() => {
+    const fees: Record<string, number> = {};
+    let total = 0;
+
+    // Determinar colonia del cliente
+    const clientColonyId =
+      addressStep && newAddress.colonyId
+        ? newAddress.colonyId
+        : selectedAddressId
+          ? currentUser?.addresses?.find(
+              (a: any) => (a.id || a._id) === selectedAddressId,
+            )?.colonyId
+          : null;
+
+    const clientColony = colonies.find((c) => c.id === clientColonyId);
+
+    if (clientColony) {
+      Object.keys(itemsByStore).forEach((storeId) => {
+        const store = users.find((u) => u.id === storeId) as StoreProfile;
+        if (store && store.storeAddress?.colonyId) {
+          const storeColony = colonies.find(
+            (c) => c.id === store.storeAddress.colonyId,
+          );
+          if (storeColony) {
+            const dist = calculateDistance(
+              clientColony.lat,
+              clientColony.lng,
+              storeColony.lat,
+              storeColony.lng,
+            );
+            const driverPart = Math.ceil(dist * settings.kmRate);
+            const fee =
+              (driverPart < settings.kmRate ? settings.kmRate : driverPart) +
+              settings.baseFee;
+            fees[storeId] = fee;
+            total += fee;
+          }
+        } else {
+          // Fallback si no se encuentra la tienda (usa tarifa base)
+          fees[storeId] = settings.baseFee;
+          total += settings.baseFee;
+        }
+      });
+    }
+    return { totalDeliveryFee: total, storeFees: fees };
+  }, [
+    itemsByStore,
+    addressStep,
+    newAddress.colonyId,
+    selectedAddressId,
+    currentUser,
+    colonies,
+    users,
+    settings,
+  ]);
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
@@ -517,61 +566,58 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
       return alert("Por favor, agrega o selecciona una dirección de entrega.");
     }
 
-    // Calcular tarifa de envío y total antes de enviar
-    let driverFee = settings.kmRate;
-    let calculatedFee = settings.kmRate + settings.baseFee;
-    const destColony = colonies.find((c) => c.id === finalAddress.colonyId);
-    if (destColony && cart.length > 0) {
-      const store = users.find(
-        (u) => u.id === cart[0].product.storeId,
-      ) as StoreProfile;
-      const storeColony = store?.storeAddress?.colonyId
-        ? colonies.find((c) => c.id === store.storeAddress.colonyId)
-        : null;
+    try {
+      // Generar una orden por cada tienda
+      const orderPromises = Object.entries(itemsByStore).map(
+        async ([storeId, items]) => {
+          const fee = storeFees[storeId] || settings.baseFee;
+          const subtotal = items.reduce(
+            (acc, item) =>
+              acc + Number(item.product.price || 0) * item.quantity,
+            0,
+          );
 
-      if (storeColony) {
-        const dist = calculateDistance(
-          destColony.lat,
-          destColony.lng,
-          storeColony.lat,
-          storeColony.lng,
-        );
-        const driverPart = Math.ceil(dist * settings.kmRate);
-        driverFee = driverPart < settings.kmRate ? settings.kmRate : driverPart;
-        calculatedFee = driverFee + settings.baseFee;
-      }
+          const formattedItems = items.map((item) => ({
+            product: item.product,
+            productId: item.product.id || item.product._id,
+            quantity: item.quantity,
+            price: Number(item.product.price || 0),
+            customizations: [],
+          }));
+
+          return placeOrder({
+            storeId,
+            customerId: currentUser!.id,
+            items: formattedItems,
+            subtotal: subtotal,
+            deliveryFee: fee,
+            driverFee: 0, // El backend recalcula esto por seguridad
+            total: subtotal + fee,
+            paymentMethod: payMethod,
+            deliveryAddress: {
+              street: finalAddress.street,
+              number: finalAddress.number,
+              colonyId: finalAddress.colonyId,
+              reference: finalAddress.reference || "",
+            },
+            status: "PENDING",
+          } as any);
+        },
+      );
+
+      await Promise.all(orderPromises);
+
+      alert("¡Pedidos realizados con éxito!");
+      clearCart();
+      refreshData();
+      setView("orders");
+    } catch (e: any) {
+      console.error(e);
+      alert(
+        e.response?.data?.error ||
+          "Error al realizar uno o más pedidos. Por favor verifica.",
+      );
     }
-
-    // --- CORRECCIÓN CLAVE AQUÍ ---
-    // Mapeamos los items del carrito para que coincidan exactamente con lo que pide Mongoose
-    const formattedItems = cart.map((item) => ({
-      product: item.product,
-      productId: item.product.id || item.product._id,
-      quantity: item.quantity,
-      price: Number(item.product.price || 0),
-      customizations: [],
-    }));
-
-    await placeOrder({
-      storeId: cart[0].product.storeId,
-      customerId: currentUser!.id,
-      items: formattedItems,
-      subtotal: cartTotal,
-      deliveryFee: calculatedFee, // Lo que paga el cliente en total de envío
-      driverFee: driverFee, // Lo que se lleva el repartidor
-      total: cartTotal + calculatedFee,
-      paymentMethod: payMethod,
-      deliveryAddress: {
-        street: finalAddress.street,
-        number: finalAddress.number,
-        colonyId: finalAddress.colonyId,
-        reference: finalAddress.reference || "",
-      },
-      status: "PENDING",
-    } as any);
-
-    alert("¡Pedido realizado con éxito!");
-    setView("orders");
   };
 
   if (cart.length === 0)
@@ -586,37 +632,6 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
   const selectedSavedAddress = currentUser?.addresses?.find(
     (a: any) => (a.id || a._id) === selectedAddressId,
   );
-
-  const clientColony =
-    addressStep && newAddress.colonyId
-      ? colonies.find((c) => c.id === newAddress.colonyId)
-      : selectedSavedAddress
-        ? colonies.find((c) => c.id === selectedSavedAddress.colonyId)
-        : null;
-
-  // Calculate estimated fee for display
-  let estimatedFee = 0;
-  if (clientColony && cart.length > 0) {
-    const store = users.find(
-      (u) => u.id === cart[0].product.storeId,
-    ) as StoreProfile;
-    const storeColony = store?.storeAddress?.colonyId
-      ? colonies.find((c) => c.id === store.storeAddress.colonyId)
-      : null;
-    if (storeColony) {
-      const dist = calculateDistance(
-        clientColony.lat,
-        clientColony.lng,
-        storeColony.lat,
-        storeColony.lng,
-      );
-      const driverPart = Math.ceil(dist * settings.kmRate);
-      // Ensure at least 1km charge
-      estimatedFee =
-        (driverPart < settings.kmRate ? settings.kmRate : driverPart) +
-        settings.baseFee;
-    }
-  }
 
   return (
     <div className="px-4 pt-6 pb-24 max-w-lg mx-auto">
@@ -787,16 +802,14 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
           <span>Envío</span>
           <span>
             $
-            {estimatedFee > 0
-              ? estimatedFee.toFixed(2)
-              : clientColony
-                ? "Calculando..."
-                : "Selecciona dirección"}
+            {totalDeliveryFee > 0
+              ? totalDeliveryFee.toFixed(2)
+              : "Calculando..."}
           </span>
         </div>
         <div className="flex justify-between font-bold text-xl pt-2 border-t">
           <span>Total</span>
-          <span>${(cartTotal + estimatedFee).toFixed(2)}</span>
+          <span>${(cartTotal + totalDeliveryFee).toFixed(2)}</span>
         </div>
       </div>
 
