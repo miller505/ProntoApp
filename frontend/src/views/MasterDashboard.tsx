@@ -344,25 +344,34 @@ export const MasterDashboard = () => {
                         {u.firstName} {u.lastName}
                       </h4>
                       {u.role === UserRole.STORE && (
-                        <div className="flex items-center gap-2 mt-1 mb-1 w-full">
-                          <div className="flex items-center gap-1 text-xs font-bold text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg border border-yellow-100 shrink-0">
-                            <Icons.Star size={12} fill="currentColor" />
-                            {(u as StoreProfile).averageRating
-                              ? (u as StoreProfile).averageRating?.toFixed(1)
-                              : "N/A"}
+                        <>
+                          {/* Store Name Row */}
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-lg border border-gray-100">
+                              <Icons.Store
+                                size={14}
+                                className="text-gray-500"
+                              />
+                              <span className="text-sm font-bold text-gray-800">
+                                {(u as StoreProfile).storeName}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-lg border border-gray-100 shrink-0">
-                            <Icons.Store size={14} className="text-gray-500" />
-                            <span className="text-sm font-bold text-gray-800 truncate max-w-[120px]">
-                              {(u as StoreProfile).storeName}
-                            </span>
+                          {/* Rating and Subscription Row */}
+                          <div className="flex items-center gap-2 mt-1 w-full">
+                            <div className="flex items-center gap-1 text-xs font-bold text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg border border-yellow-100 shrink-0">
+                              <Icons.Star size={12} fill="currentColor" />
+                              {(u as StoreProfile).averageRating
+                                ? (u as StoreProfile).averageRating?.toFixed(1)
+                                : "N/A"}
+                            </div>
+                            <div className="ml-auto flex items-center gap-1 px-2 py-1 bg-gray-800 text-white rounded-lg text-[10px] font-bold shadow-sm shrink-0">
+                              <Icons.Award size={12} className="text-white" />
+                              {(u as StoreProfile).subscription}
+                            </div>
                           </div>
-                          <div className="ml-auto flex items-center gap-1 px-2 py-1 bg-gray-800 text-white rounded-lg text-[10px] font-bold shadow-sm shrink-0">
-                            <Icons.Award size={12} className="text-white" />
-                            {(u as StoreProfile).subscription}
-                          </div>
-                        </div>
-                      )}{" "}
+                        </>
+                      )}
                       {/* End of store-specific info */}
                       <div className="flex items-center gap-2 w-full mt-1">
                         {" "}
@@ -393,64 +402,54 @@ export const MasterDashboard = () => {
                   </div>
 
                   <div className="h-0.5 w-full bg-gray-200 rounded-full my-2 md:hidden" />
-                  <div className="flex flex-wrap gap-2 items-center w-full md:w-auto justify-between md:justify-end mt-1 md:mt-0">
-                    {u.role === UserRole.STORE && (
-                      // Subscription selector moved to be a sibling of action buttons
-                      <>
-                        {loadingAction === `sub-${u.id}` ? (
-                          <span className="text-xs font-semibold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg animate-pulse shrink-0">
-                            Cambiando...
-                          </span>
-                        ) : (
-                          <select
-                            className="text-xs p-1.5 rounded-lg bg-gray-100 border-none disabled:opacity-50 shrink-0" // Added shrink-0
-                            value={(u as StoreProfile).subscription}
-                            onChange={(e) =>
-                              handleChangeSubscription(
-                                u as StoreProfile,
-                                e.target.value as SubscriptionType,
-                              )
-                            }
-                            disabled={loadingAction !== null}
-                          >
-                            <option value={SubscriptionType.STANDARD}>
-                              STANDARD
-                            </option>
-                            <option value={SubscriptionType.PREMIUM}>
-                              PREMIUM
-                            </option>
-                            <option value={SubscriptionType.ULTRA}>
-                              ULTRA
-                            </option>
-                          </select>
-                        )}
-                      </>
-                    )}
-                    <div className="flex gap-2 ml-auto">
-                      {" "}
-                      {/* This div now contains the subscription selector (if store) and the action buttons */}
-                      <Button
-                        variant="secondary"
-                        className="px-3 py-1.5 text-xs h-8 disabled:opacity-50"
-                        onClick={() => handleEditClick(u)}
-                        disabled={loadingAction !== null}
-                      >
-                        Editar
-                      </Button>
-                      <button
-                        onClick={() => handleDeleteUser(u.id)}
-                        disabled={loadingAction !== null}
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center min-w-[32px]"
-                      >
-                        {loadingAction === `delete-${u.id}` ? (
-                          <span className="text-xs font-bold animate-pulse">
-                            ...
-                          </span>
-                        ) : (
-                          <Icons.Trash2 size={16} />
-                        )}
-                      </button>
-                    </div>
+                  <div className="flex gap-2 items-center w-full md:w-auto justify-end mt-1 md:mt-0">
+                    {u.role === UserRole.STORE &&
+                      (loadingAction === `sub-${u.id}` ? (
+                        <span className="text-xs font-semibold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg animate-pulse shrink-0">
+                          Cambiando...
+                        </span>
+                      ) : (
+                        <select
+                          className="text-xs p-1.5 rounded-lg bg-gray-100 border-none disabled:opacity-50 shrink-0"
+                          value={(u as StoreProfile).subscription}
+                          onChange={(e) =>
+                            handleChangeSubscription(
+                              u as StoreProfile,
+                              e.target.value as SubscriptionType,
+                            )
+                          }
+                          disabled={loadingAction !== null}
+                        >
+                          <option value={SubscriptionType.STANDARD}>
+                            STANDARD
+                          </option>
+                          <option value={SubscriptionType.PREMIUM}>
+                            PREMIUM
+                          </option>
+                          <option value={SubscriptionType.ULTRA}>ULTRA</option>
+                        </select>
+                      ))}
+                    <Button
+                      variant="secondary"
+                      className="px-3 py-1.5 text-xs h-8 disabled:opacity-50"
+                      onClick={() => handleEditClick(u)}
+                      disabled={loadingAction !== null}
+                    >
+                      Editar
+                    </Button>
+                    <button
+                      onClick={() => handleDeleteUser(u.id)}
+                      disabled={loadingAction !== null}
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center min-w-[32px]"
+                    >
+                      {loadingAction === `delete-${u.id}` ? (
+                        <span className="text-xs font-bold animate-pulse">
+                          ...
+                        </span>
+                      ) : (
+                        <Icons.Trash2 size={16} />
+                      )}
+                    </button>
                   </div>
                 </Card>
               ))}
