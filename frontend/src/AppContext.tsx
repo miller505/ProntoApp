@@ -78,8 +78,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const newSocket = io(SOCKET_URL, {
       auth: { token },
+      transports: ["websocket"], // Forzar WebSocket mejora la estabilidad en móviles
+      reconnectionAttempts: 5,
     });
     setSocket(newSocket);
+
+    newSocket.on("connect_error", (err) => {
+      console.error("Error de conexión Socket.IO:", err);
+    });
 
     newSocket.on("order_update", (updatedOrder: Order) => {
       const normalizedOrder = {

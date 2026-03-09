@@ -1,5 +1,6 @@
 // Icons
 import {
+  Award,
   ShoppingBag,
   ShoppingCart,
   MapPin,
@@ -41,6 +42,7 @@ import {
 export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export const Icons = {
+  Award,
   ShoppingBag,
   ShoppingCart,
   MapPin,
