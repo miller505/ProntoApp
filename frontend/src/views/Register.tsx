@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext"; // <-- Importamos AuthContext
 import { UserRole, Colony, SubscriptionType, User } from "../types";
 import { Button, Input, Card } from "../components/UI";
 import { Icons, ALLOWED_EMAILS } from "../constants";
+import { uploadToCloudinary } from "../api"; // Importar utilidad
 
 export const Register = ({ onBack }: { onBack: () => void }) => {
   const { colonies } = useApp();
@@ -24,6 +25,7 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
     storeColonyId: "",
     subscription: SubscriptionType.STANDARD,
   });
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -54,14 +56,17 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      // Simulate upload by reading as data URL
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setFormData({ ...formData, ineImage: ev.target?.result });
-      };
-      reader.readAsDataURL(e.target.files[0]);
+      setIsUploading(true);
+      try {
+        const url = await uploadToCloudinary(e.target.files[0]);
+        setFormData({ ...formData, ineImage: url });
+      } catch (error) {
+        alert("Error al subir imagen. Intenta de nuevo.");
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
@@ -114,7 +119,9 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
     }
 
     if (success) {
-      alert("Solicitud enviada. Espera aprobación del Master.");
+      alert(
+        "Solicitud enviada. Espera a que tu cuenta sea aprobada (Esto puede demorar algunos minutos).",
+      );
       onBack();
     }
   };
@@ -216,6 +223,11 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
               onChange={handleFileChange}
               className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
             />
+            {isUploading && (
+              <p className="text-xs text-blue-500 mt-1">
+                Subiendo documento...
+              </p>
+            )}
           </div>
 
           {role === UserRole.STORE && (
@@ -268,7 +280,7 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
             </div>
           )}
 
-          <Button type="submit" className="w-full mt-6">
+          <Button type="submit" className="w-full mt-6" disabled={isUploading}>
             Enviar Solicitud
           </Button>
         </form>

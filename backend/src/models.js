@@ -109,7 +109,13 @@ const OrderSchema = new mongoose.Schema(
     },
     items: [
       {
-        product: { type: Object },
+        // Snapshot del producto al momento de la compra para integridad histórica
+        product: {
+          name: { type: String, required: true },
+          price: { type: Number, required: true },
+          image: String,
+          // Puedes agregar otros campos que consideres importantes para el historial
+        },
         productId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Product",

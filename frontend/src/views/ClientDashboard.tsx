@@ -11,6 +11,7 @@ import {
 } from "../orderStatusTranslations";
 import { ChatModal } from "../components/ChatModal";
 import { formatDate, calculateDistance } from "../utils";
+import { api } from "../api"; // Importar api para búsqueda
 
 const ClientDashboard = () => {
   const {
@@ -22,6 +23,8 @@ const ClientDashboard = () => {
     addReview,
     unreadCounts,
     markOrderMessagesAsRead,
+    loading, // Importamos el estado de carga global
+    fetchStoreProducts,
   } = useApp();
 
   const { currentUser } = useAuth();
@@ -99,6 +102,7 @@ const ClientDashboard = () => {
           otherStores={otherStores}
           products={products}
           onStoreSelect={setSelectedStore}
+          loading={loading} // Pasamos el estado a la vista
         />
       )}
       {view === "cart" && <CartView setView={setView} />}
@@ -159,10 +163,17 @@ const StoreView = ({
   onBack: () => void;
   onGoToCart: () => void;
 }) => {
-  const { products } = useApp();
+  const { products, fetchStoreProducts } = useApp();
   const { addToCart, cart } = useCart();
   const [activeCategory, setActiveCategory] = useState("ALL");
   const [notification, setNotification] = useState("");
+  const [loadingMenu, setLoadingMenu] = useState(false);
+
+  useEffect(() => {
+    setLoadingMenu(true);
+    // Cargar menú al entrar a la tienda
+    fetchStoreProducts(store.id).finally(() => setLoadingMenu(false));
+  }, [store.id]);
 
   const handleAddToCart = (product: Product, quantity: number) => {
     addToCart(product, quantity);
@@ -260,10 +271,27 @@ const StoreView = ({
 
       {/* Products List */}
       <div className="px-6 py-4 space-y-4">
-        {filteredProducts.map((p) => (
-          <ProductItem key={p.id} product={p} onAdd={handleAddToCart} />
-        ))}
-        {filteredProducts.length === 0 && (
+        {loadingMenu
+          ? // SKELETONS DEL MENÚ (Animación de carga de productos)
+            Array(5)
+              .fill(0)
+              .map((_, i) => (
+                <div
+                  key={i}
+                  className="flex gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm animate-pulse"
+                >
+                  <div className="w-24 h-24 rounded-xl bg-gray-200" />
+                  <div className="flex-1 space-y-3 py-2">
+                    <div className="h-4 bg-gray-200 rounded w-3/4" />
+                    <div className="h-3 bg-gray-200 rounded w-full" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  </div>
+                </div>
+              ))
+          : filteredProducts.map((p) => (
+              <ProductItem key={p.id} product={p} onAdd={handleAddToCart} />
+            ))}
+        {!loadingMenu && filteredProducts.length === 0 && (
           <p className="text-center text-gray-400 py-10">
             No hay productos en esta categoría.
           </p>
@@ -287,24 +315,59 @@ const HomeView = ({
   otherStores,
   products,
   onStoreSelect,
+  loading,
 }: any) => {
   const [search, setSearch] = useState("");
+  const [foundProducts, setFoundProducts] = useState<Product[]>([]);
+  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
+  const { addToCart } = useCart();
+  const [notification, setNotification] = useState("");
+
+  // Efecto para búsqueda en servidor (Debounce)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (search.trim().length > 2) {
+        setIsSearchingProducts(true);
+        try {
+          const res = await api.get(`/api/products?search=${search}`);
+          setFoundProducts(
+            res.data.map((p: any) => ({ ...p, id: p._id || p.id })),
+          );
+        } catch (error) {
+          console.error("Error searching products", error);
+        } finally {
+          setIsSearchingProducts(false);
+        }
+      } else {
+        setFoundProducts([]);
+      }
+    }, 500); // Esperar 500ms después de que deje de escribir
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const handleAddToCart = (product: Product, quantity: number) => {
+    addToCart(product, quantity);
+    setNotification("Agregado al carrito");
+    setTimeout(() => setNotification(""), 2000);
+  };
 
   const filteredStores = useMemo(() => {
     if (!search) return [];
+
+    // 1. Identificar tiendas que tienen los productos encontrados
+    const storesWithProducts = new Set(foundProducts.map((p) => p.storeId));
+
     return stores.filter((s: StoreProfile) => {
-      const hasProduct = products.some(
-        (p: Product) =>
-          p.storeId === s.id &&
-          p.name.toLowerCase().includes(search.toLowerCase()) &&
-          p.isAvailable !== false,
-      );
+      // 2. Coincidencia por nombre de tienda
       const matchesName = s.storeName
         ?.toLowerCase()
         .includes(search.toLowerCase());
-      return hasProduct || matchesName;
+      // 3. Coincidencia por producto encontrado
+      const hasMatchingProduct = storesWithProducts.has(s.id);
+      return matchesName || hasMatchingProduct;
     });
-  }, [search, stores, products]);
+  }, [search, stores, foundProducts]);
 
   return (
     <div className="space-y-2 pb-24">
@@ -327,7 +390,45 @@ const HomeView = ({
 
       {search ? (
         <div className="px-4 space-y-4">
-          <h2 className="font-bold text-lg mb-4 text-gray-800">Resultados</h2>
+          {/* Resultados de Productos */}
+          <div>
+            <h2 className="font-bold text-lg mb-2 text-gray-800">
+              Productos encontrados
+            </h2>
+            {isSearchingProducts ? (
+              <div className="space-y-3">
+                {[1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-24 bg-gray-100 rounded-2xl animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : foundProducts.length > 0 ? (
+              <div className="space-y-3">
+                {foundProducts.map((p) => (
+                  <div key={p.id} className="relative">
+                    {/* Mostrar nombre de la tienda en pequeño */}
+                    <span className="absolute top-2 right-2 bg-gray-100 text-[10px] px-2 py-1 rounded-full text-gray-500 z-10">
+                      {stores.find((s: StoreProfile) => s.id === p.storeId)
+                        ?.storeName || "Tienda"}
+                    </span>
+                    <ProductItem product={p} onAdd={handleAddToCart} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              search.length > 2 && (
+                <p className="text-gray-400 text-sm text-center py-4">
+                  No se encontraron productos con ese nombre.
+                </p>
+              )
+            )}
+          </div>
+
+          <h2 className="font-bold text-lg mb-2 text-gray-800 mt-6">
+            Tiendas coincidentes
+          </h2>
           <div className="grid grid-cols-2 gap-4">
             {filteredStores.map((s: StoreProfile) => (
               <StoreCard
@@ -338,7 +439,7 @@ const HomeView = ({
             ))}
           </div>
           {filteredStores.length === 0 && (
-            <p className="text-gray-400 text-center">
+            <p className="text-gray-400 text-center text-sm py-2">
               No se encontraron resultados
             </p>
           )}
@@ -346,7 +447,7 @@ const HomeView = ({
       ) : (
         <>
           {/* Ultra Section */}
-          {ultraStores.length > 0 && (
+          {(loading || ultraStores.length > 0) && (
             <div className="pl-4">
               <h2 className="font-bold text-lg mb-2 flex items-center gap-2">
                 <Icons.Store className="text-primary" size={20} /> La mejor
@@ -361,51 +462,67 @@ const HomeView = ({
                     "rgba(var(--primary-rgb, 59, 130, 246), 0.3) transparent",
                 }}
               >
-                {ultraStores.map((s: StoreProfile) => (
-                  <div
-                    key={s.id}
-                    onClick={() => onStoreSelect(s)}
-                    className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card relative cursor-pointer active:scale-95 transition-transform"
-                  >
-                    <img
-                      src={s.coverImage}
-                      className="w-full h-32 object-cover"
-                    />
-                    {/* Logo Overlay for Ultra Stores */}
-                    <div className="absolute top-2 right-2 bg-white p-1 rounded-xl shadow-sm">
-                      <img
-                        src={s.logo}
-                        className="w-10 h-10 rounded-lg object-cover"
-                      />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-bold text-lg line-clamp-1">
-                        {s.storeName}
-                      </h3>
-                      <p className="text-xs text-gray-500 line-clamp-1">
-                        {s.description}
-                      </p>
-                      <div className="mt-2 flex gap-2">
-                        <span className="text-xs bg-gray-100 px-2 py-1 rounded-lg flex items-center gap-1">
-                          <Icons.Clock size={12} /> {s.prepTime || "30m"}
-                        </span>
-                        {s.averageRating !== undefined && (
-                          <span className="text-xs bg-yellow-50 text-yellow-600 px-2 py-1 rounded-lg flex items-center gap-1 font-bold">
-                            <Icons.Star size={12} fill="currentColor" />
-                            {s.averageRating > 0
-                              ? s.averageRating.toFixed(1)
-                              : "Nuevo"}
-                            {s.ratingCount !== undefined && (
-                              <span className="text-gray-400 font-normal ml-0.5">
-                                ({s.ratingCount})
+                {loading
+                  ? // SKELETONS PARA ULTRA (Animación de carga)
+                    Array(3)
+                      .fill(0)
+                      .map((_, i) => (
+                        <div
+                          key={i}
+                          className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card h-48 animate-pulse border border-gray-100"
+                        >
+                          <div className="w-full h-32 bg-gray-200" />
+                          <div className="p-4 space-y-2">
+                            <div className="h-4 bg-gray-200 rounded w-3/4" />
+                            <div className="h-3 bg-gray-200 rounded w-1/2" />
+                          </div>
+                        </div>
+                      ))
+                  : ultraStores.map((s: StoreProfile) => (
+                      <div
+                        key={s.id}
+                        onClick={() => onStoreSelect(s)}
+                        className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card relative cursor-pointer active:scale-95 transition-transform"
+                      >
+                        <img
+                          src={s.coverImage}
+                          className="w-full h-32 object-cover"
+                        />
+                        {/* Logo Overlay for Ultra Stores */}
+                        <div className="absolute top-2 right-2 bg-white p-1 rounded-xl shadow-sm">
+                          <img
+                            src={s.logo}
+                            className="w-10 h-10 rounded-lg object-cover"
+                          />
+                        </div>
+                        <div className="p-4">
+                          <h3 className="font-bold text-lg line-clamp-1">
+                            {s.storeName}
+                          </h3>
+                          <p className="text-xs text-gray-500 line-clamp-1">
+                            {s.description}
+                          </p>
+                          <div className="mt-2 flex gap-2">
+                            <span className="text-xs bg-gray-100 px-2 py-1 rounded-lg flex items-center gap-1">
+                              <Icons.Clock size={12} /> {s.prepTime || "30m"}
+                            </span>
+                            {s.averageRating !== undefined && (
+                              <span className="text-xs bg-yellow-50 text-yellow-600 px-2 py-1 rounded-lg flex items-center gap-1 font-bold">
+                                <Icons.Star size={12} fill="currentColor" />
+                                {s.averageRating > 0
+                                  ? s.averageRating.toFixed(1)
+                                  : "Nuevo"}
+                                {s.ratingCount !== undefined && (
+                                  <span className="text-gray-400 font-normal ml-0.5">
+                                    ({s.ratingCount})
+                                  </span>
+                                )}
                               </span>
                             )}
-                          </span>
-                        )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    ))}
               </div>
             </div>
           )}
@@ -414,21 +531,46 @@ const HomeView = ({
           <div className="px-4 pb-20 mt-4">
             <h2 className="font-bold text-lg mb-2">Para ti</h2>
             <div className="grid grid-cols-2 gap-3">
-              {otherStores.map((s: StoreProfile) => (
-                <StoreCard
-                  key={s.id}
-                  store={s}
-                  onClick={() => onStoreSelect(s)}
-                />
-              ))}
-              {otherStores.length === 0 && ultraStores.length === 0 && (
-                <p className="text-gray-400 text-center col-span-2 py-10">
-                  No hay tiendas abiertas en este momento.
-                </p>
-              )}
+              {loading
+                ? // SKELETONS PARA FEED NORMAL
+                  Array(4)
+                    .fill(0)
+                    .map((_, i) => (
+                      <div
+                        key={i}
+                        className="bg-white rounded-3xl overflow-hidden shadow-sm h-48 animate-pulse border border-gray-100"
+                      >
+                        <div className="h-32 bg-gray-200 w-full" />
+                        <div className="p-3 space-y-2">
+                          <div className="h-3 bg-gray-200 rounded w-full" />
+                          <div className="h-2 bg-gray-200 rounded w-2/3" />
+                        </div>
+                      </div>
+                    ))
+                : otherStores.map((s: StoreProfile) => (
+                    <StoreCard
+                      key={s.id}
+                      store={s}
+                      onClick={() => onStoreSelect(s)}
+                    />
+                  ))}
+              {!loading &&
+                otherStores.length === 0 &&
+                ultraStores.length === 0 && (
+                  <p className="text-gray-400 text-center col-span-2 py-10">
+                    No hay tiendas abiertas en este momento.
+                  </p>
+                )}
             </div>
           </div>
         </>
+      )}
+      {/* Notification Toast */}
+      {notification && (
+        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-green-600 text-white py-2 px-4 rounded-full flex items-center gap-2 shadow-lg z-50 animate-fade-in-up">
+          <Icons.Check size={16} />
+          <span className="font-medium text-sm">{notification}</span>
+        </div>
       )}
     </div>
   );
@@ -456,6 +598,14 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
   const [saveAddress, setSaveAddress] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [payMethod, setPayMethod] = useState<"CARD" | "CASH">("CARD");
+  const [colonySearch, setColonySearch] = useState("");
+  const [isColonyListOpen, setIsColonyListOpen] = useState(false);
+
+  const filteredColonies = useMemo(() => {
+    return colonies.filter((c) =>
+      c.name.toLowerCase().includes(colonySearch.toLowerCase()),
+    );
+  }, [colonies, colonySearch]);
 
   // Agrupar ítems por tienda para manejar pedidos múltiples
   const itemsByStore = useMemo(() => {
@@ -749,26 +899,57 @@ const CartView = ({ setView }: { setView: (view: any) => void }) => {
             <Input
               label="Número"
               value={newAddress.number}
-              onChange={(e: any) =>
-                setNewAddress({ ...newAddress, number: e.target.value })
-              }
-            />
-            <div className="w-full">
-              <label className="text-xs text-gray-500 ml-1">Colonia</label>
-              <select
-                className="w-full p-3 bg-gray-100 rounded-2xl mt-1"
-                value={newAddress.colonyId}
-                onChange={(e) =>
-                  setNewAddress({ ...newAddress, colonyId: e.target.value })
+              onChange={(e: any) => {
+                const val = e.target.value;
+                if (/^\d*$/.test(val) && val.length <= 5) {
+                  setNewAddress({ ...newAddress, number: val });
                 }
-              >
-                <option value="">Selecciona</option>
-                {colonies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              }}
+              type="tel"
+              maxLength={5}
+            />
+            <div className="w-full relative">
+              <label className="text-xs text-gray-500 ml-1">Colonia</label>
+              <input
+                type="text"
+                placeholder="Selecciona o busca..."
+                className="w-full p-3 bg-gray-100 rounded-2xl mt-1 focus:outline-none focus:ring-2 ring-primary/20 text-iosText"
+                value={colonySearch}
+                onChange={(e) => {
+                  setColonySearch(e.target.value);
+                  setIsColonyListOpen(true);
+                  if (newAddress.colonyId)
+                    setNewAddress({ ...newAddress, colonyId: "" });
+                }}
+                onFocus={() => setIsColonyListOpen(true)}
+                onBlur={() => setTimeout(() => setIsColonyListOpen(false), 200)}
+              />
+              {isColonyListOpen && (
+                <div className="absolute top-full left-0 w-full bg-white border border-gray-100 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50 mt-1">
+                  {filteredColonies.length > 0 ? (
+                    filteredColonies.map((c) => (
+                      <div
+                        key={c.id}
+                        className="p-3 hover:bg-gray-50 cursor-pointer text-sm border-b border-gray-50 last:border-none"
+                        onClick={() => {
+                          setNewAddress({ ...newAddress, colonyId: c.id });
+                          setColonySearch(c.name);
+                        }}
+                      >
+                        {c.name}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 text-gray-400 text-xs text-center">
+                      No se encontraron resultados
+                    </div>
+                  )}
+                </div>
+              )}
+              <Icons.ChevronDown
+                className="absolute right-3 top-[2.8rem] text-gray-400 pointer-events-none"
+                size={16}
+              />
             </div>
           </div>
           <Input
@@ -856,8 +1037,19 @@ const OrdersView = () => {
     <div className="px-4 py-6 pb-24 space-y-4">
       <h2 className="text-2xl font-bold mb-6">Mis Pedidos</h2>
       {orders
-        .filter((o) => o.customerId === currentUser!.id)
+        .filter((o) => {
+          const cId =
+            typeof o.customerId === "object"
+              ? (o.customerId as any).id || (o.customerId as any)._id
+              : o.customerId;
+          return cId === currentUser!.id;
+        })
         .map((o) => {
+          const store =
+            typeof o.storeId === "object"
+              ? (o.storeId as StoreProfile)
+              : (users.find((u) => u.id === o.storeId) as StoreProfile);
+
           const driver = o.driverId
             ? users.find((u) => u.id === o.driverId) ||
               ({
@@ -871,8 +1063,7 @@ const OrdersView = () => {
             <Card key={o.id}>
               <div className="flex justify-between mb-2">
                 <span className="font-bold text-primary">
-                  {(users.find((u) => u.id === o.storeId) as StoreProfile)
-                    ?.storeName || "Tienda"}
+                  {store?.storeName || "Tienda"}
                 </span>
                 <Badge color={getOrderStatusColor(o.status)}>
                   {getOrderStatusLabel(o.status)}
@@ -993,7 +1184,7 @@ const OrdersView = () => {
                     if (
                       window.confirm("¿Seguro que deseas cancelar el pedido?")
                     ) {
-                      updateOrderStatus(o.id, OrderStatus.REJECTED);
+                      updateOrderStatus(o.id, OrderStatus.CANCELLED);
                     }
                   }}
                 >

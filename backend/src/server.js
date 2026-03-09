@@ -192,6 +192,28 @@ io.on("connection", (socket) => {
 // RUTAS DE LA API
 // ==========================================
 
+// --- CLOUDINARY SIGNED UPLOAD (PROFESIONAL) ---
+app.get("/api/upload-signature", async (req, res) => {
+  try {
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const signature = cloudinary.utils.api_sign_request(
+      {
+        timestamp: timestamp,
+        folder: "prontoapp", // Carpeta en Cloudinary
+      },
+      process.env.CLOUDINARY_API_SECRET,
+    );
+    res.json({
+      timestamp,
+      signature,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+      apiKey: process.env.CLOUDINARY_API_KEY,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- AUTH ---
 app.post("/api/login", async (req, res) => {
   try {
@@ -270,6 +292,35 @@ app.get("/api/finances/stats", verifyToken, async (req, res) => {
     );
     stats.weeklyCount = weeklyOrders.length;
 
+    // Generar desglose semanal
+    const breakdown = {};
+    for (const o of orders) {
+      const d = new Date(o.createdAt);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Lunes como inicio
+      const weekStart = new Date(d.setDate(diff));
+      weekStart.setHours(0, 0, 0, 0);
+      const key = weekStart.getTime();
+
+      if (!breakdown[key]) {
+        breakdown[key] = { startDate: key, total: 0, count: 0 };
+      }
+
+      let amount = 0;
+      if (role === "STORE") amount = o.subtotal || 0;
+      else if (role === "DELIVERY") amount = o.driverFee || 0;
+      else if (role === "MASTER") {
+        const baseFee = (o.deliveryFee || 0) - (o.driverFee || 0);
+        amount = Math.max(0, baseFee);
+      }
+
+      breakdown[key].total += amount;
+      breakdown[key].count += 1;
+    }
+    stats.weeklyBreakdown = Object.values(breakdown).sort(
+      (a, b) => b.startDate - a.startDate,
+    );
+
     if (role === "STORE") {
       const totalSales = orders.reduce((acc, o) => acc + (o.subtotal || 0), 0);
       stats.totalVolume = totalSales;
@@ -321,7 +372,11 @@ app.get("/api/orders", verifyToken, async (req, res) => {
         $or: [{ driverId: req.user.id }, { status: "READY", driverId: null }],
       };
     }
-    const orders = await Order.find(filter).sort({ createdAt: -1 }).limit(100);
+    const orders = await Order.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .populate("customerId", "firstName lastName phone addresses") // Eliminado email por privacidad/peso
+      .populate("storeId", "storeName storeAddress logo coverImage phone");
     res.json(orders);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -393,7 +448,12 @@ app.post("/api/orders", verifyToken, async (req, res) => {
       calculatedSubtotal += price * quantity;
 
       secureItems.push({
-        product: product.toObject(),
+        product: {
+          // Creamos el snapshot del producto
+          name: product.name,
+          price: product.price,
+          image: product.image,
+        },
         productId: product._id,
         quantity: quantity,
         price: price,
@@ -418,7 +478,12 @@ app.post("/api/orders", verifyToken, async (req, res) => {
       isReviewed: false,
     });
 
-    const orderJSON = newOrder.toJSON();
+    // Poblar datos antes de emitir por socket para que el frontend tenga la info completa
+    const populatedOrder = await newOrder.populate(
+      "customerId",
+      "firstName lastName phone addresses",
+    );
+    const orderJSON = populatedOrder.toJSON();
 
     // SEGURIDAD: Emitir SOLO a los interesados
     io.to(storeId.toString()).emit("order_update", orderJSON); // A la tienda
@@ -508,16 +573,29 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
     if (!updatedOrder)
       return res.status(400).json({ error: "No se pudo actualizar" });
 
+    // Asegurar que el objeto emitido tenga los datos poblados
+    await updatedOrder.populate(
+      "customerId",
+      "firstName lastName phone addresses",
+    );
+    await updatedOrder.populate("storeId", "storeName storeAddress logo phone");
     const orderJSON = updatedOrder.toJSON();
 
     // 3. Notificaciones Inteligentes (SEGURIDAD)
+    // CORRECCIÓN: Extraer IDs de forma segura (pueden ser objetos poblados o strings)
+    const cId = updatedOrder.customerId._id || updatedOrder.customerId;
+    const sId = updatedOrder.storeId._id || updatedOrder.storeId;
+    const dId = updatedOrder.driverId
+      ? updatedOrder.driverId._id || updatedOrder.driverId
+      : null;
+
     // Siempre notificar a los participantes directos
-    io.to(updatedOrder.customerId.toString()).emit("order_update", orderJSON);
-    io.to(updatedOrder.storeId.toString()).emit("order_update", orderJSON);
+    io.to(cId.toString()).emit("order_update", orderJSON);
+    io.to(sId.toString()).emit("order_update", orderJSON);
     io.to("MASTER_ROOM").emit("order_update", orderJSON);
 
-    if (updatedOrder.driverId) {
-      io.to(updatedOrder.driverId.toString()).emit("order_update", orderJSON);
+    if (dId) {
+      io.to(dId.toString()).emit("order_update", orderJSON);
     }
 
     // Si la orden está lista, notificar a TODOS los repartidores disponibles
@@ -539,7 +617,7 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
 app.get(
   "/api/admin/users",
   verifyToken,
-  verifyRole(["MASTER", "DELIVERY"]),
+  verifyRole(["MASTER"]), // ELIMINADO: DELIVERY no debe ver todos los usuarios
   async (req, res) => {
     try {
       const users = await User.find().select("-password");
@@ -628,7 +706,18 @@ app.delete(
 // --- PRODUCTS ---
 app.get("/api/products", async (req, res) => {
   try {
-    res.json(await Product.find());
+    const { storeId, search } = req.query;
+    const filter = storeId ? { storeId } : {};
+
+    if (search) {
+      // Búsqueda insensible a mayúsculas/minúsculas en nombre y descripción
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    res.json(await Product.find(filter));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -887,11 +976,34 @@ app.put("/api/messages/read/:orderId", verifyToken, async (req, res) => {
 
 app.get("/api/init", async (req, res) => {
   try {
+    const { role, userId } = req.query;
+
+    let productFilter = {};
+    let userFilter = { role: "STORE", isOpen: true, approved: true };
+    let productSelect = ""; // Por defecto trae todo
+
+    // OPTIMIZACIÓN: Si es tienda, solo descargar sus propios datos
+    if (role === "STORE" && userId) {
+      productFilter = { storeId: userId };
+      userFilter = { _id: userId }; // Solo traerse a sí mismo
+    } else if (role === "CLIENT") {
+      // OPTIMIZACIÓN EXTREMA: Carga perezosa (Lazy Loading).
+      // El cliente descarga SOLO las tiendas. Los productos se cargan al entrar a la tienda.
+      // SELECCIÓN DE CAMPOS: Solo traer lo necesario para la tarjeta de la tienda, evitando datos pesados innecesarios.
+      const [users, colonies, settings] = await Promise.all([
+        User.find(userFilter).select(
+          "storeName storeAddress logo coverImage description prepTime averageRating ratingCount isOpen subscription role",
+        ),
+        Colony.find(),
+        Settings.findOne(),
+      ]);
+      // Retornamos array vacío de productos para que la carga sea instantánea
+      return res.json({ users, products: [], orders: [], colonies, settings });
+    }
+
     const [users, products, colonies, settings] = await Promise.all([
-      User.find({ role: "STORE", isOpen: true, approved: true }).select(
-        "-password",
-      ),
-      Product.find(),
+      User.find(userFilter).select("-password"),
+      Product.find(productFilter).select(productSelect),
       Colony.find(),
       Settings.findOne(),
     ]);

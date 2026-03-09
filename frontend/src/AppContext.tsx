@@ -45,7 +45,9 @@ interface AppContextType {
   markOrderMessagesAsRead: (orderId: string) => void;
   addReview: (review: any) => Promise<void>;
   getStoreReviews: (storeId: string) => Promise<any[]>;
+  getFinanceStats: () => Promise<any>;
   refreshData: () => Promise<void>;
+  fetchStoreProducts: (storeId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
@@ -68,8 +70,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    if (!currentUser) return; // No conectar si no hay usuario
+
     // CONEXIÓN SEGURA: Enviamos el token para autenticar el socket
     const token = localStorage.getItem("token");
+    if (!token) return;
+
     const newSocket = io(SOCKET_URL, {
       auth: { token },
     });
@@ -144,7 +150,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       newSocket.close();
     };
-  }, []);
+  }, [currentUser]); // CORRECCIÓN: Reconectar cuando cambia el usuario (Login/Logout)
 
   const fetchInitialData = useCallback(async (user: any) => {
     if (!user || !user.id) return;
@@ -155,7 +161,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           : [];
 
       // OPTIMIZACIÓN: Usar /api/init para cargar catálogos estáticos en una sola petición
-      const initRes = await api.get("/api/init");
+      // Enviamos rol y ID para que el backend filtre y no mande basura innecesaria
+      const initPromise = api.get(
+        `/api/init?role=${user.role}&userId=${user.id}`,
+      );
+
+      // Cargar datos dinámicos o privados por separado
+      let endpointUsers = user.role === "MASTER" ? "/api/admin/users" : null;
+      const ordersPromise = api.get(`/api/orders?t=${Date.now()}`);
+      const usersPromise = endpointUsers
+        ? api.get(endpointUsers)
+        : Promise.resolve(null);
+
+      // EJECUCIÓN EN PARALELO: Esperamos todo junto en lugar de uno por uno
+      const [initRes, ordersRes, usersRes] = await Promise.all([
+        initPromise,
+        ordersPromise,
+        usersPromise,
+      ]);
+
       const {
         colonies: initCols,
         settings: initSettings,
@@ -166,19 +190,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setColonies(normalize(initCols));
       setSettings(initSettings);
       setProducts(normalize(initProds));
-
-      // Cargar datos dinámicos o privados por separado
-      let endpointUsers =
-        user.role === "MASTER" || user.role === "DELIVERY"
-          ? "/api/admin/users"
-          : null; // Si es cliente o tienda, ya tenemos las tiendas abiertas de /init
-
-      const promises = [api.get("/api/orders")];
-      if (endpointUsers) {
-        promises.push(api.get(endpointUsers));
-      }
-
-      const [ordersRes, usersRes] = await Promise.all(promises);
 
       setOrders(normalize(ordersRes.data));
       // Si es Master/Delivery usamos la lista completa, si no, usamos la lista de tiendas abiertas de init
@@ -194,6 +205,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (currentUser) {
+      setLoading(true); // CORRECCIÓN: Activar loading al detectar usuario para mostrar Skeletons
       fetchInitialData(currentUser).then(() => setLoading(false));
     } else {
       setLoading(false);
@@ -356,6 +368,35 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const getFinanceStats = async () => {
+    try {
+      // Agregamos timestamp para evitar que el navegador guarde en caché una respuesta vacía antigua
+      const res = await api.get(`/api/finances/stats?t=${Date.now()}`);
+      return res.data;
+    } catch (error) {
+      console.error("Error fetching finance stats:", error);
+      return null;
+    }
+  };
+
+  const fetchStoreProducts = async (storeId: string) => {
+    try {
+      const res = await api.get(`/api/products?storeId=${storeId}`);
+      const newProducts = res.data.map((item: any) => ({
+        ...item,
+        id: item._id || item.id,
+      }));
+
+      setProducts((prev) => {
+        // Reemplazamos los productos de esta tienda con los frescos, manteniendo los de otras tiendas si ya se cargaron
+        const others = prev.filter((p) => p.storeId !== storeId);
+        return [...others, ...newProducts];
+      });
+    } catch (error) {
+      console.error("Error fetching store products:", error);
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -383,6 +424,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         unreadCounts,
         addReview,
         getStoreReviews,
+        getFinanceStats,
+        fetchStoreProducts,
         refreshData,
         updateSettings: async (s: any) => {
           await api.put("/api/settings", s);

@@ -3,6 +3,7 @@ import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
+import { uploadToCloudinary } from "../api"; // Importar utilidad
 import { StoreProfile, Product, Order, OrderStatus } from "../types";
 import {
   getOrderStatusLabel,
@@ -20,6 +21,7 @@ export const StoreDashboard = () => {
     updateOrderStatus,
     colonies,
     getStoreReviews,
+    getFinanceStats,
   } = useApp();
 
   const { currentUser, updateUser, logout } = useAuth();
@@ -33,9 +35,11 @@ export const StoreDashboard = () => {
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [financeStats, setFinanceStats] = useState<any>(null);
 
   // ESTADO NUEVO: Controla la animación de carga al abrir/cerrar tienda
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
+  const [isUploading, setIsUploading] = useState(false); // Estado de carga de imagen
 
   // Product Form State
   const [prodForm, setProdForm] = useState<any>({
@@ -93,13 +97,35 @@ export const StoreDashboard = () => {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab === "finances") {
+      getFinanceStats().then(setFinanceStats);
+    }
+  }, [activeTab]);
+
   const [saveFeedback, setSaveFeedback] = useState("");
 
-  const myOrders = orders.filter((o) => o.storeId === store?.id);
-  const activeOrdersCount = myOrders.filter(
-    (o) =>
-      o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.REJECTED,
-  ).length;
+  const myOrders = useMemo(
+    () =>
+      orders.filter((o) => {
+        const sId =
+          typeof o.storeId === "object"
+            ? (o.storeId as any).id || (o.storeId as any)._id
+            : o.storeId;
+        return sId === store?.id;
+      }),
+    [orders, store?.id],
+  );
+
+  const activeOrdersCount = useMemo(
+    () =>
+      myOrders.filter(
+        (o) =>
+          o.status !== OrderStatus.DELIVERED &&
+          o.status !== OrderStatus.REJECTED,
+      ).length,
+    [myOrders],
+  );
 
   const myProducts = products.filter((p) => p.storeId === store?.id);
 
@@ -147,91 +173,6 @@ export const StoreDashboard = () => {
   const uniqueCategories = Array.from(
     new Set(myProducts.map((p) => p.category)),
   );
-
-  // Calculate financial stats
-  const { totalSales, currentWeekSales, totalOrders, currentWeekOrders } =
-    useMemo(() => {
-      const deliveredOrders = myOrders.filter(
-        (o) => o.status === OrderStatus.DELIVERED,
-      );
-
-      const total = deliveredOrders.reduce(
-        (acc, o) =>
-          acc +
-          o.items.reduce(
-            (sum, item) => sum + item.product.price * item.quantity,
-            0,
-          ),
-        0,
-      );
-
-      const now = new Date();
-      const currentDay = now.getDay();
-      const diff = now.getDate() - currentDay + (currentDay === 0 ? -6 : 1); // Adjust to Monday
-      const currentWeekStart = new Date(now.setDate(diff)).setHours(0, 0, 0, 0);
-
-      let weekTotal = 0;
-      let weekOrders = 0;
-
-      deliveredOrders.forEach((o) => {
-        const d = new Date(o.createdAt);
-        const day = d.getDay();
-        const diffDate = d.getDate() - day + (day === 0 ? -6 : 1);
-        const weekStart = new Date(d.setDate(diffDate)).setHours(0, 0, 0, 0);
-
-        if (weekStart === currentWeekStart) {
-          weekTotal += o.items.reduce(
-            (sum, item) => sum + item.product.price * item.quantity,
-            0,
-          );
-          weekOrders += 1;
-        }
-      });
-
-      return {
-        totalSales: total,
-        currentWeekSales: weekTotal,
-        totalOrders: deliveredOrders.length,
-        currentWeekOrders: weekOrders,
-      };
-    }, [myOrders]);
-
-  // Calculate Weekly Breakdown for the List
-  const weeklyStats = useMemo(() => {
-    const deliveredOrders = myOrders.filter(
-      (o) => o.status === OrderStatus.DELIVERED,
-    );
-
-    const stats: Record<
-      string,
-      { total: number; count: number; startDate: Date }
-    > = {};
-
-    deliveredOrders.forEach((o) => {
-      const d = new Date(o.createdAt);
-      const day = d.getDay();
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
-      const weekStart = new Date(d.setDate(diff));
-      weekStart.setHours(0, 0, 0, 0);
-      const key = weekStart.getTime().toString();
-
-      if (!stats[key]) {
-        stats[key] = { total: 0, count: 0, startDate: weekStart };
-      }
-
-      const orderTotal = o.items.reduce(
-        (sum, item) => sum + item.product.price * item.quantity,
-        0,
-      );
-
-      stats[key].total += orderTotal;
-      stats[key].count += 1;
-    });
-
-    return Object.values(stats).sort(
-      (a, b) => b.startDate.getTime() - a.startDate.getTime(),
-    );
-  }, [myOrders]);
 
   // Calculate stats from reviews state for the Reviews tab (Real-time calculation)
   const reviewStats = useMemo(() => {
@@ -333,32 +274,40 @@ export const StoreDashboard = () => {
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProdForm({ ...prodForm, image: reader.result as string });
+      setIsUploading(true);
+      try {
+        const url = await uploadToCloudinary(file);
+        setProdForm({ ...prodForm, image: url });
         setProdErrors({ ...prodErrors, image: undefined });
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        alert("Error al subir imagen. Intenta de nuevo.");
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
-  const handleProfileImageUpload = (
+  const handleProfileImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     type: "logo" | "coverImage",
   ) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
+      setIsUploading(true);
+      try {
+        const url = await uploadToCloudinary(file);
         setProfileForm({
           ...profileForm,
-          [type]: reader.result as string,
+          [type]: url,
         });
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        alert("Error al subir imagen.");
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
@@ -874,99 +823,115 @@ export const StoreDashboard = () => {
         {/* --- FINANCES --- */}
         {activeTab === "finances" && (
           <div className="pb-24">
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <Card className="bg-white border border-gray-100 p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-1 text-indigo-600">
-                  <Icons.DollarSign size={18} />
-                  <h3 className="font-semibold text-xs text-gray-600">
-                    Ventas Totales
-                  </h3>
-                </div>
-                <p className="text-xl font-bold text-gray-800">
-                  ${totalSales.toFixed(2)}
-                </p>
-              </Card>
-
-              {/* CORRECCIÓN: Usar div en lugar de Card para evitar conflictos de estilos (fondo blanco forzado) */}
-              <div className="bg-green-600 text-white p-4 rounded-2xl shadow-sm">
-                <div className="flex items-center gap-2 mb-1 opacity-80">
-                  <Icons.TrendingUp size={18} />
-                  <h3 className="font-semibold text-xs">Ventas (Semana)</h3>
-                </div>
-                <p className="text-xl font-bold">
-                  ${currentWeekSales.toFixed(2)}
-                </p>
+            {!financeStats ? (
+              <div className="mb-6 p-6 bg-gray-50 rounded-2xl text-center text-gray-400 animate-pulse">
+                Cargando estadísticas generales...
               </div>
-
-              <Card className="bg-white border border-gray-100 p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-1 text-blue-600">
-                  <Icons.ShoppingBag size={18} />
-                  <h3 className="font-semibold text-xs text-gray-600">
-                    Pedidos Totales
-                  </h3>
-                </div>
-                <p className="text-xl font-bold text-gray-800">{totalOrders}</p>
-              </Card>
-
-              {/* CORRECCIÓN: Usar div en lugar de Card */}
-              <div className="bg-green-600 text-white p-4 rounded-2xl shadow-sm">
-                <div className="flex items-center gap-2 mb-1 opacity-80">
-                  <Icons.ShoppingBag size={18} />
-                  <h3 className="font-semibold text-xs">Pedidos (Semana)</h3>
-                </div>
-                <p className="text-xl font-bold">{currentWeekOrders}</p>
-              </div>
-            </div>
-
-            {/* NUEVO: Resumen Semanal */}
-            <h3 className="font-bold text-lg mb-4 text-gray-800">
-              Resumen Semanal
-            </h3>
-            <div className="space-y-3">
-              {weeklyStats.length === 0 && (
-                <p className="text-gray-400 text-center">
-                  No hay ventas registradas.
-                </p>
-              )}
-              {weeklyStats.map((stat) => {
-                const labelStart = stat.startDate.toLocaleDateString("es-MX", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                });
-                const endDate = new Date(stat.startDate);
-                endDate.setDate(endDate.getDate() + 6);
-                const labelEnd = endDate.toLocaleDateString("es-MX", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                });
-
-                return (
-                  <Card
-                    key={stat.startDate.getTime()}
-                    className="flex justify-between items-center"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-50 text-green-600 rounded-lg">
-                        <Icons.Calendar size={20} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-gray-800">
-                          {labelStart} - {labelEnd}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {stat.count} pedidos
-                        </p>
-                      </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <Card className="bg-white border border-gray-100 p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1 text-indigo-600">
+                      <Icons.DollarSign size={18} />
+                      <h3 className="font-semibold text-xs text-gray-600">
+                        Ventas Totales
+                      </h3>
                     </div>
-                    <p className="font-bold text-lg text-green-600">
-                      ${stat.total.toFixed(2)}
+                    <p className="text-xl font-bold text-gray-800">
+                      ${(financeStats.totalVolume || 0).toFixed(2)}
                     </p>
                   </Card>
-                );
-              })}
-            </div>
+
+                  {/* CORRECCIÓN: Usar div en lugar de Card para evitar conflictos de estilos (fondo blanco forzado) */}
+                  <div className="bg-green-600 text-white p-4 rounded-2xl shadow-sm">
+                    <div className="flex items-center gap-2 mb-1 opacity-80">
+                      <Icons.TrendingUp size={18} />
+                      <h3 className="font-semibold text-xs">Ventas (Semana)</h3>
+                    </div>
+                    <p className="text-xl font-bold">
+                      ${(financeStats.weeklyEarnings || 0).toFixed(2)}
+                    </p>
+                  </div>
+
+                  <Card className="bg-white border border-gray-100 p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1 text-blue-600">
+                      <Icons.ShoppingBag size={18} />
+                      <h3 className="font-semibold text-xs text-gray-600">
+                        Pedidos Totales
+                      </h3>
+                    </div>
+                    <p className="text-xl font-bold text-gray-800">
+                      {financeStats.count || 0}
+                    </p>
+                  </Card>
+
+                  {/* CORRECCIÓN: Usar div en lugar de Card */}
+                  <div className="bg-green-600 text-white p-4 rounded-2xl shadow-sm">
+                    <div className="flex items-center gap-2 mb-1 opacity-80">
+                      <Icons.ShoppingBag size={18} />
+                      <h3 className="font-semibold text-xs">
+                        Pedidos (Semana)
+                      </h3>
+                    </div>
+                    <p className="text-xl font-bold">
+                      {financeStats.weeklyCount || 0}
+                    </p>
+                  </div>
+                </div>
+
+                <h3 className="font-bold text-lg mb-4 text-gray-800">
+                  Resumen Semanal
+                </h3>
+                <div className="space-y-3">
+                  {(!financeStats.weeklyBreakdown ||
+                    financeStats.weeklyBreakdown.length === 0) && (
+                    <p className="text-gray-400 text-center">
+                      No hay ventas registradas.
+                    </p>
+                  )}
+                  {(financeStats.weeklyBreakdown || []).map((stat: any) => {
+                    const labelStart = new Date(
+                      stat.startDate,
+                    ).toLocaleDateString("es-MX", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    });
+                    const endDate = new Date(stat.startDate);
+                    endDate.setDate(endDate.getDate() + 6);
+                    const labelEnd = endDate.toLocaleDateString("es-MX", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    });
+
+                    return (
+                      <Card
+                        key={stat.startDate}
+                        className="flex justify-between items-center"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                            <Icons.Calendar size={20} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-800">
+                              {labelStart} - {labelEnd}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {stat.count} pedidos
+                            </p>
+                          </div>
+                        </div>
+                        <p className="font-bold text-lg text-green-600">
+                          ${stat.total.toFixed(2)}
+                        </p>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1005,7 +970,11 @@ export const StoreDashboard = () => {
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Icons.Camera size={18} />
                           <span>
-                            {profileForm.coverImage ? "Cambiar" : "Subir"}
+                            {isUploading
+                              ? "Subiendo..."
+                              : profileForm.coverImage
+                                ? "Cambiar"
+                                : "Subir"}
                           </span>
                         </div>
                         <input
@@ -1036,7 +1005,13 @@ export const StoreDashboard = () => {
                       <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Icons.Camera size={18} />
-                          <span>{profileForm.logo ? "Cambiar" : "Subir"}</span>
+                          <span>
+                            {isUploading
+                              ? "..."
+                              : profileForm.logo
+                                ? "Cambiar"
+                                : "Subir"}
+                          </span>
                         </div>
                         <input
                           type="file"
@@ -1091,7 +1066,11 @@ export const StoreDashboard = () => {
                       maxLength={70}
                     />
                   </div>
-                  <Button className="w-full mt-4" onClick={handleSaveProfile}>
+                  <Button
+                    className="w-full mt-4"
+                    onClick={handleSaveProfile}
+                    disabled={isUploading}
+                  >
                     Guardar Cambios
                   </Button>
                 </div>
@@ -1205,6 +1184,22 @@ export const StoreDashboard = () => {
               </p>
             )}
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
+              Imagen
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+            />
+            {isUploading && (
+              <p className="text-xs text-blue-500 mt-1">
+                Subiendo imagen a la nube...
+              </p>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Precio"
@@ -1245,7 +1240,7 @@ export const StoreDashboard = () => {
             <option value="Plato Fuerte" />
             <option value="Bebidas" />
           </datalist>
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={isUploading}>
             Guardar Producto
           </Button>
         </form>

@@ -76,15 +76,6 @@ export const DeliveryDashboard = () => {
       };
     }, [myCompletedDeliveries]);
 
-  // Memoize a map of users by ID for efficient lookups
-  const usersById = useMemo(() => {
-    const map = new Map<string, User | StoreProfile>();
-    for (const user of users) {
-      map.set(user.id, user);
-    }
-    return map;
-  }, [users]);
-
   const handleClaim = async (orderId: string) => {
     const order = orders.find((o) => o.id === orderId);
     if (order && !order.driverId) {
@@ -164,11 +155,17 @@ export const DeliveryDashboard = () => {
               </p>
             )}
             {availableOrders.map((order) => {
-              const store = usersById.get(order.storeId) as StoreProfile;
+              // Usamos los datos poblados directamente de la orden
+              const store = (
+                typeof order.storeId === "object"
+                  ? order.storeId
+                  : users.find((u) => u.id === order.storeId)
+              ) as StoreProfile;
+
               if (!store) return null;
 
               const storeColony = colonies.find(
-                (c) => c.id === store.storeAddress?.colonyId,
+                (c) => c.id === (store.storeAddress?.colonyId || ""),
               );
               const deliveryColony = colonies.find(
                 (c) => c.id === order.deliveryAddress.colonyId,
@@ -219,12 +216,21 @@ export const DeliveryDashboard = () => {
               </p>
             )}
             {myDeliveries.map((order) => {
-              const store = usersById.get(order.storeId) as StoreProfile;
+              const store = (
+                typeof order.storeId === "object"
+                  ? order.storeId
+                  : users.find((u) => u.id === order.storeId)
+              ) as StoreProfile;
+              const client = (
+                typeof order.customerId === "object"
+                  ? order.customerId
+                  : users.find((u) => u.id === order.customerId)
+              ) as User;
+
               if (!store) return null;
 
-              const client = usersById.get(order.customerId);
               const storeColony = colonies.find(
-                (c) => c.id === store.storeAddress?.colonyId,
+                (c) => c.id === (store.storeAddress?.colonyId || ""),
               );
               const clientColony = colonies.find(
                 (c) => c.id === order.deliveryAddress.colonyId,
@@ -377,7 +383,11 @@ export const DeliveryDashboard = () => {
               </p>
             )}
             {myCompletedDeliveries.map((order) => {
-              const store = usersById.get(order.storeId) as StoreProfile;
+              const store = (
+                typeof order.storeId === "object"
+                  ? order.storeId
+                  : users.find((u) => u.id === order.storeId)
+              ) as StoreProfile;
               if (!store) return null;
               return (
                 <Card key={order.id} className="opacity-80 mb-4">
@@ -537,14 +547,16 @@ export const DeliveryDashboard = () => {
           onClose={() => setChatOrder(null)}
           orderId={chatOrder.id}
           otherParty={
-            users.find((u) => u.id === chatOrder.customerId) ||
+            (typeof chatOrder.customerId === "object"
+              ? chatOrder.customerId
+              : users.find((u) => u.id === chatOrder.customerId)) ||
             ({
               firstName: "Cliente",
               lastName: "",
               role: "CLIENT",
               email: "",
               phone: "",
-              id: chatOrder.customerId,
+              id: chatOrder.customerId as string,
               approved: true,
             } as User)
           }

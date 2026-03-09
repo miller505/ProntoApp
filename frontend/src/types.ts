@@ -27,6 +27,7 @@ export enum OrderStatus {
   ON_WAY = "ON_WAY", // Driver picked up
   DELIVERED = "DELIVERED", // Completed
   REJECTED = "REJECTED", // Store rejected
+  CANCELLED = "CANCELLED", // Client cancelled
 }
 
 export interface SystemSettings {
@@ -99,8 +100,8 @@ export interface CartItem {
 
 export interface Order {
   id: string;
-  customerId: string;
-  storeId: string;
+  customerId: string | User; // Puede venir poblado del backend
+  storeId: string | StoreProfile; // Puede venir poblado del backend
   driverId?: string;
   items: CartItem[];
   status: OrderStatus;

@@ -35,3 +35,25 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+// --- UTILIDAD DE SUBIDA PROFESIONAL ---
+export const uploadToCloudinary = async (file: File): Promise<string> => {
+  // 1. Obtener firma segura del backend (sin exponer secretos)
+  const { data: sigData } = await api.get("/api/upload-signature");
+
+  // 2. Preparar el payload para Cloudinary
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("api_key", sigData.apiKey);
+  formData.append("timestamp", sigData.timestamp);
+  formData.append("signature", sigData.signature);
+  formData.append("folder", "prontoapp");
+
+  // 3. Subir directo a la nube (evitando que el backend procese la imagen)
+  const res = await axios.post(
+    `https://api.cloudinary.com/v1_1/${sigData.cloudName}/image/upload`,
+    formData,
+  );
+
+  return res.data.secure_url; // Retorna la URL pública (https://...)
+};
