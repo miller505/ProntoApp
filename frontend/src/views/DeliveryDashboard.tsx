@@ -3,9 +3,9 @@ import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext";
 import { Button, Card, Badge } from "../components/UI";
 import { Icons } from "../constants";
-import { OrderStatus, StoreProfile, User } from "../types";
+import { OrderStatus, StoreProfile, User, Order } from "../types";
 import { ChatModal } from "../components/ChatModal";
-import { formatDate } from "../utils";
+import { formatDate, getOrderStatusColor } from "../utils";
 
 export const DeliveryDashboard = () => {
   const {
@@ -26,14 +26,15 @@ export const DeliveryDashboard = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(true);
 
   const availableOrders = orders.filter(
-    (o) => o.status === OrderStatus.READY && !o.driverId,
+    (o: Order) => o.status === OrderStatus.READY && !o.driverId,
   );
   const myDeliveries = orders.filter(
-    (o) => o.driverId === currentUser?.id && o.status !== OrderStatus.DELIVERED,
+    (o: Order) =>
+      o.driverId === currentUser?.id && o.status === OrderStatus.ON_WAY,
   );
   const myCompletedDeliveries = orders
     .filter(
-      (o) =>
+      (o: Order) =>
         o.driverId === currentUser?.id && o.status === OrderStatus.DELIVERED,
     )
     .sort(
@@ -177,7 +178,9 @@ export const DeliveryDashboard = () => {
                     <span className="font-mono text-gray-500 text-xs">
                       #{order.id.slice(-4)}
                     </span>
-                    <Badge color="yellow">LISTO</Badge>
+                    <Badge color={getOrderStatusColor(order.status)}>
+                      {order.status}
+                    </Badge>
                   </div>
                   <div className="mb-4">
                     <h3 className="font-bold text-lg">{store.storeName}</h3>
@@ -400,7 +403,9 @@ export const DeliveryDashboard = () => {
                         {formatDate(order.createdAt)}
                       </span>
                     </div>
-                    <Badge color="green">ENTREGADO</Badge>
+                    <Badge color={getOrderStatusColor(order.status)}>
+                      {order.status}
+                    </Badge>
                   </div>
                   <div className="mb-2">
                     <h3 className="font-bold text-md">{store.storeName}</h3>

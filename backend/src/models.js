@@ -139,16 +139,15 @@ const OrderSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
-        "PENDING",
-        "ACCEPTED",
-        "PREPARING",
-        "READY",
-        "ON_WAY",
-        "DELIVERED",
-        "CANCELLED",
-        "REJECTED", // Agregado REJECTED que faltaba en el enum pero se usa en frontend
+        "Pendiente",
+        "Preparando",
+        "Listo para Recoger",
+        "En Camino",
+        "Entregado",
+        "Rechazado",
+        "Cancelado",
       ],
-      default: "PENDING",
+      default: "Pendiente",
       index: true,
     },
     deliveryAddress: {

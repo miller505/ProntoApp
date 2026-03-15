@@ -21,13 +21,13 @@ export interface Message {
 }
 
 export enum OrderStatus {
-  PENDING = "PENDING", // Waiting for store acceptance
-  PREPARING = "PREPARING", // Store accepted, cooking
-  READY = "READY", // Ready for pickup (Pool for drivers)
-  ON_WAY = "ON_WAY", // Driver picked up
-  DELIVERED = "DELIVERED", // Completed
-  REJECTED = "REJECTED", // Store rejected
-  CANCELLED = "CANCELLED", // Client cancelled
+  PENDING = "Pendiente",
+  PREPARING = "Preparando",
+  READY = "Listo para Recoger",
+  ON_WAY = "En Camino",
+  DELIVERED = "Entregado",
+  REJECTED = "Rechazado",
+  CANCELLED = "Cancelado",
 }
 
 export interface SystemSettings {

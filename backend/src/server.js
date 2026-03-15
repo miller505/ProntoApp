@@ -188,6 +188,13 @@ io.on("connection", (socket) => {
   });
 });
 
+// Límites de productos por tipo de suscripción (Fuente de verdad)
+const SUBSCRIPTION_LIMITS = {
+  STANDARD: 10,
+  PREMIUM: 40,
+  ULTRA: 100,
+};
+
 // ==========================================
 // RUTAS DE LA API
 // ==========================================
@@ -265,7 +272,7 @@ app.post("/api/register", async (req, res) => {
 app.get("/api/finances/stats", verifyToken, async (req, res) => {
   try {
     const { id, role } = req.user;
-    let filter = { status: "DELIVERED" };
+    let filter = { status: "Entregado" };
 
     if (role === "STORE") filter.storeId = id;
     else if (role === "DELIVERY") filter.driverId = id;
@@ -337,7 +344,7 @@ app.get("/api/finances/stats", verifyToken, async (req, res) => {
         0,
       );
     } else if (role === "MASTER") {
-      const allDelivered = await Order.find({ status: "DELIVERED" });
+      const allDelivered = await Order.find({ status: "Entregado" });
       stats.totalVolume = allDelivered.reduce((acc, o) => acc + o.total, 0);
 
       stats.earnings = allDelivered.reduce((acc, o) => {
@@ -369,7 +376,10 @@ app.get("/api/orders", verifyToken, async (req, res) => {
     else if (req.user.role === "STORE") filter.storeId = req.user.id;
     else if (req.user.role === "DELIVERY") {
       filter = {
-        $or: [{ driverId: req.user.id }, { status: "READY", driverId: null }],
+        $or: [
+          { driverId: req.user.id },
+          { status: "Listo para Recoger", driverId: null },
+        ],
       };
     }
     const orders = await Order.find(filter)
@@ -472,7 +482,7 @@ app.post("/api/orders", verifyToken, async (req, res) => {
       deliveryFee: calculatedDeliveryFee,
       driverFee: calculatedDriverFee,
       total: calculatedTotal,
-      status: "PENDING",
+      status: "Pendiente",
       deliveryAddress,
       paymentMethod,
       isReviewed: false,
@@ -513,20 +523,22 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
 
     // 2. Lógica específica por Rol y Estado
     if (role === "STORE") {
+      // Tienda acepta/rechaza/prepara/listo
       if (currentOrder.storeId.toString() !== userId)
         return res.status(403).json({ error: "No autorizado" });
 
       updatedOrder = await Order.findByIdAndUpdate(
         orderId,
-        { status },
+        { status }, // Ej: "Preparando", "Listo para Recoger", "Rechazado"
         { new: true },
       );
     } else if (role === "DELIVERY") {
-      if (status === "ON_WAY") {
+      // Repartidor toma/entrega
+      if (status === "En Camino") {
         // INTEGRIDAD DE DATOS: Operación atómica para evitar que dos repartidores tomen la misma orden
         updatedOrder = await Order.findOneAndUpdate(
-          { _id: orderId, status: "READY", driverId: null }, // Condición estricta
-          { status: "ON_WAY", driverId: userId },
+          { _id: orderId, status: "Listo para Recoger", driverId: null }, // Condición estricta
+          { status: "En Camino", driverId: userId },
           { new: true },
         );
 
@@ -535,7 +547,7 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
             .status(409)
             .json({ error: "La orden ya fue tomada o no está lista." });
         }
-      } else if (status === "DELIVERED") {
+      } else if (status === "Entregado") {
         if (currentOrder.driverId?.toString() !== userId)
           return res.status(403).json({ error: "No es tu orden" });
 
@@ -546,20 +558,21 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
         );
       }
     } else if (role === "CLIENT") {
+      // Cliente cancela
       // SEGURIDAD: El cliente solo puede cancelar, y solo si está pendiente.
-      if (status !== "CANCELLED") {
+      if (status !== "Cancelado") {
         return res
           .status(403)
           .json({ error: "Acción no permitida para clientes." });
       }
-      if (currentOrder.status !== "PENDING") {
+      if (currentOrder.status !== "Pendiente") {
         return res
           .status(400)
           .json({ error: "No se puede cancelar una orden en proceso." });
       }
       updatedOrder = await Order.findByIdAndUpdate(
         orderId,
-        { status: "CANCELLED" },
+        { status: "Cancelado" },
         { new: true },
       );
     } else if (role === "MASTER") {
@@ -599,11 +612,11 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
     }
 
     // Si la orden está lista, notificar a TODOS los repartidores disponibles
-    if (status === "READY") {
+    if (status === "Listo para Recoger") {
       io.to("DRIVERS_ROOM").emit("order_update", orderJSON);
     }
     // Si la orden fue tomada, notificar a los repartidores para que la quiten de su lista "Disponibles"
-    if (status === "ON_WAY") {
+    if (status === "En Camino") {
       io.to("DRIVERS_ROOM").emit("order_update", orderJSON);
     }
 
@@ -645,10 +658,14 @@ app.get("/api/stores", async (req, res) => {
 
 app.put("/api/users/:id", verifyToken, async (req, res) => {
   try {
+    const userToUpdate = await User.findById(req.params.id);
+    if (!userToUpdate) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
     if (req.user.role !== "MASTER" && req.user.id !== req.params.id) {
       return res.status(403).json({ error: "No autorizado" });
     }
-
     if (req.user.role !== "MASTER") {
       delete req.body.role;
       delete req.body.approved;
@@ -663,20 +680,106 @@ app.put("/api/users/:id", verifyToken, async (req, res) => {
       delete req.body.password; // Evitar sobrescribir con vacío
     }
 
-    if (req.body.logo && req.body.logo.startsWith("data:")) {
-      req.body.logo = await uploadImage(req.body.logo);
-    }
-    if (req.body.coverImage && req.body.coverImage.startsWith("data:")) {
-      req.body.coverImage = await uploadImage(req.body.coverImage);
+    // --- LÓGICA DE DOWNGRADE AUTOMÁTICO ---
+    const oldSubscription = userToUpdate.subscription;
+    const newSubscription = req.body.subscription;
+
+    if (
+      userToUpdate.role === "STORE" &&
+      newSubscription &&
+      newSubscription !== oldSubscription
+    ) {
+      const oldLimit = SUBSCRIPTION_LIMITS[oldSubscription] || 0;
+      const newLimit = SUBSCRIPTION_LIMITS[newSubscription] || 0;
+
+      // Si es un downgrade
+      if (newLimit < oldLimit) {
+        const storeId = userToUpdate._id;
+        const allStoreProducts = await Product.find({ storeId });
+        const visibleProducts = allStoreProducts.filter(
+          (p) => p.isAvailable !== false,
+        );
+
+        if (visibleProducts.length > newLimit) {
+          const excessCount = visibleProducts.length - newLimit;
+
+          // Ocultar los productos más recientes
+          const productsToHide = visibleProducts
+            .sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime(),
+            )
+            .slice(0, excessCount);
+
+          const productIdsToHide = productsToHide.map((p) => p._id);
+
+          await Product.updateMany(
+            { _id: { $in: productIdsToHide } },
+            { $set: { isAvailable: false } },
+          );
+        }
+      }
     }
 
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
+    // --- SOLUCIÓN: Anti-Mass-Assignment ---
+    // 1. Definir campos permitidos por rol
+    const allowedFields = {
+      MASTER: [
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "password",
+        "storeName",
+        "storeAddress",
+        "subscription",
+        "approved",
+        "isOpen",
+      ],
+      STORE: ["isOpen", "logo", "coverImage", "description", "prepTime"],
+      // Clientes y Repartidores pueden ser editados por el Master, no por ellos mismos (excepto contraseña, etc. en otro endpoint)
+    };
+
+    // 2. Construir un objeto de actualización seguro
+    const updateData = {};
+    const fields =
+      allowedFields[
+        req.user.role === "MASTER" && req.body.isMasterUpdate
+          ? "MASTER"
+          : req.user.role
+      ] || [];
+
+    for (const field of fields) {
+      if (req.body[field] !== undefined) {
+        // Manejo especial para imágenes
+        if (
+          (field === "logo" || field === "coverImage") &&
+          req.body[field].startsWith("data:")
+        ) {
+          updateData[field] = await uploadImage(req.body[field]);
+        } else {
+          updateData[field] = req.body[field];
+        }
+      }
+    }
+
+    // Si se envió una nueva contraseña, la agregamos al objeto de actualización
+    if (req.body.password) {
+      updateData.password = req.body.password;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true },
+    );
+    // --- FIN DE LA SOLUCIÓN ---
 
     // Notificar cambios solo a interesados
     io.to("MASTER_ROOM").emit("user_update", updatedUser);
     io.to(updatedUser._id.toString()).emit("user_update", updatedUser); // Al propio usuario
+
     if (updatedUser.role === "STORE") {
       // Si es tienda, actualizar la lista pública (podría optimizarse)
       io.emit("store_update", updatedUser);

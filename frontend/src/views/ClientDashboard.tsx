@@ -2,27 +2,23 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useCart } from "../contexts/CartContext";
-import { Button, Card, Input, Badge, Modal } from "../components/UI";
+import { Button } from "../components/UI";
 import { Icons } from "../constants";
-import { StoreProfile, SubscriptionType, Product, OrderStatus } from "../types";
-import {
-  getOrderStatusLabel,
-  getOrderStatusColor,
-} from "../orderStatusTranslations";
-import { ChatModal } from "../components/ChatModal";
-import { formatDate, calculateDistance } from "../utils";
-import { api } from "../api"; // Importar api para búsqueda
+import { StoreProfile, SubscriptionType, Product } from "../types";
+
+// Componentes refactorizados
+import { HomeView } from "./client/HomeView";
+import { CartView } from "./client/CartView";
+import { OrdersView } from "./client/OrdersView";
+import { ProfileView } from "./client/ProfileView";
+import { ProductItem } from "../components/ProductItem";
+import { NavBtn } from "../components/NavBtn";
 
 const ClientDashboard = () => {
   const {
     users,
     products,
-    placeOrder,
-    orders,
-    colonies,
-    addReview,
     unreadCounts,
-    markOrderMessagesAsRead,
     loading, // Importamos el estado de carga global
     fetchStoreProducts,
   } = useApp();
@@ -34,6 +30,23 @@ const ClientDashboard = () => {
     "home",
   );
   const [selectedStore, setSelectedStore] = useState<StoreProfile | null>(null);
+
+  // --- SOLUCIÓN: Manejo del historial del navegador para el gesto "Atrás" ---
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // Si el estado es el que creamos para la tienda, ciérrala.
+      if (event.state?.view === "store") {
+        setSelectedStore(null);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+  // --- FIN DE LA SOLUCIÓN ---
 
   // Lógica más resistente: Si la tienda llega del endpoint /api/stores, sabemos que
   // ya está abierta y aprobada desde el backend, pero validamos por seguridad.
@@ -83,8 +96,14 @@ const ClientDashboard = () => {
     return (
       <StoreView
         store={selectedStore}
-        onBack={() => setSelectedStore(null)}
+        onBack={() => {
+          // Simula el botón "atrás" del navegador
+          window.history.back();
+        }}
+        fetchStoreProducts={fetchStoreProducts}
         onGoToCart={() => {
+          // Al ir al carrito, no queremos que el historial de la tienda se quede
+          window.history.replaceState(null, "", window.location.pathname);
           setSelectedStore(null);
           setView("cart");
         }}
@@ -100,8 +119,11 @@ const ClientDashboard = () => {
           stores={stores}
           ultraStores={ultraStores}
           otherStores={otherStores}
-          products={products}
-          onStoreSelect={setSelectedStore}
+          onStoreSelect={(store) => {
+            // Empujamos un nuevo estado al historial del navegador
+            window.history.pushState({ view: "store" }, "", "");
+            setSelectedStore(store);
+          }}
           loading={loading} // Pasamos el estado a la vista
         />
       )}
@@ -125,7 +147,7 @@ const ClientDashboard = () => {
             onClick={() => setView("orders")}
           />
           {totalUnread > 0 && (
-            <span className="absolute top-0 right-4 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white"></span>
+            <span className="absolute top-0 right-4 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white" />
           )}
         </div>
         <div className="relative">
@@ -153,17 +175,17 @@ const ClientDashboard = () => {
 };
 
 // --- Sub-View Components ---
-
 const StoreView = ({
   store,
   onBack,
   onGoToCart,
+  fetchStoreProducts,
 }: {
   store: StoreProfile;
   onBack: () => void;
   onGoToCart: () => void;
+  fetchStoreProducts: (storeId: string) => Promise<void>;
 }) => {
-  const { products, fetchStoreProducts } = useApp();
   const { addToCart, cart } = useCart();
   const [activeCategory, setActiveCategory] = useState("ALL");
   const [notification, setNotification] = useState("");
@@ -171,9 +193,12 @@ const StoreView = ({
 
   useEffect(() => {
     setLoadingMenu(true);
-    // Cargar menú al entrar a la tienda
+    // Cargar menú al entrar a la tienda (la función está en AppContext)
     fetchStoreProducts(store.id).finally(() => setLoadingMenu(false));
   }, [store.id]);
+
+  // Los productos se obtienen del AppContext, que se actualiza con fetchStoreProducts
+  const { products } = useApp();
 
   const handleAddToCart = (product: Product, quantity: number) => {
     addToCart(product, quantity);
@@ -200,23 +225,27 @@ const StoreView = ({
           alt="Cover"
         />
         <div className="absolute inset-0 bg-black/20"></div>
-        <button
+        <Button
           onClick={onBack}
-          className="absolute top-4 left-4 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors"
+          variant="secondary"
+          className="absolute top-4 left-4 !py-2 !px-3 !rounded-full !bg-white/80 !text-gray-800 !backdrop-blur-md"
         >
-          <Icons.ChevronDown className="rotate-90" size={24} />
-        </button>
-        <button
+          <Icons.ChevronLeft size={18} />
+          Atrás
+        </Button>
+        <Button
           onClick={onGoToCart}
-          className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors"
+          variant="secondary"
+          className="absolute top-4 right-4 !py-2 !px-3 !rounded-full !bg-white/80 !text-gray-800 !backdrop-blur-md"
         >
-          <Icons.ShoppingCart size={24} />
+          <Icons.ShoppingCart size={18} />
+          Carrito
           {cart.length > 0 && (
             <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
               {cart.reduce((a, b) => a + b.quantity, 0)}
             </span>
           )}
-        </button>
+        </Button>
       </div>
 
       {/* Store Info */}
@@ -305,1237 +334,6 @@ const StoreView = ({
           <span className="font-medium text-sm">{notification}</span>
         </div>
       )}
-    </div>
-  );
-};
-
-const HomeView = ({
-  stores,
-  ultraStores,
-  otherStores,
-  products,
-  onStoreSelect,
-  loading,
-}: any) => {
-  const [search, setSearch] = useState("");
-  const [foundProducts, setFoundProducts] = useState<Product[]>([]);
-  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
-  const { addToCart } = useCart();
-  const [notification, setNotification] = useState("");
-
-  // Efecto para búsqueda en servidor (Debounce)
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (search.trim().length > 2) {
-        setIsSearchingProducts(true);
-        try {
-          const res = await api.get(`/api/products?search=${search}`);
-          setFoundProducts(
-            res.data.map((p: any) => ({ ...p, id: p._id || p.id })),
-          );
-        } catch (error) {
-          console.error("Error searching products", error);
-        } finally {
-          setIsSearchingProducts(false);
-        }
-      } else {
-        setFoundProducts([]);
-      }
-    }, 500); // Esperar 500ms después de que deje de escribir
-
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  const handleAddToCart = (product: Product, quantity: number) => {
-    addToCart(product, quantity);
-    setNotification("Agregado al carrito");
-    setTimeout(() => setNotification(""), 2000);
-  };
-
-  const filteredStores = useMemo(() => {
-    if (!search) return [];
-
-    // 1. Identificar tiendas que tienen los productos encontrados
-    const storesWithProducts = new Set(foundProducts.map((p) => p.storeId));
-
-    return stores.filter((s: StoreProfile) => {
-      // 2. Coincidencia por nombre de tienda
-      const matchesName = s.storeName
-        ?.toLowerCase()
-        .includes(search.toLowerCase());
-      // 3. Coincidencia por producto encontrado
-      const hasMatchingProduct = storesWithProducts.has(s.id);
-      return matchesName || hasMatchingProduct;
-    });
-  }, [search, stores, foundProducts]);
-
-  return (
-    <div className="space-y-2 pb-24">
-      {/* Search Bar */}
-      <div className="sticky top-0 z-20 bg-secondary pt-2 pb-2 px-4">
-        <div className="relative">
-          <Icons.Search
-            className="absolute left-4 top-3.5 text-gray-400"
-            size={20}
-          />
-          <input
-            type="text"
-            placeholder="Busca pizza, sushi, tacos..."
-            className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white shadow-ios-card focus:outline-none focus:ring-2 ring-primary/20 text-iosText"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {search ? (
-        <div className="px-4 space-y-4">
-          {/* Resultados de Productos */}
-          <div>
-            <h2 className="font-bold text-lg mb-2 text-gray-800">
-              Productos encontrados
-            </h2>
-            {isSearchingProducts ? (
-              <div className="space-y-3">
-                {[1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className="h-24 bg-gray-100 rounded-2xl animate-pulse"
-                  />
-                ))}
-              </div>
-            ) : foundProducts.length > 0 ? (
-              <div className="space-y-3">
-                {foundProducts.map((p) => (
-                  <div key={p.id} className="relative">
-                    {/* Mostrar nombre de la tienda en pequeño */}
-                    <span className="absolute top-2 right-2 bg-gray-100 text-[10px] px-2 py-1 rounded-full text-gray-500 z-10">
-                      {stores.find((s: StoreProfile) => s.id === p.storeId)
-                        ?.storeName || "Tienda"}
-                    </span>
-                    <ProductItem product={p} onAdd={handleAddToCart} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              search.length > 2 && (
-                <p className="text-gray-400 text-sm text-center py-4">
-                  No se encontraron productos con ese nombre.
-                </p>
-              )
-            )}
-          </div>
-
-          <h2 className="font-bold text-lg mb-2 text-gray-800 mt-6">
-            Tiendas coincidentes
-          </h2>
-          <div className="grid grid-cols-2 gap-4">
-            {filteredStores.map((s: StoreProfile) => (
-              <StoreCard
-                key={s.id}
-                store={s}
-                onClick={() => onStoreSelect(s)}
-              />
-            ))}
-          </div>
-          {filteredStores.length === 0 && (
-            <p className="text-gray-400 text-center text-sm py-2">
-              No se encontraron resultados
-            </p>
-          )}
-        </div>
-      ) : (
-        <>
-          {/* Ultra Section */}
-          {(loading || ultraStores.length > 0) && (
-            <div className="pl-4">
-              <h2 className="font-bold text-lg mb-2 flex items-center gap-2">
-                <Icons.Store className="text-primary" size={20} /> La mejor
-                opción
-              </h2>
-              <div
-                className="flex overflow-x-auto gap-3 pb-2 pr-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-primary/30 scrollbar-track-transparent"
-                style={{
-                  WebkitOverflowScrolling: "touch",
-                  scrollbarWidth: "thin",
-                  scrollbarColor:
-                    "rgba(var(--primary-rgb, 59, 130, 246), 0.3) transparent",
-                }}
-              >
-                {loading
-                  ? // SKELETONS PARA ULTRA (Animación de carga)
-                    Array(3)
-                      .fill(0)
-                      .map((_, i) => (
-                        <div
-                          key={i}
-                          className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card h-48 animate-pulse border border-gray-100"
-                        >
-                          <div className="w-full h-32 bg-gray-200" />
-                          <div className="p-4 space-y-2">
-                            <div className="h-4 bg-gray-200 rounded w-3/4" />
-                            <div className="h-3 bg-gray-200 rounded w-1/2" />
-                          </div>
-                        </div>
-                      ))
-                  : ultraStores.map((s: StoreProfile) => (
-                      <div
-                        key={s.id}
-                        onClick={() => onStoreSelect(s)}
-                        className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card relative cursor-pointer active:scale-95 transition-transform"
-                      >
-                        <img
-                          src={s.coverImage}
-                          className="w-full h-32 object-cover"
-                        />
-                        {/* Logo Overlay for Ultra Stores */}
-                        <div className="absolute top-2 right-2 bg-white p-1 rounded-xl shadow-sm">
-                          <img
-                            src={s.logo}
-                            className="w-10 h-10 rounded-lg object-cover"
-                          />
-                        </div>
-                        <div className="p-4">
-                          <h3 className="font-bold text-lg line-clamp-1">
-                            {s.storeName}
-                          </h3>
-                          <p className="text-xs text-gray-500 line-clamp-1">
-                            {s.description}
-                          </p>
-                          <div className="mt-2 flex gap-2">
-                            <span className="text-xs bg-gray-100 px-2 py-1 rounded-lg flex items-center gap-1">
-                              <Icons.Clock size={12} /> {s.prepTime || "30m"}
-                            </span>
-                            {s.averageRating !== undefined && (
-                              <span className="text-xs bg-yellow-50 text-yellow-600 px-2 py-1 rounded-lg flex items-center gap-1 font-bold">
-                                <Icons.Star size={12} fill="currentColor" />
-                                {s.averageRating > 0
-                                  ? s.averageRating.toFixed(1)
-                                  : "Nuevo"}
-                                {s.ratingCount !== undefined && (
-                                  <span className="text-gray-400 font-normal ml-0.5">
-                                    ({s.ratingCount})
-                                  </span>
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-              </div>
-            </div>
-          )}
-
-          {/* Vertical Feed */}
-          <div className="px-4 pb-20 mt-4">
-            <h2 className="font-bold text-lg mb-2">Para ti</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {loading
-                ? // SKELETONS PARA FEED NORMAL
-                  Array(4)
-                    .fill(0)
-                    .map((_, i) => (
-                      <div
-                        key={i}
-                        className="bg-white rounded-3xl overflow-hidden shadow-sm h-48 animate-pulse border border-gray-100"
-                      >
-                        <div className="h-32 bg-gray-200 w-full" />
-                        <div className="p-3 space-y-2">
-                          <div className="h-3 bg-gray-200 rounded w-full" />
-                          <div className="h-2 bg-gray-200 rounded w-2/3" />
-                        </div>
-                      </div>
-                    ))
-                : otherStores.map((s: StoreProfile) => (
-                    <StoreCard
-                      key={s.id}
-                      store={s}
-                      onClick={() => onStoreSelect(s)}
-                    />
-                  ))}
-              {!loading &&
-                otherStores.length === 0 &&
-                ultraStores.length === 0 && (
-                  <p className="text-gray-400 text-center col-span-2 py-10">
-                    No hay tiendas abiertas en este momento.
-                  </p>
-                )}
-            </div>
-          </div>
-        </>
-      )}
-      {/* Notification Toast */}
-      {notification && (
-        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-green-600 text-white py-2 px-4 rounded-full flex items-center gap-2 shadow-lg z-50 animate-fade-in-up">
-          <Icons.Check size={16} />
-          <span className="font-medium text-sm">{notification}</span>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const CartView = ({ setView }: { setView: (view: any) => void }) => {
-  const { colonies, placeOrder, users, settings, refreshData } = useApp();
-  const {
-    cart,
-    removeFromCart,
-    addToCart,
-    deleteFromCart,
-    cartTotal,
-    clearCart,
-  } = useCart();
-  const { currentUser, updateUser } = useAuth();
-
-  const [addressStep, setAddressStep] = useState(false);
-  const [newAddress, setNewAddress] = useState({
-    street: "",
-    number: "",
-    colonyId: "",
-    reference: "",
-  });
-  const [saveAddress, setSaveAddress] = useState(false);
-  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
-  const [payMethod, setPayMethod] = useState<"CARD" | "CASH">("CARD");
-  const [colonySearch, setColonySearch] = useState("");
-  const [isColonyListOpen, setIsColonyListOpen] = useState(false);
-
-  const filteredColonies = useMemo(() => {
-    return colonies.filter((c) =>
-      c.name.toLowerCase().includes(colonySearch.toLowerCase()),
-    );
-  }, [colonies, colonySearch]);
-
-  // Agrupar ítems por tienda para manejar pedidos múltiples
-  const itemsByStore = useMemo(() => {
-    const groups: Record<string, typeof cart> = {};
-    cart.forEach((item) => {
-      const sId = item.product.storeId;
-      if (!groups[sId]) groups[sId] = [];
-      groups[sId].push(item);
-    });
-    return groups;
-  }, [cart]);
-
-  // Calcular tarifas de envío por tienda
-  const { totalDeliveryFee, storeFees } = useMemo(() => {
-    const fees: Record<string, number> = {};
-    let total = 0;
-
-    // Determinar colonia del cliente
-    const clientColonyId =
-      addressStep && newAddress.colonyId
-        ? newAddress.colonyId
-        : selectedAddressId
-          ? currentUser?.addresses?.find(
-              (a: any) => (a.id || a._id) === selectedAddressId,
-            )?.colonyId
-          : null;
-
-    const clientColony = colonies.find((c) => c.id === clientColonyId);
-
-    if (clientColony) {
-      Object.keys(itemsByStore).forEach((storeId) => {
-        const store = users.find((u) => u.id === storeId) as StoreProfile;
-        if (store && store.storeAddress?.colonyId) {
-          const storeColony = colonies.find(
-            (c) => c.id === store.storeAddress.colonyId,
-          );
-          if (storeColony) {
-            const dist = calculateDistance(
-              clientColony.lat,
-              clientColony.lng,
-              storeColony.lat,
-              storeColony.lng,
-            );
-            const driverPart = Math.ceil(dist * settings.kmRate);
-            const fee =
-              (driverPart < settings.kmRate ? settings.kmRate : driverPart) +
-              settings.baseFee;
-            fees[storeId] = fee;
-            total += fee;
-          }
-        } else {
-          // Fallback si no se encuentra la tienda (usa tarifa base)
-          fees[storeId] = settings.baseFee;
-          total += settings.baseFee;
-        }
-      });
-    }
-    return { totalDeliveryFee: total, storeFees: fees };
-  }, [
-    itemsByStore,
-    addressStep,
-    newAddress.colonyId,
-    selectedAddressId,
-    currentUser,
-    colonies,
-    users,
-    settings,
-  ]);
-
-  const handleCheckout = async () => {
-    if (cart.length === 0) return;
-
-    // Determinar la dirección a usar
-    let finalAddress: any = null;
-
-    // 1. Flujo de Nueva Dirección
-    if (addressStep) {
-      if (!newAddress.colonyId) return alert("Selecciona una colonia");
-
-      const newAddressObject = { id: Date.now().toString(), ...newAddress };
-
-      if (saveAddress) {
-        const currentAddresses = currentUser?.addresses || [];
-        if (currentAddresses.length < 3) {
-          await updateUser({
-            ...currentUser,
-            addresses: [...currentAddresses, newAddressObject],
-          } as any);
-        } else {
-          alert(
-            "Solo puedes guardar un máximo de 3 direcciones. Esta dirección se usará para el pedido actual pero no se guardará.",
-          );
-        }
-      }
-      finalAddress = newAddressObject;
-    }
-
-    // 2. Flujo de Dirección Guardada
-    else if (selectedAddressId) {
-      finalAddress = currentUser?.addresses?.find(
-        (a: any) => (a.id || a._id) === selectedAddressId,
-      );
-    }
-
-    if (!finalAddress) {
-      // 3. Si no hay nada seleccionado, forzar nueva dirección
-      setAddressStep(true);
-      return alert("Por favor, agrega o selecciona una dirección de entrega.");
-    }
-
-    try {
-      // Generar una orden por cada tienda
-      const orderPromises = Object.entries(itemsByStore).map(
-        async ([storeId, items]) => {
-          const fee = storeFees[storeId] || settings.baseFee;
-          const subtotal = items.reduce(
-            (acc, item) =>
-              acc + Number(item.product.price || 0) * item.quantity,
-            0,
-          );
-
-          const formattedItems = items.map((item) => ({
-            product: item.product,
-            productId: item.product.id || item.product._id,
-            quantity: item.quantity,
-            price: Number(item.product.price || 0),
-            customizations: [],
-          }));
-
-          return placeOrder({
-            storeId,
-            customerId: currentUser!.id,
-            items: formattedItems,
-            subtotal: subtotal,
-            deliveryFee: fee,
-            driverFee: 0, // El backend recalcula esto por seguridad
-            total: subtotal + fee,
-            paymentMethod: payMethod,
-            deliveryAddress: {
-              street: finalAddress.street,
-              number: finalAddress.number,
-              colonyId: finalAddress.colonyId,
-              reference: finalAddress.reference || "",
-            },
-            status: "PENDING",
-          } as any);
-        },
-      );
-
-      await Promise.all(orderPromises);
-
-      alert("¡Pedidos realizados con éxito!");
-      clearCart();
-      refreshData();
-      setView("orders");
-    } catch (e: any) {
-      console.error(e);
-      alert(
-        e.response?.data?.error ||
-          "Error al realizar uno o más pedidos. Por favor verifica.",
-      );
-    }
-  };
-
-  if (cart.length === 0)
-    return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center text-gray-400">
-        <Icons.ShoppingCart size={48} className="mb-4 opacity-20" />
-        <p className="mb-6">Tu carrito está vacío</p>
-        <Button onClick={() => setView("home")}>Comprar ahora</Button>
-      </div>
-    );
-
-  const selectedSavedAddress = currentUser?.addresses?.find(
-    (a: any) => (a.id || a._id) === selectedAddressId,
-  );
-
-  return (
-    <div className="px-4 pt-6 pb-24 max-w-lg mx-auto">
-      <h2 className="text-2xl font-bold mb-6">Tu Pedido</h2>
-
-      <div className="space-y-4 mb-6">
-        {cart.map((item, i) => (
-          <div
-            key={i}
-            className="flex justify-between items-center bg-white p-3 rounded-2xl"
-          >
-            <div className="flex gap-3 items-center flex-1">
-              <div className="bg-gray-100 rounded-lg w-8 h-8 flex items-center justify-center font-bold text-sm">
-                {item.quantity}x
-              </div>
-              <div>
-                <p className="font-bold text-sm">{item.product.name}</p>
-                <p className="text-xs text-gray-500">
-                  $
-                  {(Number(item.product.price || 0) * item.quantity).toFixed(2)}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => removeFromCart(item.product.id)}
-                className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
-              >
-                -
-              </button>
-              <button
-                onClick={() => addToCart(item.product)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center"
-              >
-                +
-              </button>
-              <button
-                onClick={() => deleteFromCart(item.product.id)}
-                className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center ml-2"
-              >
-                <Icons.Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {!addressStep ? (
-        <div className="space-y-4">
-          <h3 className="font-bold">Dirección de Entrega</h3>
-          {(currentUser?.addresses || []).length > 0 ? (
-            <div className="space-y-2">
-              {currentUser?.addresses?.map((addr: any) => {
-                const addrId = addr.id || addr._id;
-                return (
-                  <div
-                    key={addrId}
-                    onClick={() => setSelectedAddressId(addrId)}
-                    className={`p-4 rounded-2xl border-2 cursor-pointer flex justify-between items-center ${selectedAddressId === addrId ? "border-primary bg-red-50" : "border-transparent bg-white"}`}
-                  >
-                    <div>
-                      <p className="font-bold">
-                        {addr.street} #{addr.number}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {colonies.find((c) => c.id === addr.colonyId)?.name}
-                      </p>
-                    </div>
-                    {selectedAddressId === addrId && (
-                      <Icons.Check className="text-primary" size={20} />
-                    )}
-                  </div>
-                );
-              })}
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setAddressStep(true);
-                  setSelectedAddressId(""); // Limpiar selección al crear nueva
-                }}
-                className="w-full py-2 text-sm"
-              >
-                + Nueva Dirección
-              </Button>
-            </div>
-          ) : (
-            <Button
-              variant="secondary"
-              onClick={() => setAddressStep(true)}
-              className="w-full py-4 border-dashed border-2 border-gray-300"
-            >
-              Agregar Dirección
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="bg-white p-4 rounded-3xl space-y-3 shadow-sm">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-bold">Nueva Dirección</h3>
-            <button
-              onClick={() => setAddressStep(false)}
-              className="text-xs text-red-500"
-            >
-              Cancelar
-            </button>
-          </div>
-          <Input
-            label="Calle"
-            value={newAddress.street}
-            onChange={(e: any) =>
-              setNewAddress({ ...newAddress, street: e.target.value })
-            }
-          />
-          <div className="flex gap-2">
-            <Input
-              label="Número"
-              value={newAddress.number}
-              onChange={(e: any) => {
-                const val = e.target.value;
-                if (/^\d*$/.test(val) && val.length <= 5) {
-                  setNewAddress({ ...newAddress, number: val });
-                }
-              }}
-              type="tel"
-              maxLength={5}
-            />
-            <div className="w-full relative">
-              <label className="text-xs text-gray-500 ml-1">Colonia</label>
-              <input
-                type="text"
-                placeholder="Selecciona o busca..."
-                className="w-full p-3 bg-gray-100 rounded-2xl mt-1 focus:outline-none focus:ring-2 ring-primary/20 text-iosText"
-                value={colonySearch}
-                onChange={(e) => {
-                  setColonySearch(e.target.value);
-                  setIsColonyListOpen(true);
-                  if (newAddress.colonyId)
-                    setNewAddress({ ...newAddress, colonyId: "" });
-                }}
-                onFocus={() => setIsColonyListOpen(true)}
-                onBlur={() => setTimeout(() => setIsColonyListOpen(false), 200)}
-              />
-              {isColonyListOpen && (
-                <div className="absolute top-full left-0 w-full bg-white border border-gray-100 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50 mt-1">
-                  {filteredColonies.length > 0 ? (
-                    filteredColonies.map((c) => (
-                      <div
-                        key={c.id}
-                        className="p-3 hover:bg-gray-50 cursor-pointer text-sm border-b border-gray-50 last:border-none"
-                        onClick={() => {
-                          setNewAddress({ ...newAddress, colonyId: c.id });
-                          setColonySearch(c.name);
-                        }}
-                      >
-                        {c.name}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-3 text-gray-400 text-xs text-center">
-                      No se encontraron resultados
-                    </div>
-                  )}
-                </div>
-              )}
-              <Icons.ChevronDown
-                className="absolute right-3 top-[2.8rem] text-gray-400 pointer-events-none"
-                size={16}
-              />
-            </div>
-          </div>
-          <Input
-            label="Referencias"
-            value={newAddress.reference}
-            onChange={(e: any) =>
-              setNewAddress({ ...newAddress, reference: e.target.value })
-            }
-          />
-          <div className="flex items-center gap-2 mt-2">
-            <input
-              type="checkbox"
-              id="saveAddress"
-              checked={saveAddress}
-              onChange={(e) => setSaveAddress(e.target.checked)}
-              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-            />
-            <label htmlFor="saveAddress" className="text-sm text-gray-600">
-              Guardar dirección para futuros pedidos
-            </label>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-6 bg-white p-4 rounded-3xl space-y-3">
-        <div className="flex justify-between">
-          <span>Subtotal</span>
-          <span>${cartTotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-gray-500">
-          <span>Envío</span>
-          <span>
-            $
-            {totalDeliveryFee > 0
-              ? totalDeliveryFee.toFixed(2)
-              : "Calculando..."}
-          </span>
-        </div>
-        <div className="flex justify-between font-bold text-xl pt-2 border-t">
-          <span>Total</span>
-          <span>${(cartTotal + totalDeliveryFee).toFixed(2)}</span>
-        </div>
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <button
-          onClick={() => setPayMethod("CARD")}
-          className={`flex-1 py-3 rounded-2xl flex items-center justify-center gap-2 ${payMethod === "CARD" ? "bg-gray-800 text-white" : "bg-white"}`}
-        >
-          <Icons.CreditCard size={18} /> Tarjeta
-        </button>
-        <button
-          onClick={() => setPayMethod("CASH")}
-          className={`flex-1 py-3 rounded-2xl flex items-center justify-center gap-2 ${payMethod === "CASH" ? "bg-green-600 text-white" : "bg-white"}`}
-        >
-          <Icons.DollarSign size={18} /> Efectivo
-        </button>
-      </div>
-
-      <Button
-        className="w-full mt-6 shadow-xl shadow-red-500/30"
-        onClick={handleCheckout}
-      >
-        Realizar Pedido
-      </Button>
-    </div>
-  );
-};
-
-const OrdersView = () => {
-  const {
-    orders,
-    users,
-    updateOrderStatus,
-    addReview,
-    unreadCounts,
-    markOrderMessagesAsRead,
-  } = useApp();
-
-  const { currentUser } = useAuth();
-  const [chatOrder, setChatOrder] = useState<any | null>(null);
-  const [ratingOrder, setRatingOrder] = useState<any | null>(null);
-
-  return (
-    <div className="px-4 py-6 pb-24 space-y-4">
-      <h2 className="text-2xl font-bold mb-6">Mis Pedidos</h2>
-      {orders
-        .filter((o) => {
-          const cId =
-            typeof o.customerId === "object"
-              ? (o.customerId as any).id || (o.customerId as any)._id
-              : o.customerId;
-          return cId === currentUser!.id;
-        })
-        .map((o) => {
-          const store =
-            typeof o.storeId === "object"
-              ? (o.storeId as StoreProfile)
-              : (users.find((u) => u.id === o.storeId) as StoreProfile);
-
-          const driver = o.driverId
-            ? users.find((u) => u.id === o.driverId) ||
-              ({
-                id: o.driverId,
-                firstName: "Repartidor",
-                lastName: "",
-                role: "DELIVERY",
-              } as any)
-            : null;
-          return (
-            <Card key={o.id}>
-              <div className="flex justify-between mb-2">
-                <span className="font-bold text-primary">
-                  {store?.storeName || "Tienda"}
-                </span>
-                <Badge color={getOrderStatusColor(o.status)}>
-                  {getOrderStatusLabel(o.status)}
-                </Badge>
-              </div>
-              <p className="text-sm text-gray-500 mb-2">
-                ID: #{o.id.slice(-4)} • {formatDate(o.createdAt)}
-              </p>
-              <div className="space-y-1 mb-3 bg-gray-50 p-3 rounded-xl">
-                {o.items.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex justify-between text-xs text-gray-600"
-                  >
-                    <span>
-                      {item.quantity}x {item.product.name}
-                    </span>
-                    <span>
-                      $
-                      {(
-                        Number(item.product.price || 0) * item.quantity
-                      ).toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-                <div className="border-t border-gray-200 mt-2 pt-2 space-y-1">
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>Productos</span>
-                    <span>
-                      $
-                      {o.items
-                        .reduce(
-                          (sum, i) =>
-                            sum + Number(i.product.price || 0) * i.quantity,
-                          0,
-                        )
-                        .toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span> Tarifa de envío </span>
-                    <span>${Number(o.deliveryFee || 0).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-sm pt-1 border-t border-dashed border-gray-100">
-                    <span>Total</span>
-                    <span>${Number(o.total || 0).toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
-                <div
-                  className={`h-full bg-primary transition-all duration-1000`}
-                  style={{
-                    width:
-                      o.status === "PENDING"
-                        ? "10%"
-                        : o.status === "PREPARING"
-                          ? "40%"
-                          : o.status === "READY"
-                            ? "60%"
-                            : o.status === "ON_WAY"
-                              ? "80%"
-                              : "100%",
-                  }}
-                ></div>
-              </div>
-              <p className="text-xs text-right mt-1 text-gray-400">
-                {o.status === OrderStatus.PENDING
-                  ? "Enviado"
-                  : o.status === OrderStatus.PREPARING
-                    ? "Preparando"
-                    : o.status === OrderStatus.READY
-                      ? "Esperando Repartidor"
-                      : o.status === OrderStatus.ON_WAY
-                        ? "En camino"
-                        : o.status === OrderStatus.DELIVERED
-                          ? "Entregado"
-                          : "Cancelado"}
-              </p>
-              {o.status === OrderStatus.ON_WAY && driver && (
-                <Button
-                  variant="secondary"
-                  className="w-full mt-3 py-2 text-sm relative"
-                  onClick={() => {
-                    setChatOrder(o);
-                    markOrderMessagesAsRead(o.id);
-                  }}
-                >
-                  <Icons.Mail size={16} className="mr-2" />
-                  Chatear con Repartidor
-                  {unreadCounts[o.id] > 0 && (
-                    <span className="absolute top-3 right-4 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                      {unreadCounts[o.id]}
-                    </span>
-                  )}
-                </Button>
-              )}
-              {o.status === OrderStatus.DELIVERED && !o.isReviewed && (
-                <Button
-                  className="w-full mt-3 py-2 text-sm bg-yellow-500 hover:bg-yellow-600 text-white"
-                  onClick={() => setRatingOrder(o)}
-                >
-                  <Icons.Star size={16} className="mr-2" />
-                  Calificar Tienda
-                </Button>
-              )}
-              {o.status === OrderStatus.DELIVERED && o.isReviewed && (
-                <div className="w-full mt-3 py-2 text-sm bg-gray-100 text-gray-500 text-center rounded-xl font-medium flex items-center justify-center gap-2">
-                  <Icons.Check size={16} />
-                  Tienda Calificada
-                </div>
-              )}
-              {o.status === OrderStatus.PENDING && (
-                <Button
-                  variant="danger"
-                  className="w-full mt-3 py-2 text-sm"
-                  onClick={() => {
-                    if (
-                      window.confirm("¿Seguro que deseas cancelar el pedido?")
-                    ) {
-                      updateOrderStatus(o.id, OrderStatus.CANCELLED);
-                    }
-                  }}
-                >
-                  Cancelar Pedido
-                </Button>
-              )}
-            </Card>
-          );
-        })}
-      {chatOrder && (
-        <ChatModal
-          isOpen={!!chatOrder}
-          onClose={() => setChatOrder(null)}
-          orderId={chatOrder.id}
-          otherParty={
-            users.find((u) => u.id === chatOrder.driverId) ||
-            ({
-              id: chatOrder.driverId,
-              firstName: "Repartidor",
-              lastName: "",
-              role: "DELIVERY",
-              email: "",
-              phone: "",
-            } as any)
-          }
-        />
-      )}
-      {ratingOrder && (
-        <RatingModal
-          isOpen={!!ratingOrder}
-          onClose={() => setRatingOrder(null)}
-          order={ratingOrder}
-          onSubmit={addReview}
-        />
-      )}
-    </div>
-  );
-};
-
-const ProfileView = () => {
-  const { colonies } = useApp();
-  const { currentUser, logout, updateUser } = useAuth();
-
-  const handleDeleteAddress = (addressId: string) => {
-    if (!currentUser?.addresses) return;
-
-    if (window.confirm("¿Seguro que deseas eliminar esta dirección?")) {
-      const updatedAddresses = currentUser.addresses.filter(
-        (addr: any) => (addr.id || addr._id) !== addressId,
-      );
-      updateUser({ ...currentUser, addresses: updatedAddresses } as any);
-    }
-  };
-
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName?.charAt(0) || ""}${lastName?.charAt(0) || ""}`.toUpperCase();
-  };
-
-  const getColor = (name: string) => {
-    const colors = [
-      "bg-red-500",
-      "bg-blue-500",
-      "bg-green-500",
-      "bg-yellow-500",
-      "bg-purple-500",
-      "bg-pink-500",
-      "bg-indigo-500",
-    ];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-  };
-
-  return (
-    <div className="p-6 pb-24">
-      <Card className="flex flex-col py-6 space-y-4">
-        <div className="flex items-center gap-4 px-2">
-          <div
-            className={`w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-md ${getColor((currentUser?.firstName || "") + (currentUser?.lastName || ""))}`}
-          >
-            {getInitials(currentUser?.firstName, currentUser?.lastName)}
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-iosText">
-              {currentUser?.firstName} {currentUser?.lastName}
-            </h2>
-            <p className="text-gray-500 font-medium text-sm">
-              {currentUser?.role === "CLIENT" ? "Cliente" : "Usuario"}
-            </p>
-          </div>
-        </div>
-
-        <div className="w-full space-y-3 mt-4 text-left">
-          <div className="bg-gray-50 p-3 rounded-2xl flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-primary shadow-sm">
-              <Icons.Mail size={16} />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 font-semibold">Correo</p>
-              <p className="font-medium text-gray-800">{currentUser?.email}</p>
-            </div>
-          </div>
-
-          <div className="bg-gray-50 p-3 rounded-2xl flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-primary shadow-sm">
-              <Icons.Phone size={16} />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 font-semibold">Teléfono</p>
-              <p className="font-medium text-gray-800">
-                {currentUser?.phone || "Sin registrar"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {currentUser?.addresses && currentUser.addresses.length > 0 && (
-          <div className="w-full mt-6 text-left">
-            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-              <Icons.MapPin size={18} className="text-primary" /> Mis
-              Direcciones
-            </h3>
-            <div className="space-y-2">
-              {currentUser.addresses.map((addr: any, idx: number) => {
-                const col = colonies.find((c) => c.id === addr.colonyId);
-                const addrId = addr.id || addr._id;
-                return (
-                  <div
-                    key={addrId || idx}
-                    className="bg-white border border-gray-100 p-3 rounded-2xl shadow-sm flex justify-between items-center"
-                  >
-                    <div>
-                      <p className="font-bold text-sm">
-                        {addr.street} #{addr.number}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {col ? col.name : "Colonia desconocida"}
-                      </p>
-                      {addr.reference && (
-                        <p className="text-xs text-gray-400 mt-1 italic">
-                          "{addr.reference}"
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleDeleteAddress(addrId)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                    >
-                      <Icons.Trash2 size={16} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <Button
-          variant="danger"
-          className="mt-8 w-full py-3 rounded-xl font-bold"
-          onClick={logout}
-        >
-          Cerrar Sesión
-        </Button>
-      </Card>
-    </div>
-  );
-};
-
-const StoreCard: React.FC<{ store: StoreProfile; onClick: () => void }> = ({
-  store,
-  onClick,
-}) => (
-  <div
-    onClick={onClick}
-    className="bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group active:scale-[0.98]"
-  >
-    <div className="relative h-32 w-full overflow-hidden">
-      <img
-        src={store.coverImage || store.logo}
-        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
-        alt={store.storeName}
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-
-      {/* Badges */}
-      <div className="absolute top-2 left-2 flex gap-1">
-        {store.subscription === SubscriptionType.PREMIUM && (
-          <span className="bg-yellow-400/90 backdrop-blur-sm text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-            ★ Recomendado
-          </span>
-        )}
-        {store.subscription === SubscriptionType.ULTRA && (
-          <span className="bg-purple-500/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-            La mejor opción
-          </span>
-        )}
-      </div>
-
-      <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white">
-        <div className="bg-white/20 backdrop-blur-md p-1 rounded-full">
-          <img
-            src={store.logo}
-            className="w-6 h-6 rounded-full object-cover"
-            alt="logo"
-          />
-        </div>
-      </div>
-    </div>
-
-    <div className="p-3">
-      <div className="flex justify-between items-start">
-        <h3 className="font-bold text-gray-800 text-sm line-clamp-2 flex-1">
-          {store.storeName}
-        </h3>
-      </div>
-
-      <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 min-h-[2.5em]">
-        {store.description}
-      </p>
-
-      <div className="mt-3 flex items-center gap-3 text-xs text-gray-400">
-        <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg">
-          <Icons.Clock size={12} /> {store.prepTime || "30m"}
-        </span>
-        {store.averageRating !== undefined && (
-          <span className="flex items-center gap-1 text-xs font-bold text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded-lg">
-            <Icons.Star size={10} fill="currentColor" />
-            {store.averageRating > 0 ? store.averageRating.toFixed(1) : "N"}
-            {store.ratingCount !== undefined && (
-              <span className="text-gray-400 font-normal ml-0.5">
-                ({store.ratingCount})
-              </span>
-            )}
-          </span>
-        )}
-      </div>
-    </div>
-  </div>
-);
-
-const NavBtn = ({ icon, label, active, onClick }: any) => (
-  <button
-    onClick={onClick}
-    className={`flex flex-col items-center p-2 transition-colors ${active ? "text-primary" : "text-gray-400"}`}
-  >
-    {React.cloneElement(icon, { size: 24, strokeWidth: active ? 2.5 : 2 })}
-    <span className="text-[10px] font-medium mt-1">{label}</span>
-  </button>
-);
-
-const RatingModal = ({ isOpen, onClose, order, onSubmit }: any) => {
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState("");
-
-  const handleSubmit = () => {
-    onSubmit({
-      orderId: order.id,
-      storeId: order.storeId,
-      customerId: order.customerId,
-      rating,
-      comment,
-    });
-    onClose();
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Calificar Servicio">
-      <div className="flex flex-col items-center space-y-4 py-4">
-        <p className="text-gray-500 text-center">¿Qué te pareció tu pedido?</p>
-        <div className="flex gap-2">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button
-              key={star}
-              onClick={() => setRating(star)}
-              className={`transition-transform hover:scale-110 ${rating >= star ? "text-yellow-400" : "text-gray-300"}`}
-            >
-              <Icons.Star size={32} fill="currentColor" />
-            </button>
-          ))}
-        </div>
-        <Input
-          placeholder="Escribe un comentario (opcional)"
-          value={comment}
-          onChange={(e: any) => setComment(e.target.value)}
-        />
-        <Button onClick={handleSubmit} className="w-full">
-          Enviar Calificación
-        </Button>
-      </div>
-    </Modal>
-  );
-};
-
-// --- Helper Component for Product Item with Quantity ---
-const ProductItem = ({
-  product,
-  onAdd,
-}: {
-  product: Product;
-  onAdd: (p: Product, q: number) => void;
-}) => {
-  const [quantity, setQuantity] = useState(1);
-
-  return (
-    <div className="flex gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
-      <img
-        src={product.image}
-        className="w-24 h-24 rounded-xl object-cover bg-gray-100"
-        alt={product.name}
-      />
-      <div className="flex-1 flex flex-col justify-between">
-        <div>
-          <h3 className="font-bold text-gray-800">{product.name}</h3>
-          <p className="text-xs text-gray-500 line-clamp-2">
-            {product.description}
-          </p>
-        </div>
-        <div className="flex justify-between items-center mt-2">
-          <span className="font-bold text-primary">
-            ${Number(product.price || 0).toFixed(2)}
-          </span>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center bg-gray-100 rounded-lg h-8">
-              <button
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="px-2 h-full text-gray-600 hover:bg-gray-200 rounded-l-lg"
-              >
-                -
-              </button>
-              <span className="text-xs font-bold w-6 text-center">
-                {quantity}
-              </span>
-              <button
-                onClick={() => setQuantity(quantity + 1)}
-                className="px-2 h-full text-gray-600 hover:bg-gray-200 rounded-r-lg"
-              >
-                +
-              </button>
-            </div>
-            <button
-              onClick={() => onAdd(product, quantity)}
-              className="w-8 h-8 bg-primary text-white rounded-xl shadow-lg shadow-primary/30 active:scale-95 transition-transform flex items-center justify-center"
-            >
-              <Icons.Plus size={18} />
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

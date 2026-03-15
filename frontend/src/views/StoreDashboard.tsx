@@ -3,13 +3,10 @@ import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
-import { uploadToCloudinary } from "../api"; // Importar utilidad
+import { uploadToCloudinary } from "../api";
+import { SUBSCRIPTION_LIMITS } from "../constants";
 import { StoreProfile, Product, Order, OrderStatus } from "../types";
-import {
-  getOrderStatusLabel,
-  getOrderStatusColor,
-} from "../orderStatusTranslations";
-import { formatDate } from "../utils";
+import { formatDate, getOrderStatusColor } from "../utils";
 
 export const StoreDashboard = () => {
   const {
@@ -121,8 +118,11 @@ export const StoreDashboard = () => {
     () =>
       myOrders.filter(
         (o) =>
-          o.status !== OrderStatus.DELIVERED &&
-          o.status !== OrderStatus.REJECTED,
+          ![
+            OrderStatus.DELIVERED,
+            OrderStatus.REJECTED,
+            OrderStatus.CANCELLED,
+          ].includes(o.status),
       ).length,
     [myOrders],
   );
@@ -205,7 +205,18 @@ export const StoreDashboard = () => {
   };
 
   const handleToggleProductVisibility = (p: Product) => {
-    const currentVisibility = p.isAvailable !== false; // Por defecto es true si es undefined
+    const currentVisibility = p.isAvailable !== false;
+    const productLimit = SUBSCRIPTION_LIMITS[store.subscription] || 10;
+    const visibleProducts = myProducts.filter(
+      (p) => p.isAvailable !== false,
+    ).length;
+
+    if (!currentVisibility && visibleProducts >= productLimit) {
+      return alert(
+        `Has alcanzado el límite de ${productLimit} productos visibles para tu suscripción ${store.subscription}. Oculta otro producto para poder hacer este visible.`,
+      );
+    }
+
     updateProduct({ ...p, isAvailable: !currentVisibility });
     setSaveFeedback(
       !currentVisibility ? "Producto visible" : "Producto oculto",
@@ -389,14 +400,13 @@ export const StoreDashboard = () => {
             <h1 className="font-bold text-iosText leading-tight">
               {store.storeName}
             </h1>
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full ${store.isOpen ? "bg-green-500" : "bg-red-500"}`}
-              ></span>
-              <span className="text-xs text-gray-500">
-                {store.isOpen ? "Abierto" : "Cerrado"}
-              </span>
-            </div>
+            <Badge color={store.isOpen ? "green" : "red"}>
+              {store.isOpen ? (
+                <span className="font-bold">ABIERTO</span>
+              ) : (
+                <span className="font-bold">CERRADO</span>
+              )}
+            </Badge>
           </div>
         </div>
         <div className="flex gap-2">
@@ -472,11 +482,7 @@ export const StoreDashboard = () => {
             <h2 className="text-lg font-bold text-gray-800 ml-1">
               Comandas Activas
             </h2>
-            {myOrders.filter(
-              (o) =>
-                o.status !== OrderStatus.DELIVERED &&
-                o.status !== OrderStatus.REJECTED,
-            ).length === 0 && (
+            {activeOrdersCount === 0 && (
               <div className="text-center py-10 text-gray-400">
                 No hay pedidos activos
               </div>
@@ -484,8 +490,11 @@ export const StoreDashboard = () => {
             {myOrders
               .filter(
                 (o) =>
-                  o.status !== OrderStatus.DELIVERED &&
-                  o.status !== OrderStatus.REJECTED,
+                  ![
+                    OrderStatus.DELIVERED,
+                    OrderStatus.REJECTED,
+                    OrderStatus.CANCELLED,
+                  ].includes(o.status),
               )
               .map((order) => (
                 <Card key={order.id} className="border-l-4 border-primary">
@@ -499,7 +508,7 @@ export const StoreDashboard = () => {
                       </span>
                     </div>
                     <Badge color={getOrderStatusColor(order.status)}>
-                      {getOrderStatusLabel(order.status)}
+                      {order.status}
                     </Badge>
                   </div>
                   <div className="space-y-2 mb-4">
@@ -566,20 +575,24 @@ export const StoreDashboard = () => {
             <h2 className="text-lg font-bold text-gray-800 ml-1 mt-8">
               Historial de Pedidos
             </h2>
-            {myOrders.filter(
-              (o) =>
-                o.status === OrderStatus.DELIVERED ||
-                o.status === OrderStatus.REJECTED,
+            {myOrders.filter((o) =>
+              [
+                OrderStatus.DELIVERED,
+                OrderStatus.REJECTED,
+                OrderStatus.CANCELLED,
+              ].includes(o.status),
             ).length === 0 && (
               <div className="text-center py-10 text-gray-400">
                 No hay pedidos en el historial
               </div>
             )}
             {myOrders
-              .filter(
-                (o) =>
-                  o.status === OrderStatus.DELIVERED ||
-                  o.status === OrderStatus.REJECTED,
+              .filter((o) =>
+                [
+                  OrderStatus.DELIVERED,
+                  OrderStatus.REJECTED,
+                  OrderStatus.CANCELLED,
+                ].includes(o.status),
               )
               .sort(
                 (a, b) =>
@@ -599,7 +612,7 @@ export const StoreDashboard = () => {
                         </span>
                       </div>
                       <Badge color={getOrderStatusColor(order.status)}>
-                        {getOrderStatusLabel(order.status)}
+                        {order.status}
                       </Badge>
                     </div>
                     <div className="space-y-2 mb-4">
@@ -638,6 +651,10 @@ export const StoreDashboard = () => {
               <Button
                 onClick={() => openProductModal()}
                 className="py-2 text-sm"
+                disabled={
+                  myProducts.length >=
+                  (SUBSCRIPTION_LIMITS[store.subscription] || 10)
+                }
               >
                 <Icons.Plus size={18} /> Nuevo
               </Button>
@@ -939,6 +956,60 @@ export const StoreDashboard = () => {
         {activeTab === "profile" && (
           <div className="space-y-4">
             <Card>
+              <h3 className="font-bold text-lg mb-4">Suscripción y Límites</h3>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Icons.Award
+                    size={20}
+                    className={
+                      store.subscription === "ULTRA"
+                        ? "text-purple-500"
+                        : store.subscription === "PREMIUM"
+                          ? "text-yellow-500"
+                          : "text-gray-500"
+                    }
+                  />
+                  <span className="font-bold text-lg">
+                    {store.subscription}
+                  </span>
+                </div>
+                <span
+                  className={`text-sm font-medium text-right transition-colors ${
+                    myProducts.length >
+                    (SUBSCRIPTION_LIMITS[store.subscription] || 10)
+                      ? "text-red-500"
+                      : "text-gray-500"
+                  }`}
+                >
+                  {myProducts.length} /{" "}
+                  {SUBSCRIPTION_LIMITS[store.subscription] || 10} productos
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  className={`h-2.5 rounded-full transition-all duration-500 ${
+                    myProducts.length >
+                    (SUBSCRIPTION_LIMITS[store.subscription] || 10)
+                      ? "bg-red-500"
+                      : store.subscription === "ULTRA"
+                        ? "bg-purple-500"
+                        : store.subscription === "PREMIUM"
+                          ? "bg-yellow-500"
+                          : "bg-gray-500"
+                  }`}
+                  style={{
+                    width: `${Math.min(
+                      (myProducts.length /
+                        (SUBSCRIPTION_LIMITS[store.subscription] || 10)) *
+                        100,
+                      100,
+                    )}%`,
+                  }}
+                ></div>
+              </div>
+            </Card>
+
+            <Card>
               <button
                 onClick={() => setIsCustomizationOpen(!isCustomizationOpen)}
                 className="flex justify-between items-center w-full"
@@ -1109,6 +1180,31 @@ export const StoreDashboard = () => {
                     Correo electrónico
                   </span>
                   <p className="font-medium text-gray-800">{store.email}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs block">
+                    Suscripción
+                  </span>
+                  <p className="font-medium text-gray-800">
+                    {store.subscription}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs block">
+                    Límite de productos
+                  </span>
+                  <p className="font-medium text-gray-800">
+                    {myProducts.length} de{" "}
+                    {SUBSCRIPTION_LIMITS[store.subscription] || 10}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs block">
+                    Productos Visibles
+                  </span>
+                  <p className="font-medium text-gray-800">
+                    {myProducts.filter((p) => p.isAvailable !== false).length}
+                  </p>
                 </div>
                 <div>
                   <span className="text-gray-400 text-xs block">

@@ -5,10 +5,10 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-import { Product } from "../types";
+import { Product, CartItem } from "../types";
 
 interface CartContextType {
-  cart: any[];
+  cart: CartItem[];
   addToCart: (product: Product, quantity?: number) => void;
   removeFromCart: (productId: string) => void;
   deleteFromCart: (productId: string) => void;
@@ -19,7 +19,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType>({} as CartContextType);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const [cart, setCart] = useState<any[]>(() => {
+  const [cart, setCart] = useState<CartItem[]>(() => {
     const savedCart = localStorage.getItem("cart");
     return savedCart ? JSON.parse(savedCart) : [];
   });

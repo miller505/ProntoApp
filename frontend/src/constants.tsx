@@ -12,6 +12,7 @@ import {
   Check,
   X,
   ChevronRight,
+  ChevronLeft,
   ChevronUp,
   ChevronDown,
   Home,
@@ -54,6 +55,7 @@ export const Icons = {
   Check,
   X,
   ChevronRight,
+  ChevronLeft,
   ChevronUp,
   ChevronDown,
   Home,
@@ -86,3 +88,10 @@ export const ALLOWED_EMAILS = [
   "@outlook.com",
   "@yahoo.com",
 ];
+
+// Límites de productos por tipo de suscripción
+export const SUBSCRIPTION_LIMITS = {
+  STANDARD: 10,
+  PREMIUM: 40,
+  ULTRA: 100,
+};

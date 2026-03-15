@@ -31,3 +31,23 @@ export const calculateDistance = (
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
+
+export const getOrderStatusColor = (
+  status: string,
+): "yellow" | "blue" | "green" | "red" => {
+  switch (status) {
+    case "Pendiente":
+      return "yellow";
+    case "Preparando":
+    case "Listo para Recoger":
+    case "En Camino":
+      return "blue";
+    case "Entregado":
+      return "green";
+    case "Rechazado":
+    case "Cancelado":
+      return "red";
+    default:
+      return "blue";
+  }
+};

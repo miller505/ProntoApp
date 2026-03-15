@@ -141,6 +141,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       });
     });
 
+    // --- NUEVO Y CRÍTICO: Escuchar actualizaciones de CUALQUIER usuario (para el Master) ---
+    newSocket.on("user_update", (updatedUser: any) => {
+      setUsers((prev) => {
+        const uId = updatedUser._id || updatedUser.id;
+        const exists = prev.some((u) => (u.id || u._id) === uId);
+
+        // Si existe, lo actualizamos
+        if (exists) {
+          return prev.map((u) =>
+            (u.id || u._id) === uId ? { ...u, ...updatedUser, id: uId } : u,
+          );
+        }
+        // Si no existe (ej. nuevo registro), lo agregamos
+        return [...prev, { ...updatedUser, id: uId }];
+      });
+    });
+
     newSocket.on("receive_message", (newMessage: Message) => {
       setMessages((prev) => {
         if (
