@@ -26,6 +26,7 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
     subscription: SubscriptionType.STANDARD,
   });
   const [isUploading, setIsUploading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -197,15 +198,29 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
             type="email"
             placeholder="ejemplo@gmail.com"
           />
-          <Input
-            name="password"
-            label="Contraseña (Mín 5)"
-            value={formData.password}
-            onChange={handleChange}
-            required
-            type="password"
-            minLength={5}
-          />
+          <div className="relative">
+            <Input
+              name="password"
+              label="Contraseña (Mín 5)"
+              value={formData.password}
+              onChange={handleChange}
+              required
+              type={showPassword ? "text" : "password"}
+              minLength={5}
+              className="pr-12"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute inset-y-0 right-0 top-6 flex items-center px-4 text-gray-400 hover:text-primary"
+            >
+              {showPassword ? (
+                <Icons.EyeOff size={20} />
+              ) : (
+                <Icons.Eye size={20} />
+              )}
+            </button>
+          </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">

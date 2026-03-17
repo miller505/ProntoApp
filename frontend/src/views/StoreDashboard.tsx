@@ -514,9 +514,17 @@ export const StoreDashboard = () => {
                   <div className="space-y-2 mb-4">
                     {order.items.map((item, idx) => (
                       <div key={idx} className="flex justify-between text-sm">
-                        <span>
-                          {item.quantity}x {item.product.name}
-                        </span>
+                        <div className="flex flex-col">
+                          <span>
+                            {item.quantity}x {item.product.name}
+                          </span>
+                          {item.notes && (
+                            <div className="flex items-center gap-1.5 mt-1 text-xs text-blue-800 bg-blue-50 p-2 rounded-lg">
+                              <Icons.Edit2 size={12} />
+                              <p className="italic">"{item.notes}"</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1332,9 +1340,9 @@ export const StoreDashboard = () => {
             </div>
           </div>
           <datalist id="categories">
-            <option value="Entradas" />
-            <option value="Plato Fuerte" />
-            <option value="Bebidas" />
+            {uniqueCategories.map((cat) => (
+              <option key={cat} value={cat} />
+            ))}
           </datalist>
           <Button type="submit" className="w-full" disabled={isUploading}>
             Guardar Producto

@@ -96,6 +96,7 @@ export interface Address {
 export interface CartItem {
   product: Product;
   quantity: number;
+  notes?: string;
 }
 
 export interface Order {

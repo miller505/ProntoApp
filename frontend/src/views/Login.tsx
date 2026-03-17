@@ -14,6 +14,7 @@ export const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if ((!colonies || colonies.length === 0) && fetchColonies) {
@@ -34,9 +35,7 @@ export const Login = () => {
   };
 
   if (isRegistering) {
-    return (
-      <Register onBack={() => setIsRegistering(false)} colonies={colonies} />
-    );
+    return <Register onBack={() => setIsRegistering(false)} />;
   }
 
   return (
@@ -73,12 +72,26 @@ export const Login = () => {
             value={email}
             onChange={(e: any) => setEmail(e.target.value)}
           />
-          <Input
-            type="password"
-            placeholder="Contraseña"
-            value={password}
-            onChange={(e: any) => setPassword(e.target.value)}
-          />
+          <div className="relative">
+            <Input
+              type={showPassword ? "text" : "password"}
+              placeholder="Contraseña"
+              value={password}
+              onChange={(e: any) => setPassword(e.target.value)}
+              className="pr-12"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 hover:text-primary"
+            >
+              {showPassword ? (
+                <Icons.EyeOff size={20} />
+              ) : (
+                <Icons.Eye size={20} />
+              )}
+            </button>
+          </div>
           {error && (
             <p className="text-red-500 text-sm text-center font-medium bg-red-50 p-2 rounded-lg">
               {error}

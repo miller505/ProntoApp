@@ -13,6 +13,7 @@ interface CartContextType {
   removeFromCart: (productId: string) => void;
   deleteFromCart: (productId: string) => void;
   clearCart: () => void;
+  updateItemNotes: (productId: string, notes: string) => void;
   cartTotal: number;
 }
 
@@ -58,6 +59,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setCart((prevCart) => prevCart.filter((i) => i.product.id !== pid));
   };
 
+  const updateItemNotes = (productId: string, notes: string) => {
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item.product.id === productId ? { ...item, notes } : item,
+      ),
+    );
+  };
+
   const clearCart = () => setCart([]);
 
   const cartTotal = cart.reduce(
@@ -74,6 +83,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         removeFromCart,
         deleteFromCart,
         clearCart,
+        updateItemNotes,
         cartTotal,
       }}
     >

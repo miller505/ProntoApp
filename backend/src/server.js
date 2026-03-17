@@ -467,6 +467,7 @@ app.post("/api/orders", verifyToken, async (req, res) => {
         productId: product._id,
         quantity: quantity,
         price: price,
+        notes: item.notes || "",
         customizations: [],
       });
     }

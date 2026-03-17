@@ -93,7 +93,7 @@ export const HomeView = ({
   const [search, setSearch] = useState("");
   const [foundProducts, setFoundProducts] = useState<Product[]>([]);
   const [isSearchingProducts, setIsSearchingProducts] = useState(false);
-  const { addToCart } = useCart();
+  const { addToCart, removeFromCart, cart } = useCart();
   const [notification, setNotification] = useState("");
 
   // Efecto para búsqueda en servidor (Debounce)
@@ -179,16 +179,25 @@ export const HomeView = ({
               </div>
             ) : foundProducts.length > 0 ? (
               <div className="space-y-3">
-                {foundProducts.map((p) => (
-                  <div key={p.id} className="relative">
-                    {/* Mostrar nombre de la tienda en pequeño */}
-                    <span className="absolute top-2 right-2 bg-gray-100 text-[10px] px-2 py-1 rounded-full text-gray-500 z-10">
-                      {stores.find((s: StoreProfile) => s.id === p.storeId)
-                        ?.storeName || "Tienda"}
-                    </span>
-                    <ProductItem product={p} onAdd={handleAddToCart} />
-                  </div>
-                ))}
+                {foundProducts.map((p) => {
+                  const itemInCart = cart.find(
+                    (item) => item.product.id === p.id,
+                  );
+                  return (
+                    <div key={p.id} className="relative">
+                      <span className="absolute top-2 right-2 bg-gray-100 text-[10px] px-2 py-1 rounded-full text-gray-500 z-10">
+                        {stores.find((s: StoreProfile) => s.id === p.storeId)
+                          ?.storeName || "Tienda"}
+                      </span>
+                      <ProductItem
+                        product={p}
+                        onAdd={handleAddToCart}
+                        onRemove={removeFromCart}
+                        cartQuantity={itemInCart?.quantity || 0}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               search.length > 2 && (

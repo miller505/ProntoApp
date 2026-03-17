@@ -34,23 +34,36 @@ export const Button = ({
 
 // CORRECCIÓN: Uso de forwardRef para permitir referencias en el DOM
 export const Input = forwardRef<HTMLInputElement, any>(
-  ({ label, error, ...props }, ref) => (
-    <div className="mb-4 w-full">
-      {label && (
-        <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
-          {label}
-        </label>
-      )}
-      <input
-        ref={ref}
-        {...props}
-        className={`w-full px-4 py-3 rounded-2xl bg-gray-100 border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none transition-colors text-iosText placeholder-gray-400 ${
-          error ? "border-red-500 bg-red-50" : ""
-        }`}
-      />
-      {error && <p className="text-red-500 text-xs mt-1 ml-1">{error}</p>}
-    </div>
-  ),
+  (
+    {
+      label,
+      error,
+      as = "input",
+      className = "",
+      wrapperClassName = "",
+      ...props
+    },
+    ref,
+  ) => {
+    const Component = as;
+    return (
+      <div className={`mb-4 w-full ${wrapperClassName}`}>
+        {label && (
+          <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
+            {label}
+          </label>
+        )}
+        <Component
+          ref={ref}
+          {...props}
+          className={`w-full px-4 py-3 rounded-2xl bg-gray-100 border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none transition-colors text-iosText placeholder-gray-400 ${
+            error ? "border-red-500 bg-red-50" : ""
+          } ${as === "textarea" ? "resize-none" : ""} ${className}`}
+        />
+        {error && <p className="text-red-500 text-xs mt-1 ml-1">{error}</p>}
+      </div>
+    );
+  },
 );
 Input.displayName = "Input";
 

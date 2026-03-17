@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Product } from "../types";
-import { Icons } from "../constants";
+import { Product } from "../../types";
+import { Icons } from "../../constants";
 
 export const ProductItem = ({
   product,

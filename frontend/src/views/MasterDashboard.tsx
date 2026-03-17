@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
@@ -11,6 +11,7 @@ import {
   Order,
   OrderStatus,
 } from "../types";
+import { formatDate, getOrderStatusColor } from "../utils";
 
 export const MasterDashboard = () => {
   const {
@@ -28,7 +29,7 @@ export const MasterDashboard = () => {
   const { currentUser, logout, updateUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "users" | "requests" | "colonies" | "finances"
+    "users" | "requests" | "colonies" | "finances" | "monitoring"
   >("requests");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("ALL");
@@ -180,6 +181,12 @@ export const MasterDashboard = () => {
               id: "finances",
               label: "Finanzas",
               icon: <Icons.DollarSign size={18} />,
+              count: 0,
+            },
+            {
+              id: "monitoring",
+              label: "Monitoreo",
+              icon: <Icons.Zap size={18} />,
               count: 0,
             },
           ].map((tab) => (
@@ -472,6 +479,11 @@ export const MasterDashboard = () => {
         {/* --- FINANCES PANEL --- */}
         {activeTab === "finances" && <FinancePanel orders={orders} />}
 
+        {/* --- MONITORING PANEL --- */}
+        {activeTab === "monitoring" && (
+          <MonitoringPanel orders={orders} users={users} />
+        )}
+
         {/* Edit User Modal */}
         <Modal
           isOpen={isEditModalOpen}
@@ -620,6 +632,184 @@ export const MasterDashboard = () => {
           </div>
         </Modal>
       </div>
+    </div>
+  );
+};
+
+// Sub-component for Monitoring
+const MonitoringPanel = ({
+  orders,
+  users,
+}: {
+  orders: Order[];
+  users: User[];
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ordersPerPage = 15;
+
+  const filteredOrders = useMemo(() => {
+    return orders
+      .filter((order) => {
+        const matchesId = order.id
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
+        const matchesStatus =
+          statusFilter === "ALL" || order.status === statusFilter;
+        return matchesId && matchesStatus;
+      })
+      .sort((a, b) => {
+        if (sortOrder === "newest") {
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        } else {
+          return (
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+        }
+      });
+  }, [orders, searchTerm, statusFilter, sortOrder]);
+
+  // Paginación
+  const indexOfLastOrder = currentPage * ordersPerPage;
+  const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
+  const currentOrders = filteredOrders.slice(
+    indexOfFirstOrder,
+    indexOfLastOrder,
+  );
+  const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
+
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+
+  const OrderInfoCard = ({ order }: { order: Order }) => {
+    const customer =
+      typeof order.customerId === "object"
+        ? order.customerId
+        : users.find((u) => u.id === order.customerId);
+    const store =
+      typeof order.storeId === "object"
+        ? order.storeId
+        : users.find((u) => u.id === order.storeId);
+    const driver = order.driverId
+      ? users.find((u) => u.id === order.driverId)
+      : null;
+
+    return (
+      <Card className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+        <div className="col-span-1 md:col-span-2">
+          <div className="flex items-center gap-2 mb-2">
+            <Badge color={getOrderStatusColor(order.status)}>
+              {order.status}
+            </Badge>
+            <span className="font-mono text-xs text-gray-400">
+              #{order.id.slice(-6)}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
+        </div>
+        <div className="col-span-1 md:col-span-2 grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-xs text-gray-400">Cliente</p>
+            <p className="font-semibold truncate">
+              {customer?.firstName || "N/A"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">Tienda</p>
+            <p className="font-semibold truncate">
+              {(store as StoreProfile)?.storeName || "N/A"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">Repartidor</p>
+            <p className="font-semibold truncate">
+              {driver?.firstName || "No asignado"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">Monto</p>
+            <p className="font-bold text-primary">${order.total.toFixed(2)}</p>
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <Input
+          placeholder="Buscar por ID de pedido..."
+          value={searchTerm}
+          onChange={(e: any) => setSearchTerm(e.target.value)}
+          wrapperClassName="!mb-0 flex-grow"
+          className="bg-white shadow-sm"
+        />
+        <div className="flex gap-4 w-full sm:w-auto">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full sm:w-auto px-4 py-3 rounded-2xl bg-white shadow-sm border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none text-sm"
+          >
+            <option value="ALL">Todos los estados</option>
+            {Object.values(OrderStatus).map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as any)}
+            className="w-full sm:w-auto px-4 py-3 rounded-2xl bg-white shadow-sm border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none text-sm"
+          >
+            <option value="newest">Más recientes primero</option>
+            <option value="oldest">Más antiguos primero</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Lista de Pedidos */}
+      <div className="space-y-4">
+        {currentOrders.length > 0 ? (
+          currentOrders.map((order) => (
+            <OrderInfoCard key={order.id} order={order} />
+          ))
+        ) : (
+          <p className="text-center text-gray-400 py-10">
+            No se encontraron pedidos con esos filtros.
+          </p>
+        )}
+      </div>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-6">
+          <Button
+            onClick={() => paginate(currentPage - 1)}
+            disabled={currentPage === 1}
+            variant="secondary"
+            className="!px-3 !py-2"
+          >
+            <Icons.ChevronLeft size={18} />
+          </Button>
+          <span className="text-sm text-gray-600">
+            Página {currentPage} de {totalPages}
+          </span>
+          <Button
+            onClick={() => paginate(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            variant="secondary"
+            className="!px-3 !py-2"
+          >
+            <Icons.ChevronRight size={18} />
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

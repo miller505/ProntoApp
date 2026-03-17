@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useCart } from "../contexts/CartContext";
 import { Button } from "../components/UI";
 import { Icons } from "../constants";
-import { StoreProfile, SubscriptionType, Product } from "../types";
+import { StoreProfile, SubscriptionType, Product, UserRole } from "../types";
 
 // Componentes refactorizados
 import { HomeView } from "./client/HomeView";
@@ -13,6 +13,7 @@ import { OrdersView } from "./client/OrdersView";
 import { ProfileView } from "./client/ProfileView";
 import { ProductItem } from "../components/ProductItem";
 import { NavBtn } from "../components/NavBtn";
+import { shuffleArray } from "../utils";
 
 const ClientDashboard = () => {
   const {
@@ -53,20 +54,11 @@ const ClientDashboard = () => {
   const stores = useMemo(
     () =>
       users.filter(
-        (u) => u.role === "STORE" && (u as StoreProfile).isOpen !== false,
+        (u) =>
+          u.role === UserRole.STORE && (u as StoreProfile).isOpen !== false,
       ) as StoreProfile[],
     [users],
   );
-
-  // Fisher-Yates shuffle algorithm for random ordering
-  const shuffleArray = <T,>(array: T[]): T[] => {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  };
 
   // Memoize the shuffled stores to prevent re-shuffling on every render
   const { ultraStores, otherStores } = useMemo(() => {
@@ -74,14 +66,20 @@ const ClientDashboard = () => {
     const newUltraStores = shuffleArray(
       stores.filter((s) => s.subscription === SubscriptionType.ULTRA),
     );
-    // TODAS las demás caen aquí (incluso si no tienen suscripción definida)
-    const newOtherStores = shuffleArray(
-      stores.filter((s) => s.subscription !== SubscriptionType.ULTRA),
+    // Filtramos y aleatorizamos las Premium
+    const premiumStores = shuffleArray(
+      stores.filter((s) => s.subscription === SubscriptionType.PREMIUM),
+    );
+    // Filtramos y aleatorizamos las Standard (y las que no tengan suscripción)
+    const standardStores = shuffleArray(
+      stores.filter(
+        (s) => s.subscription === SubscriptionType.STANDARD || !s.subscription,
+      ),
     );
 
     return {
       ultraStores: newUltraStores,
-      otherStores: newOtherStores,
+      otherStores: [...premiumStores, ...standardStores],
     };
   }, [stores]);
 
@@ -128,7 +126,7 @@ const ClientDashboard = () => {
         />
       )}
       {view === "cart" && <CartView setView={setView} />}
-      {view === "orders" && <OrdersView />}
+      {view === "orders" && <OrdersView setView={setView} />}
       {view === "profile" && <ProfileView />}
 
       {/* Bottom Nav */}
@@ -186,10 +184,11 @@ const StoreView = ({
   onGoToCart: () => void;
   fetchStoreProducts: (storeId: string) => Promise<void>;
 }) => {
-  const { addToCart, cart } = useCart();
+  const { addToCart, removeFromCart, cart } = useCart();
   const [activeCategory, setActiveCategory] = useState("ALL");
   const [notification, setNotification] = useState("");
   const [loadingMenu, setLoadingMenu] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     setLoadingMenu(true);
@@ -206,15 +205,33 @@ const StoreView = ({
     setTimeout(() => setNotification(""), 2000);
   };
 
-  const storeProducts = products.filter(
-    (p) => p.storeId === store.id && p.isAvailable !== false,
+  const storeProducts = useMemo(
+    () =>
+      products.filter((p) => p.storeId === store.id && p.isAvailable !== false),
+    [products, store.id],
   );
-  const categories = ["ALL", ...new Set(storeProducts.map((p) => p.category))];
-  const filteredProducts =
-    activeCategory === "ALL"
-      ? storeProducts
-      : storeProducts.filter((p) => p.category === activeCategory);
+  const categories = useMemo(
+    () => ["ALL", ...new Set(storeProducts.map((p) => p.category))],
+    [storeProducts],
+  );
 
+  const filteredProducts = useMemo(() => {
+    let products = storeProducts;
+
+    if (activeCategory !== "ALL") {
+      products = products.filter((p) => p.category === activeCategory);
+    }
+
+    if (searchTerm.trim() !== "") {
+      products = products.filter((p) =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()),
+      );
+    }
+
+    return activeCategory === "ALL"
+      ? shuffleArray(products)
+      : products.sort((a, b) => a.name.localeCompare(b.name));
+  }, [activeCategory, storeProducts, searchTerm]);
   return (
     <div className="min-h-screen bg-white pb-24">
       {/* Header Image */}
@@ -284,17 +301,33 @@ const StoreView = ({
       </div>
 
       {/* Categories Nav */}
-      <div className="sticky top-0 bg-white z-20 py-4 px-6 shadow-sm mt-4 overflow-x-auto no-scrollbar">
-        <div className="flex gap-3">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeCategory === cat ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-gray-100 text-gray-500"}`}
-            >
-              {cat === "ALL" ? "Todo" : cat}
-            </button>
-          ))}
+      <div className="sticky top-0 bg-white z-20 py-4 px-6 shadow-sm mt-4">
+        <div className="relative mb-4">
+          <Icons.Search
+            className="absolute left-4 top-3.5 text-gray-400"
+            size={20}
+          />
+          <input
+            type="text"
+            placeholder={`Buscar en ${store.storeName}...`}
+            className="w-full pl-12 pr-4 py-3 rounded-2xl bg-gray-100 focus:outline-none focus:ring-2 ring-primary/20 text-iosText"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        <div className="overflow-x-auto no-scrollbar">
+          <div className="flex gap-3">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeCategory === cat ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-gray-100 text-gray-500"}`}
+              >
+                {cat === "ALL" ? "Todo" : cat}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -317,9 +350,18 @@ const StoreView = ({
                   </div>
                 </div>
               ))
-          : filteredProducts.map((p) => (
-              <ProductItem key={p.id} product={p} onAdd={handleAddToCart} />
-            ))}
+          : filteredProducts.map((p) => {
+              const itemInCart = cart.find((item) => item.product.id === p.id);
+              return (
+                <ProductItem
+                  key={p.id}
+                  product={p}
+                  onAdd={handleAddToCart}
+                  onRemove={removeFromCart}
+                  cartQuantity={itemInCart?.quantity || 0}
+                />
+              );
+            })}
         {!loadingMenu && filteredProducts.length === 0 && (
           <p className="text-center text-gray-400 py-10">
             No hay productos en esta categoría.
