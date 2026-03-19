@@ -7,6 +7,15 @@ body {
   background-color: #f2f2f7;
   color: #1c1c1e;
   -webkit-font-smoothing: antialiased;
+
+  /* --- SOLUCIÓN: Prevenir el auto-ajuste de texto en móviles --- */
+  -webkit-text-size-adjust: 100%; /* Para Chrome, Safari, Opera */
+  -moz-text-size-adjust: 100%; /* Para Firefox */
+  -ms-text-size-adjust: 100%; /* Para Internet Explorer */
+  text-size-adjust: 100%; /* Estándar */
+
+  /* PWA: Evitar el efecto de rebote (pull-to-refresh) del navegador para sensación nativa */
+  overscroll-behavior-y: none;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
@@ -58,4 +67,17 @@ body {
 }
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
+}
+
+@keyframes gentle-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+.animate-pulse-slow {
+  animation: gentle-pulse 3s ease-in-out infinite;
 }

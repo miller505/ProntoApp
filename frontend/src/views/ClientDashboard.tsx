@@ -1,10 +1,16 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useCart } from "../contexts/CartContext";
 import { Button } from "../components/UI";
 import { Icons } from "../constants";
-import { StoreProfile, SubscriptionType, Product, UserRole } from "../types";
+import {
+  StoreProfile,
+  SubscriptionType,
+  Product,
+  UserRole,
+  OrderStatus,
+} from "../types";
 
 // Componentes refactorizados
 import { HomeView } from "./client/HomeView";
@@ -22,6 +28,7 @@ const ClientDashboard = () => {
     unreadCounts,
     loading, // Importamos el estado de carga global
     fetchStoreProducts,
+    orders,
   } = useApp();
 
   const { currentUser } = useAuth();
@@ -90,12 +97,26 @@ const ClientDashboard = () => {
     );
   }, [unreadCounts]);
 
+  // Detectar si hay un pedido que ya llegó ("ARRIVED") para mostrar burbuja especial
+  const hasArrivedOrder = useMemo(() => {
+    if (!currentUser) return false;
+    return orders.some((o) => {
+      const cId =
+        typeof o.customerId === "object"
+          ? (o.customerId as any).id || (o.customerId as any)._id
+          : o.customerId;
+      return cId === currentUser.id && o.status === OrderStatus.ARRIVED;
+    });
+  }, [orders, currentUser]);
+
   if (selectedStore) {
     return (
       <StoreView
         store={selectedStore}
         onBack={() => {
-          // Simula el botón "atrás" del navegador
+          // CORRECCIÓN: Hacemos la acción de la UI inmediata y luego sincronizamos el historial.
+          // Esto elimina la dependencia en el evento `popstate` para la acción del botón, haciéndolo más rápido y fiable.
+          setSelectedStore(null);
           window.history.back();
         }}
         fetchStoreProducts={fetchStoreProducts}
@@ -144,8 +165,16 @@ const ClientDashboard = () => {
             active={view === "orders"}
             onClick={() => setView("orders")}
           />
-          {totalUnread > 0 && (
-            <span className="absolute top-0 right-4 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white" />
+          {hasArrivedOrder ? (
+            <span className="absolute -top-3 -right-2 bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-full border-2 border-white shadow-sm animate-bounce flex items-center gap-1 z-50 pointer-events-none">
+              <Icons.Bike size={12} /> ¡Llegó!
+            </span>
+          ) : (
+            totalUnread > 0 && (
+              <span className="absolute top-0 right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white pointer-events-none">
+                {totalUnread > 9 ? "9+" : totalUnread}
+              </span>
+            )
           )}
         </div>
         <div className="relative">
@@ -168,6 +197,90 @@ const ClientDashboard = () => {
           onClick={() => setView("profile")}
         />
       </nav>
+    </div>
+  );
+};
+
+const FeaturedProductCard = ({
+  product,
+  onAdd,
+  onRemove,
+  cartQuantity,
+}: any) => {
+  const [showCounter, setShowCounter] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleInteraction = (type: "add" | "remove") => {
+    if (type === "add") {
+      onAdd(product, 1);
+    } else {
+      onRemove(product.id);
+    }
+
+    setShowCounter(true);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    timerRef.current = setTimeout(() => {
+      setShowCounter(false);
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  const shouldShowCounter = showCounter && cartQuantity > 0;
+
+  return (
+    <div className="snap-center shrink-0 w-36 bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col">
+      <div className="h-24 w-full relative bg-gray-100">
+        <img
+          src={product.image}
+          className="w-full h-full object-cover"
+          alt={product.name}
+        />
+      </div>
+      <div className="p-2 flex-1 flex flex-col">
+        <h4 className="font-bold text-[10px] line-clamp-2 mb-1 leading-tight">
+          {product.name}
+        </h4>
+        <p className="font-bold text-primary text-xs mt-auto">
+          ${product.price}
+        </p>
+
+        <div className="relative h-7 mt-2 w-full">
+          <div
+            className={`absolute inset-0 flex items-center justify-between bg-gray-100 rounded-lg transition-all duration-300 ${shouldShowCounter ? "opacity-100 scale-100 z-10" : "opacity-0 scale-50 pointer-events-none"}`}
+          >
+            <button
+              onClick={() => handleInteraction("remove")}
+              className="w-8 h-full text-gray-600 hover:bg-gray-200 rounded-l-lg flex items-center justify-center font-bold text-xs"
+            >
+              -
+            </button>
+            <span className="text-[10px] font-bold">{cartQuantity}</span>
+            <button
+              onClick={() => handleInteraction("add")}
+              className="w-8 h-full text-gray-600 hover:bg-gray-200 rounded-r-lg flex items-center justify-center font-bold text-xs"
+            >
+              +
+            </button>
+          </div>
+
+          <Button
+            onClick={() => handleInteraction("add")}
+            className={`absolute inset-0 w-full h-full !py-0 !text-[10px] !rounded-lg transition-all duration-300 ${shouldShowCounter ? "opacity-0 scale-50 pointer-events-none" : "opacity-100 scale-100"}`}
+          >
+            <Icons.ShoppingCart size={12} />
+            Agregar
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -205,15 +318,30 @@ const StoreView = ({
     setTimeout(() => setNotification(""), 2000);
   };
 
-  const storeProducts = useMemo(
-    () =>
-      products.filter((p) => p.storeId === store.id && p.isAvailable !== false),
-    [products, store.id],
-  );
+  const storeProducts = useMemo(() => {
+    return products.filter((p) => {
+      // Robustez: Aseguramos que los IDs coincidan convirtiéndolos a String,
+      // esto arregla el problema con productos antiguos creados con formatos de ID diferentes.
+      const pStoreId =
+        typeof p.storeId === "object"
+          ? (p.storeId as any).id || (p.storeId as any)._id
+          : p.storeId;
+      const targetStoreId = store.id || (store as any)._id;
+      return (
+        String(pStoreId) === String(targetStoreId) && p.isAvailable !== false
+      );
+    });
+  }, [products, store.id]);
   const categories = useMemo(
     () => ["ALL", ...new Set(storeProducts.map((p) => p.category))],
     [storeProducts],
   );
+
+  // FEATURED PRODUCTS LOGIC
+  const featuredProducts = useMemo(() => {
+    const featured = storeProducts.filter((p) => p.isFeatured);
+    return shuffleArray(featured); // Aleatorizar orden
+  }, [storeProducts]);
 
   const filteredProducts = useMemo(() => {
     let products = storeProducts;
@@ -235,7 +363,7 @@ const StoreView = ({
   return (
     <div className="min-h-screen bg-white pb-24">
       {/* Header Image */}
-      <div className="relative h-48">
+      <div className="relative h-36">
         <img
           src={store.coverImage}
           className="w-full h-full object-cover"
@@ -266,56 +394,92 @@ const StoreView = ({
       </div>
 
       {/* Store Info */}
-      <div className="px-6 -mt-10 relative z-10">
-        <div className="bg-white rounded-3xl p-5 shadow-lg border border-gray-50">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">
+      <div className="px-4 -mt-8 relative z-10">
+        <div className="bg-white rounded-2xl p-3 shadow-lg border border-gray-50 flex items-center gap-3">
+          <img
+            src={store.logo}
+            className="w-14 h-14 rounded-xl object-cover border border-gray-100 bg-gray-50 flex-shrink-0"
+            alt="Logo"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex justify-between items-start">
+              <h1 className="text-lg font-bold text-gray-800 truncate leading-tight">
                 {store.storeName}
               </h1>
-              <p className="text-sm text-gray-500 mt-1">{store.description}</p>
+              {store.averageRating !== undefined && (
+                <div className="flex items-center gap-1 text-xs font-bold text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded-md flex-shrink-0 ml-2">
+                  <Icons.Star size={10} fill="currentColor" />
+                  {store.averageRating > 0
+                    ? store.averageRating.toFixed(1)
+                    : "N"}
+                </div>
+              )}
             </div>
-            <img
-              src={store.logo}
-              className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-100 bg-gray-50"
-              alt="Logo"
-            />
-          </div>
-          <div className="mt-4 flex items-center gap-4 text-sm text-gray-500">
-            <span className="flex items-center gap-1">
-              <Icons.Clock size={16} /> {store.prepTime || "30m"}
-            </span>
-            <span className="flex items-center gap-1">
-              <Icons.MapPin size={16} /> {store.storeAddress?.street}
-            </span>
-            {store.averageRating !== undefined && (
-              <span className="flex items-center gap-1 text-yellow-500 font-bold">
-                <Icons.Star size={16} fill="currentColor" />{" "}
-                {store.averageRating > 0
-                  ? store.averageRating.toFixed(1)
-                  : "Nuevo"}
+            <p className="text-xs text-gray-500 line-clamp-2">
+              {store.description}
+            </p>
+            <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+              <span className="flex items-center gap-1">
+                <Icons.Clock size={12} /> {store.prepTime || "30m"}
               </span>
-            )}
+              <span className="flex items-center gap-1 truncate">
+                <Icons.MapPin size={12} /> {store.storeAddress?.street}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Categories Nav */}
-      <div className="sticky top-0 bg-white z-20 py-4 px-6 shadow-sm mt-4">
-        <div className="relative mb-4">
+      {/* Search Bar (Moved above Featured) */}
+      <div className="px-6 mt-4 mb-2">
+        <div className="relative">
           <Icons.Search
-            className="absolute left-4 top-3.5 text-gray-400"
-            size={20}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+            size={18}
           />
           <input
             type="text"
             placeholder={`Buscar en ${store.storeName}...`}
-            className="w-full pl-12 pr-4 py-3 rounded-2xl bg-gray-100 focus:outline-none focus:ring-2 ring-primary/20 text-iosText"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-100 focus:outline-none focus:ring-2 ring-primary/20 text-sm text-iosText"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+      </div>
 
+      {/* --- FEATURED CAROUSEL --- */}
+      {featuredProducts.length > 0 &&
+        !searchTerm &&
+        activeCategory === "ALL" && (
+          <div className="mt-6 mb-2">
+            <div className="flex items-center gap-2 px-6 mb-3">
+              <Icons.Star
+                size={18}
+                className="text-yellow-500"
+                fill="currentColor"
+              />
+              <h2 className="font-bold text-lg text-gray-800">Destacados</h2>
+            </div>
+
+            <div className="flex overflow-x-auto gap-4 px-6 pb-4 snap-x snap-mandatory no-scrollbar">
+              {featuredProducts.map((p) => (
+                <FeaturedProductCard
+                  key={p.id}
+                  product={p}
+                  onAdd={handleAddToCart}
+                  onRemove={removeFromCart}
+                  cartQuantity={
+                    cart.find((item) => item.product.id === p.id)?.quantity || 0
+                  }
+                />
+              ))}
+            </div>
+            <div className="h-1 bg-gray-50 mx-6 rounded-full" />
+          </div>
+        )}
+
+      {/* Categories Nav */}
+      <div className="sticky top-0 bg-white z-20 py-3 px-6 shadow-sm border-b border-gray-50">
         <div className="overflow-x-auto no-scrollbar">
           <div className="flex gap-3">
             {categories.map((cat) => (

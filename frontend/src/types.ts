@@ -25,6 +25,7 @@ export enum OrderStatus {
   PREPARING = "Preparando",
   READY = "Listo para Recoger",
   ON_WAY = "En Camino",
+  ARRIVED = "Llegó al domicilio",
   DELIVERED = "Entregado",
   REJECTED = "Rechazado",
   CANCELLED = "Cancelado",
@@ -32,8 +33,8 @@ export enum OrderStatus {
 
 export interface SystemSettings {
   id?: string;
-  baseFee: number; // Banderazo
-  kmRate: number; // Tarifa por Km
+  commissionRate: number; // Banderazo como porcentaje
+  kmRate: number; // Tarifa por Km para el repartidor
 }
 
 export interface Colony {
@@ -83,6 +84,7 @@ export interface Product {
   category: string;
   image?: string;
   isAvailable?: boolean;
+  isFeatured?: boolean;
 }
 
 export interface Address {

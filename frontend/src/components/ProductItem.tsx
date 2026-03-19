@@ -46,12 +46,14 @@ export const ProductItem = ({
     <div className="flex gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
       <img
         src={product.image}
-        className="w-24 h-24 rounded-xl object-cover bg-gray-100"
+        className="w-24 h-24 rounded-xl object-cover bg-gray-100 flex-shrink-0"
         alt={product.name}
       />
-      <div className="flex-1 flex flex-col justify-between">
+      <div className="flex-1 flex flex-col justify-between min-w-0">
         <div>
-          <h3 className="font-bold text-gray-800">{product.name}</h3>
+          <h3 className="font-bold text-gray-800 truncate" title={product.name}>
+            {product.name}
+          </h3>
           <p className="text-xs text-gray-500 line-clamp-2">
             {product.description}
           </p>

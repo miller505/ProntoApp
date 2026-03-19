@@ -26,10 +26,10 @@ const CartItemCard = ({ item }: { item: any }) => {
             alt={item.product.name}
             className="w-16 h-16 rounded-lg object-cover bg-gray-100"
           />
-          <div className="flex-1">
-            <p className="font-bold text-sm">{item.product.name}</p>
-            <p className="text-xs text-gray-400">{store?.storeName}</p>
-            <p className="text-sm font-bold text-primary mt-1">
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm truncate">{item.product.name}</p>
+            <p className="text-xs text-gray-400 truncate">{store?.storeName}</p>
+            <p className="text-sm font-bold text-primary mt-1 truncate">
               ${(Number(item.product.price || 0) * item.quantity).toFixed(2)}
             </p>
           </div>
@@ -119,6 +119,7 @@ export const CartView = ({
   const [payMethod, setPayMethod] = useState<"CARD" | "CASH">("CARD");
   const [colonySearch, setColonySearch] = useState("");
   const [isColonyListOpen, setIsColonyListOpen] = useState(false);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   const filteredColonies = useMemo(() => {
     return colonies.filter((c) =>
@@ -155,8 +156,11 @@ export const CartView = ({
     const clientColony = colonies.find((c) => c.id === clientColonyId);
 
     if (clientColony) {
-      Object.keys(itemsByStore).forEach((storeId) => {
+      Object.entries(itemsByStore).forEach(([storeId, items]) => {
         const store = users.find((u) => u.id === storeId) as StoreProfile;
+
+        // Calcular la tarifa del repartidor
+        let driverFee = 0;
         if (store && store.storeAddress?.colonyId) {
           const storeColony = colonies.find(
             (c) => c.id === store.storeAddress.colonyId,
@@ -169,17 +173,20 @@ export const CartView = ({
               storeColony.lng,
             );
             const driverPart = Math.ceil(dist * settings.kmRate);
-            const fee =
-              (driverPart < settings.kmRate ? settings.kmRate : driverPart) +
-              settings.baseFee;
-            fees[storeId] = fee;
-            total += fee;
+            driverFee =
+              driverPart < settings.kmRate ? settings.kmRate : driverPart;
           }
-        } else {
-          // Fallback si no se encuentra la tienda (usa tarifa base)
-          fees[storeId] = settings.baseFee;
-          total += settings.baseFee;
         }
+        // Calcular la comisión de la app para esta tienda
+        const storeSubtotal = items.reduce(
+          (acc, item) => acc + Number(item.product.price || 0) * item.quantity,
+          0,
+        );
+        const appCommission = storeSubtotal * (settings.commissionRate / 100);
+
+        const finalFee = driverFee + appCommission;
+        fees[storeId] = finalFee;
+        total += finalFee;
       });
     }
     return { totalDeliveryFee: total, storeFees: fees };
@@ -235,11 +242,13 @@ export const CartView = ({
       return alert("Por favor, agrega o selecciona una dirección de entrega.");
     }
 
+    setIsPlacingOrder(true);
+
     try {
       // Generar una orden por cada tienda
       const orderPromises = Object.entries(itemsByStore).map(
         async ([storeId, items]) => {
-          const fee = storeFees[storeId] || settings.baseFee;
+          const fee = storeFees[storeId] || 0; // CORRECCIÓN: Fallback a 0 si la tarifa no se calcula
           const subtotal = items.reduce(
             (acc, item) =>
               acc + Number(item.product.price || 0) * item.quantity,
@@ -286,6 +295,7 @@ export const CartView = ({
         e.response?.data?.error ||
           "Error al realizar uno o más pedidos. Por favor verifica.",
       );
+      setIsPlacingOrder(false);
     }
   };
 
@@ -501,8 +511,9 @@ export const CartView = ({
       <Button
         className="w-full mt-6 shadow-xl shadow-red-500/30"
         onClick={handleCheckout}
+        disabled={isPlacingOrder}
       >
-        Realizar Pedido
+        {isPlacingOrder ? "Realizando pedido..." : "Realizar Pedido"}
       </Button>
     </div>
   );

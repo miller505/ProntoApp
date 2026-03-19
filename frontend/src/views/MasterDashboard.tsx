@@ -193,16 +193,19 @@ export const MasterDashboard = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${
+              className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all relative ${
                 activeTab === tab.id
                   ? "bg-primary text-white shadow-md"
                   : "text-gray-400"
               }`}
             >
+              {tab.count > 0 && (
+                <span className="absolute top-1 right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
+                  {tab.count > 9 ? "9+" : tab.count}
+                </span>
+              )}
               {tab.icon}
-              <span className="text-[10px] font-medium mt-1">
-                {tab.label} {tab.count > 0 ? `(${tab.count})` : ""}
-              </span>
+              <span className="text-[10px] font-medium mt-1">{tab.label}</span>
             </button>
           ))}
         </div>
@@ -746,8 +749,8 @@ const MonitoringPanel = ({
           placeholder="Buscar por ID de pedido..."
           value={searchTerm}
           onChange={(e: any) => setSearchTerm(e.target.value)}
+          className="bg-white shadow-sm !mb-0 flex-grow"
           wrapperClassName="!mb-0 flex-grow"
-          className="bg-white shadow-sm"
         />
         <div className="flex gap-4 w-full sm:w-auto">
           <select
@@ -827,7 +830,7 @@ const ColoniesPanel = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: "", lat: "", lng: "" });
   const [globalForm, setGlobalForm] = useState({
-    baseFee: settings.baseFee,
+    commissionRate: settings.commissionRate,
     kmRate: settings.kmRate,
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -838,7 +841,7 @@ const ColoniesPanel = ({
 
   useEffect(() => {
     setGlobalForm({
-      baseFee: settings.baseFee,
+      commissionRate: settings.commissionRate,
       kmRate: settings.kmRate,
     });
   }, [settings]);
@@ -893,7 +896,7 @@ const ColoniesPanel = ({
   const handleSaveGlobal = () => {
     onUpdateSettings({
       ...settings,
-      baseFee: Number(globalForm.baseFee),
+      commissionRate: Number(globalForm.commissionRate),
       kmRate: Number(globalForm.kmRate),
     });
     alert("Tarifas globales actualizadas");
@@ -929,11 +932,14 @@ const ColoniesPanel = ({
           <div className="mt-4">
             <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Banderazo (Comisión Empresa)"
+                label="Comisión de la App (%)"
                 type="number"
-                value={globalForm.baseFee}
+                value={globalForm.commissionRate}
                 onChange={(e: any) =>
-                  setGlobalForm({ ...globalForm, baseFee: e.target.value })
+                  setGlobalForm({
+                    ...globalForm,
+                    commissionRate: e.target.value,
+                  })
                 }
               />
               <Input

@@ -41,6 +41,7 @@ export const getOrderStatusColor = (
     case "Preparando":
     case "Listo para Recoger":
     case "En Camino":
+    case "Llegó al domicilio":
       return "blue";
     case "Entregado":
       return "green";

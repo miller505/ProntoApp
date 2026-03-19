@@ -351,7 +351,6 @@ app.get("/api/finances/stats", verifyToken, async (req, res) => {
         const baseFee = (o.deliveryFee || 0) - (o.driverFee || 0);
         return acc + Math.max(0, baseFee);
       }, 0);
-
       const weeklyAll = allDelivered.filter(
         (o) => new Date(o.createdAt) >= startOfWeek,
       );
@@ -400,7 +399,10 @@ app.post("/api/orders", verifyToken, async (req, res) => {
       return res.status(400).json({ error: "Datos incompletos" });
     }
 
-    const settings = (await Settings.findOne()) || { baseFee: 15, kmRate: 5 };
+    const settings = (await Settings.findOne()) || {
+      commissionRate: 5,
+      kmRate: 5,
+    };
     const store = await User.findById(storeId);
     if (!store) return res.status(404).json({ error: "Tienda no encontrada" });
 
@@ -415,9 +417,7 @@ app.post("/api/orders", verifyToken, async (req, res) => {
       });
     }
 
-    let calculatedDeliveryFee = settings.baseFee;
     let calculatedDriverFee = 0;
-
     if (storeColony && clientColony) {
       const distKm = calculateDistance(
         clientColony.lat,
@@ -428,7 +428,6 @@ app.post("/api/orders", verifyToken, async (req, res) => {
       const driverPart = Math.ceil(distKm * settings.kmRate);
       calculatedDriverFee =
         driverPart < settings.kmRate ? settings.kmRate : driverPart;
-      calculatedDeliveryFee = calculatedDriverFee + settings.baseFee;
     }
 
     let calculatedSubtotal = 0;
@@ -472,8 +471,9 @@ app.post("/api/orders", verifyToken, async (req, res) => {
       });
     }
 
+    const appCommission = calculatedSubtotal * (settings.commissionRate / 100);
+    const calculatedDeliveryFee = appCommission + calculatedDriverFee;
     const calculatedTotal = calculatedSubtotal + calculatedDeliveryFee;
-
     const newOrder = await Order.create({
       customerId: req.user.id,
       storeId,
@@ -548,6 +548,15 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
             .status(409)
             .json({ error: "La orden ya fue tomada o no está lista." });
         }
+      } else if (status === "Llegó al domicilio") {
+        if (currentOrder.driverId?.toString() !== userId)
+          return res.status(403).json({ error: "No es tu orden" });
+
+        updatedOrder = await Order.findByIdAndUpdate(
+          orderId,
+          { status },
+          { new: true },
+        );
       } else if (status === "Entregado") {
         if (currentOrder.driverId?.toString() !== userId)
           return res.status(403).json({ error: "No es tu orden" });

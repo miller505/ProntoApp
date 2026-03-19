@@ -71,6 +71,7 @@ const ProductSchema = new mongoose.Schema(
     category: { type: String, required: true },
     image: String,
     isAvailable: { type: Boolean, default: true },
+    isFeatured: { type: Boolean, default: false },
     customizations: [
       {
         name: String,
@@ -144,6 +145,7 @@ const OrderSchema = new mongoose.Schema(
         "Preparando",
         "Listo para Recoger",
         "En Camino",
+        "Llegó al domicilio",
         "Entregado",
         "Rechazado",
         "Cancelado",
@@ -194,8 +196,8 @@ const ColonySchema = new mongoose.Schema({
 });
 
 const SettingsSchema = new mongoose.Schema({
-  baseFee: { type: Number, default: 15 },
-  kmRate: { type: Number, default: 5 },
+  commissionRate: { type: Number, default: 5 }, // Banderazo como %
+  kmRate: { type: Number, default: 5 }, // Tarifa por Km para el repartidor
 });
 
 const ReviewSchema = new mongoose.Schema(

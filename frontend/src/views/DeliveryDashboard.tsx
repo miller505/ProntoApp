@@ -23,14 +23,16 @@ export const DeliveryDashboard = () => {
     "available" | "mine" | "profile" | "finances"
   >("available");
   const [chatOrder, setChatOrder] = useState<any | null>(null);
-  const [isProfileOpen, setIsProfileOpen] = useState(true);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [visibleHistoryCount, setVisibleHistoryCount] = useState(10);
 
   const availableOrders = orders.filter(
     (o: Order) => o.status === OrderStatus.READY && !o.driverId,
   );
   const myDeliveries = orders.filter(
     (o: Order) =>
-      o.driverId === currentUser?.id && o.status === OrderStatus.ON_WAY,
+      o.driverId === currentUser?.id &&
+      (o.status === OrderStatus.ON_WAY || o.status === OrderStatus.ARRIVED),
   );
   const myCompletedDeliveries = orders
     .filter(
@@ -93,6 +95,13 @@ export const DeliveryDashboard = () => {
     }
   };
 
+  const handleArrived = async (orderId: string) => {
+    const success = await updateOrderStatus(orderId, OrderStatus.ARRIVED);
+    if (success) {
+      alert("¡Cliente notificado que estás afuera!");
+    }
+  };
+
   const handleDeliver = (orderId: string) => {
     updateOrderStatus(orderId, OrderStatus.DELIVERED);
     alert("¡Entrega completada!");
@@ -120,14 +129,16 @@ export const DeliveryDashboard = () => {
         <div className="flex gap-2 p-1 bg-white rounded-2xl shadow-sm">
           <TabButton
             id="available"
-            label={`Disponibles (${availableOrders.length})`}
+            label="Disponibles"
+            count={availableOrders.length}
             icon={<Icons.Bike size={18} />}
             active={activeTab}
             set={setActiveTab}
           />
           <TabButton
             id="mine"
-            label={`Mis Entregas (${myDeliveries.length})`}
+            label="Mis Entregas"
+            count={myDeliveries.length}
             icon={<Icons.ShoppingBag size={18} />}
             active={activeTab}
             set={setActiveTab}
@@ -242,14 +253,31 @@ export const DeliveryDashboard = () => {
               return (
                 <Card key={order.id} className="border-l-4 border-blue-500">
                   <div className="flex justify-between mb-4">
-                    <span className="font-bold text-xl">En Curso</span>
+                    <div>
+                      <span className="font-bold text-xl block">En Curso</span>
+                      <span className="text-xs font-mono text-gray-500">
+                        ID: #{order.id.slice(-6)}
+                      </span>
+                    </div>
                     <div className="text-right">
-                      <p className="font-bold text-lg">${order.total}</p>
-                      <p className="text-xs text-gray-400">
-                        {order.paymentMethod === "CASH"
-                          ? "Cobrar en Efectivo"
-                          : "Pagado con Tarjeta"}
+                      <p className="font-bold text-lg">
+                        ${order.total.toFixed(2)}
                       </p>
+                      {order.paymentMethod === "CASH" ? (
+                        <div className="flex items-center justify-end mt-1">
+                          <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-[10px] font-bold border border-green-200">
+                            <Icons.DollarSign size={12} />
+                            Cobrar Efectivo
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end mt-1">
+                          <span className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-[10px] font-bold border border-blue-200">
+                            <Icons.CreditCard size={12} />
+                            Pagado Tarjeta
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -270,6 +298,17 @@ export const DeliveryDashboard = () => {
                           {store.storeAddress.street} #
                           {store.storeAddress.number}
                         </p>
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                            `${store.storeAddress.street} ${store.storeAddress.number}, ${storeColony?.name || ""}, Canatlán, Durango`,
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
+                        >
+                          <Icons.MapPin size={14} />
+                          Ver en Mapa
+                        </a>
                       </div>
                     </div>
 
@@ -290,6 +329,17 @@ export const DeliveryDashboard = () => {
                           {order.deliveryAddress.number}
                         </p>
                         <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                            `${order.deliveryAddress.street} ${order.deliveryAddress.number}, ${clientColony?.name || ""}, Canatlán, Durango`,
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
+                        >
+                          <Icons.MapPin size={14} />
+                          Ver en Mapa
+                        </a>
+                        <a
                           href={`tel:${client?.phone}`}
                           className="text-primary text-sm font-bold mt-2 block"
                         >
@@ -299,14 +349,28 @@ export const DeliveryDashboard = () => {
                     </div>
                   </div>
 
+                  {order.status === OrderStatus.ON_WAY && (
+                    <Button
+                      className="w-full mt-6 bg-blue-600 hover:bg-blue-700"
+                      onClick={() => handleArrived(order.id)}
+                    >
+                      <Icons.MapPin size={18} className="mr-2" />
+                      Ya llegué al domicilio
+                    </Button>
+                  )}
+
+                  {order.status === OrderStatus.ARRIVED && (
+                    <Button
+                      className="w-full mt-6 bg-green-600 hover:bg-green-700 animate-pulse"
+                      onClick={() => handleDeliver(order.id)}
+                    >
+                      <Icons.Check size={18} className="mr-2" />
+                      Confirmar Entrega
+                    </Button>
+                  )}
                   <Button
-                    className="w-full mt-6 bg-green-600 hover:bg-green-700"
-                    onClick={() => handleDeliver(order.id)}
-                  >
-                    Marcar Entregado
-                  </Button>
-                  <Button
-                    className="w-full mt-4 bg-gray-800 text-white relative"
+                    variant="secondary"
+                    className="w-full mt-4 !border-gray-800 !text-gray-800 relative"
                     onClick={() => {
                       setChatOrder(order);
                       markOrderMessagesAsRead(order.id);
@@ -315,8 +379,10 @@ export const DeliveryDashboard = () => {
                     <Icons.MessageSquare size={16} className="mr-2" />
                     Chatear con Cliente
                     {unreadCounts[order.id] > 0 && (
-                      <span className="absolute top-3 right-4 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                        {unreadCounts[order.id]}
+                      <span className=" absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+                        {unreadCounts[order.id] > 9
+                          ? "9+"
+                          : unreadCounts[order.id]}
                       </span>
                     )}
                   </Button>
@@ -333,7 +399,7 @@ export const DeliveryDashboard = () => {
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
                 className="flex justify-between items-center w-full"
               >
-                <h3 className="font-bold text-lg">Mi Perfil</h3>
+                <h3 className="font-bold text-lg"> Datos del repartidor </h3>
                 <Icons.ChevronDown
                   className={`transition-transform duration-300 ${isProfileOpen ? "rotate-180" : ""}`}
                 />
@@ -385,43 +451,54 @@ export const DeliveryDashboard = () => {
                 No has completado ninguna entrega.
               </p>
             )}
-            {myCompletedDeliveries.map((order) => {
-              const store = (
-                typeof order.storeId === "object"
-                  ? order.storeId
-                  : users.find((u) => u.id === order.storeId)
-              ) as StoreProfile;
-              if (!store) return null;
-              return (
-                <Card key={order.id} className="opacity-80 mb-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex flex-col">
-                      <span className="font-mono text-gray-500 text-xs">
-                        #{order.id.slice(-4)}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {formatDate(order.createdAt)}
-                      </span>
+            {myCompletedDeliveries
+              .slice(0, visibleHistoryCount)
+              .map((order) => {
+                const store = (
+                  typeof order.storeId === "object"
+                    ? order.storeId
+                    : users.find((u) => u.id === order.storeId)
+                ) as StoreProfile;
+                if (!store) return null;
+                return (
+                  <Card key={order.id} className="opacity-80 mb-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex flex-col">
+                        <span className="font-mono text-gray-500 text-xs">
+                          #{order.id.slice(-4)}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {formatDate(order.createdAt)}
+                        </span>
+                      </div>
+                      <Badge color={getOrderStatusColor(order.status)}>
+                        {order.status}
+                      </Badge>
                     </div>
-                    <Badge color={getOrderStatusColor(order.status)}>
-                      {order.status}
-                    </Badge>
-                  </div>
-                  <div className="mb-2">
-                    <h3 className="font-bold text-md">{store.storeName}</h3>
-                  </div>
-                  <div className="h-0.5 w-full bg-gray-200 rounded-full mb-2 mt-2" />
-                  <div className="flex justify-between items-center">
-                    <div className="text-sm">
-                      <p className="font-bold text-primary">
-                        ${order.driverFee || 0} ganancia
-                      </p>
+                    <div className="mb-2">
+                      <h3 className="font-bold text-md">{store.storeName}</h3>
                     </div>
-                    <p className="text-sm text-gray-500">${order.total}</p>
-                  </div>
-                </Card>
-              );
-            })}
+                    <div className="h-0.5 w-full bg-gray-200 rounded-full mb-2 mt-2" />
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm">
+                        <p className="font-bold text-primary">
+                          ${order.driverFee || 0} ganancia
+                        </p>
+                      </div>
+                      <p className="text-sm text-gray-500">${order.total}</p>
+                    </div>
+                  </Card>
+                );
+              })}
+            {myCompletedDeliveries.length > visibleHistoryCount && (
+              <Button
+                variant="secondary"
+                className="w-full mt-4"
+                onClick={() => setVisibleHistoryCount((prev) => prev + 10)}
+              >
+                Cargar más
+              </Button>
+            )}
           </div>
         )}
 
@@ -571,11 +648,16 @@ export const DeliveryDashboard = () => {
   );
 };
 
-const TabButton = ({ id, label, icon, active, set }: any) => (
+const TabButton = ({ id, label, icon, active, set, count }: any) => (
   <button
     onClick={() => set(id)}
-    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${active === id ? "bg-primary text-white shadow-md" : "text-gray-400"}`}
+    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all relative ${active === id ? "bg-primary text-white shadow-md" : "text-gray-400"}`}
   >
+    {count > 0 && (
+      <span className="absolute top-1 right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
+        {count > 9 ? "9+" : count}
+      </span>
+    )}
     {icon}
     <span className="text-[10px] font-bold mt-1">{label}</span>
   </button>

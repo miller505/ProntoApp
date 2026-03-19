@@ -12,6 +12,7 @@ import { api } from "./api";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./contexts/AuthContext";
 import { useCart } from "./contexts/CartContext";
+import { OrderStatus } from "./types";
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -29,7 +30,7 @@ interface AppContextType {
     orderId: string,
     status: string,
     driverId?: string,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   deleteUser: (id: string) => Promise<void>;
   addProduct: (product: any) => Promise<void>;
   updateProduct: (product: Product) => Promise<void>;
@@ -64,10 +65,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [colonies, setColonies] = useState<Colony[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [settings, setSettings] = useState<SystemSettings>({
-    baseFee: 15,
-    kmRate: 5,
+    commissionRate: 5, // Default 5%
+    kmRate: 5, // Default $5/km
   });
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+
+  // --- NOTIFICATION HELPER ---
+  const sendNotification = (title: string, body: string) => {
+    if (!("Notification" in window)) return;
+
+    if (Notification.permission === "granted") {
+      // Vibración patrón: vibrar 200ms, pausa 100ms, vibrar 200ms
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      new Notification(title, {
+        body,
+        icon: "/logo.svg", // Asegúrate de tener este logo en public
+        badge: "/logo.svg",
+      });
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) return; // No conectar si no hay usuario
@@ -82,6 +98,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       reconnectionAttempts: 5,
     });
     setSocket(newSocket);
+
+    // Solicitar permiso de notificaciones al conectar
+    if ("Notification" in window && Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
 
     newSocket.on("connect_error", (err) => {
       console.error("Error de conexión Socket.IO:", err);
@@ -100,6 +121,43 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           );
         return [normalizedOrder, ...prevOrders];
       });
+
+      // --- LÓGICA DE NOTIFICACIONES PUSH ---
+      // 1. Cliente: Cambio de estado de SU pedido
+      if (
+        currentUser.role === "CLIENT" &&
+        normalizedOrder.customerId === currentUser.id
+      ) {
+        sendNotification(
+          "Actualización de Pedido",
+          `Tu pedido está: ${normalizedOrder.status}`,
+        );
+      }
+
+      // 2. Tienda: Nueva orden recibida (Pendiente)
+      if (
+        currentUser.role === "STORE" &&
+        normalizedOrder.storeId === currentUser.id &&
+        normalizedOrder.status === OrderStatus.PENDING
+      ) {
+        sendNotification(
+          "¡Nueva Comanda!",
+          `Tienes un nuevo pedido por $${normalizedOrder.total}`,
+        );
+      }
+
+      // 3. Repartidor: Nueva orden lista para recoger (Solo si está en la sala DRIVERS_ROOM, manejado por socket logic)
+      // Nota: El backend emite a "DRIVERS_ROOM" solo si el estado es READY y sin driver.
+      if (
+        currentUser.role === "DELIVERY" &&
+        normalizedOrder.status === OrderStatus.READY &&
+        !normalizedOrder.driverId
+      ) {
+        sendNotification(
+          "Pedido Disponible",
+          "Hay un nuevo pedido listo para recoger cerca de ti.",
+        );
+      }
     });
 
     newSocket.on("product_update", (updatedProduct: Product) => {
@@ -156,6 +214,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Si no existe (ej. nuevo registro), lo agregamos
         return [...prev, { ...updatedUser, id: uId }];
       });
+    });
+
+    newSocket.on("new_message", (newMessage: Message) => {
+      // Solo incrementar si no somos el remitente
+      if (newMessage.senderId !== currentUser?.id) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [newMessage.orderId]: (prev[newMessage.orderId] || 0) + 1,
+        }));
+      }
+
+      // Notificación de mensaje
+      sendNotification(
+        "Nuevo Mensaje",
+        `Tienes un mensaje nuevo sobre el pedido #${newMessage.orderId.slice(-4)}`,
+      );
     });
 
     newSocket.on("receive_message", (newMessage: Message) => {
@@ -248,9 +322,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     try {
       await api.put(`/api/orders/${id}/status`, { status, driverId });
+      return true;
     } catch (e: any) {
       alert(e.response?.data?.error || "Error al actualizar estado");
       if (currentUser) fetchInitialData(currentUser);
+      return false;
     }
   };
 

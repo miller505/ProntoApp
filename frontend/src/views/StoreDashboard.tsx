@@ -37,6 +37,7 @@ export const StoreDashboard = () => {
   // ESTADO NUEVO: Controla la animación de carga al abrir/cerrar tienda
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [isUploading, setIsUploading] = useState(false); // Estado de carga de imagen
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false); // Modal de confirmación logout
 
   // Product Form State
   const [prodForm, setProdForm] = useState<any>({
@@ -224,6 +225,29 @@ export const StoreDashboard = () => {
     setTimeout(() => setSaveFeedback(""), 2500);
   };
 
+  const handleToggleFeatured = (p: Product) => {
+    // 1. Validar Suscripción
+    if (store.subscription === "STANDARD") {
+      return alert(
+        "La función de destacar productos es exclusiva para socios Premium y Ultra. ¡Mejora tu plan para vender más!",
+      );
+    }
+
+    // 2. Validar Límite (si se intenta activar)
+    if (!p.isFeatured) {
+      const featuredCount = myProducts.filter((prod) => prod.isFeatured).length;
+      if (featuredCount >= 12) {
+        return alert("Solo puedes destacar un máximo de 12 productos.");
+      }
+    }
+
+    updateProduct({ ...p, isFeatured: !p.isFeatured });
+    setSaveFeedback(
+      p.isFeatured ? "Producto quitado de destacados" : "¡Producto destacado!",
+    );
+    setTimeout(() => setSaveFeedback(""), 2500);
+  };
+
   const handleProductSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!store) return;
@@ -385,6 +409,14 @@ export const StoreDashboard = () => {
     setProductModalOpen(true);
   };
 
+  const handleLogoutClick = () => {
+    if (store.isOpen) {
+      setIsLogoutModalOpen(true);
+    } else {
+      logout();
+    }
+  };
+
   if (!store) return null; // Prevención de errores si aún está cargando la sesión
 
   return (
@@ -400,13 +432,15 @@ export const StoreDashboard = () => {
             <h1 className="font-bold text-iosText leading-tight">
               {store.storeName}
             </h1>
-            <Badge color={store.isOpen ? "green" : "red"}>
-              {store.isOpen ? (
-                <span className="font-bold">ABIERTO</span>
-              ) : (
-                <span className="font-bold">CERRADO</span>
-              )}
-            </Badge>
+            {store.isOpen ? (
+              <span className="inline-block px-3 py-1 mt-1 rounded-full text-[10px] font-bold bg-green-600 text-white animate-pulse-slow shadow-lg shadow-green-500/40 tracking-wide">
+                ● ABIERTO
+              </span>
+            ) : (
+              <span className="inline-block px-3 py-1 mt-1 rounded-full text-[10px] font-bold bg-red-600 text-white tracking-wide shadow-sm">
+                CERRADO
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
@@ -429,7 +463,7 @@ export const StoreDashboard = () => {
             )}
           </button>
           <button
-            onClick={logout}
+            onClick={handleLogoutClick}
             className="p-2 bg-gray-100 text-gray-600 rounded-xl"
           >
             <Icons.LogOut size={20} />
@@ -441,14 +475,15 @@ export const StoreDashboard = () => {
         <div className="flex gap-2 p-1 bg-white rounded-2xl shadow-sm">
           <TabButton
             id="orders"
-            label={`Pedidos (${activeOrdersCount})`}
+            label="Pedidos"
+            count={activeOrdersCount}
             icon={<Icons.ShoppingBag size={18} />}
             active={activeTab}
             set={setActiveTab}
           />
           <TabButton
             id="products"
-            label="Menú"
+            label="Catálogo"
             icon={<Icons.Menu size={18} />}
             active={activeTab}
             set={setActiveTab}
@@ -652,70 +687,46 @@ export const StoreDashboard = () => {
         {/* --- PRODUCTS --- */}
         {activeTab === "products" && (
           <div>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-gray-800 ml-1">
-                Mi Catálogo
-              </h2>
-              <Button
-                onClick={() => openProductModal()}
-                className="py-2 text-sm"
-                disabled={
-                  myProducts.length >=
-                  (SUBSCRIPTION_LIMITS[store.subscription] || 10)
-                }
-              >
-                <Icons.Plus size={18} /> Nuevo
-              </Button>
-            </div>
-
             {/* Search and Filters */}
             <div className="space-y-4 mb-6">
               <div className="relative">
                 <Icons.Search
-                  className="absolute left-4 top-3.5 text-gray-400"
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
                   size={20}
                 />
                 <input
                   type="text"
                   placeholder="Buscar productos..."
-                  className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white shadow-sm focus:outline-none focus:ring-2 ring-primary/20"
+                  className="w-full pl-12 pr-4 py-2.5 rounded-2xl bg-white shadow-sm focus:outline-none focus:ring-2 ring-primary/20 text-sm"
                   value={prodSearchTerm}
                   onChange={(e) => setProdSearchTerm(e.target.value)}
                 />
               </div>
 
-              <div className="flex gap-2 flex-wrap">
-                <select
-                  className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm font-medium"
-                  value={prodFilterCategory}
-                  onChange={(e) => setProdFilterCategory(e.target.value)}
+              <div className="flex justify-between items-center">
+                <FilterModal
+                  uniqueCategories={uniqueCategories}
+                  filters={{
+                    prodFilterCategory,
+                    prodFilterVisibility,
+                    prodSortBy,
+                  }}
+                  setFilters={{
+                    setProdFilterCategory,
+                    setProdFilterVisibility,
+                    setProdSortBy,
+                  }}
+                />
+                <Button
+                  onClick={() => openProductModal()}
+                  className="py-2 text-sm"
+                  disabled={
+                    myProducts.length >=
+                    (SUBSCRIPTION_LIMITS[store.subscription] || 10)
+                  }
                 >
-                  <option value="ALL">Todas las categorías</option>
-                  {uniqueCategories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm font-medium"
-                  value={prodFilterVisibility}
-                  onChange={(e) => setProdFilterVisibility(e.target.value)}
-                >
-                  <option value="ALL">Todos</option>
-                  <option value="VISIBLE">Visibles</option>
-                  <option value="HIDDEN">Ocultos</option>
-                </select>
-                <select
-                  className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm font-medium"
-                  value={prodSortBy}
-                  onChange={(e) => setProdSortBy(e.target.value)}
-                >
-                  <option value="name-asc">Nombre A-Z</option>
-                  <option value="name-desc">Nombre Z-A</option>
-                  <option value="price-asc">Precio: Menor a Mayor</option>
-                  <option value="price-desc">Precio: Mayor a Menor</option>
-                </select>
+                  <Icons.Plus size={16} /> Nuevo
+                </Button>
               </div>
             </div>
 
@@ -735,15 +746,42 @@ export const StoreDashboard = () => {
                       src={p.image}
                       className="w-20 h-20 rounded-xl object-cover bg-gray-100 flex-shrink-0"
                     />
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start gap-2 mb-1">
-                        <div className="flex-1">
-                          <h4 className="font-bold text-sm">{p.name}</h4>
-                          <Badge color="blue" className="mt-1">
-                            {p.category}
-                          </Badge>
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <h4
+                        className="font-bold text-sm text-gray-800 mb-1 leading-tight truncate"
+                        title={p.name}
+                      >
+                        {p.name}
+                      </h4>
+                      <div className="flex justify-between items-start gap-2 mb-2">
+                        <p className="text-xs text-gray-500 line-clamp-2 flex-1">
+                          {p.description}
+                        </p>
+                        <span className="font-semibold text-primary flex-shrink-0">
+                          ${p.price}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center gap-2">
+                        <Badge color="blue">{p.category}</Badge>
                         <div className="flex gap-1 flex-shrink-0">
+                          {/* Featured Button (Only renders logic inside, visual feedback for capability) */}
+                          {store.subscription !== "STANDARD" && (
+                            <button
+                              onClick={() => handleToggleFeatured(p)}
+                              className={`p-1.5 rounded-lg transition-colors ${p.isFeatured ? "bg-yellow-100 text-yellow-600" : "bg-gray-100 text-gray-400 hover:bg-yellow-50 hover:text-yellow-500"}`}
+                              title={
+                                p.isFeatured
+                                  ? "Quitar destacado"
+                                  : "Destacar producto"
+                              }
+                            >
+                              <Icons.Star
+                                size={14}
+                                fill={p.isFeatured ? "currentColor" : "none"}
+                              />
+                            </button>
+                          )}
+
                           <button
                             onClick={() => handleToggleProductVisibility(p)}
                             className={`p-1.5 rounded-lg transition-colors ${p.isAvailable === false ? "bg-gray-200 text-gray-500" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}
@@ -772,14 +810,6 @@ export const StoreDashboard = () => {
                             <Icons.Trash2 size={14} />
                           </button>
                         </div>
-                      </div>
-                      <div className="flex justify-between items-baseline gap-2">
-                        <p className="text-xs text-gray-500 line-clamp-2 flex-1">
-                          {p.description}
-                        </p>
-                        <span className="font-semibold text-primary flex-shrink-0">
-                          ${p.price}
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -1157,9 +1187,7 @@ export const StoreDashboard = () => {
             </Card>
 
             <Card>
-              <h3 className="font-bold text-lg mb-4">
-                Información del Propietario
-              </h3>
+              <h3 className="font-bold text-lg mb-4">Datos del Propietario</h3>
               <div className="space-y-4 text-sm">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1356,16 +1384,168 @@ export const StoreDashboard = () => {
           <span className="font-medium text-sm">{saveFeedback}</span>
         </div>
       )}
+
+      {/* --- LOGOUT WARNING MODAL --- */}
+      <Modal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        title="¿Cerrar sesión?"
+      >
+        <div className="space-y-4 pt-2">
+          <div className="bg-yellow-50 p-4 rounded-2xl border border-yellow-100 flex items-start gap-3">
+            <div className="bg-yellow-100 p-2 rounded-full text-yellow-600">
+              <Icons.AlertTriangle size={24} />
+            </div>
+            <div>
+              <h4 className="font-bold text-yellow-800 text-sm">
+                Tu tienda sigue ABIERTA
+              </h4>
+              <p className="text-xs text-yellow-700 mt-1 leading-relaxed">
+                Si cierras sesión ahora, tu tienda seguirá apareciendo como
+                disponible para los clientes, pero no podrás recibir
+                notificaciones de nuevos pedidos.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-gray-500 text-sm text-center">
+            ¿Deseas continuar?
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={() => setIsLogoutModalOpen(false)}
+              variant="secondary"
+              className="w-full"
+            >
+              Volver
+            </Button>
+            <Button
+              onClick={() => {
+                setIsLogoutModalOpen(false);
+                logout();
+              }}
+              className="w-full bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20"
+            >
+              Continuar con el cierre de sesión
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
 
-const TabButton = ({ id, label, icon, active, set }: any) => (
+const TabButton = ({ id, label, icon, active, set, count }: any) => (
   <button
     onClick={() => set(id)}
-    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all ${active === id ? "bg-primary text-white shadow-md" : "text-gray-400"}`}
+    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all relative ${active === id ? "bg-primary text-white shadow-md" : "text-gray-400"}`}
   >
+    {count > 0 && (
+      <span className="absolute top-1 right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
+        {count > 9 ? "9+" : count}
+      </span>
+    )}
     {icon}
     <span className="text-[10px] font-medium mt-1">{label}</span>
   </button>
 );
+
+const FilterModal = ({ uniqueCategories, filters, setFilters }: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const { prodFilterCategory, prodFilterVisibility, prodSortBy } = filters;
+  const { setProdFilterCategory, setProdFilterVisibility, setProdSortBy } =
+    setFilters;
+
+  const isFilterActive =
+    prodFilterCategory !== "ALL" ||
+    prodFilterVisibility !== "ALL" ||
+    prodSortBy !== "name-asc";
+
+  return (
+    <>
+      <Button
+        variant="secondary"
+        onClick={() => setIsOpen(true)}
+        className="relative !py-2"
+      >
+        <Icons.Filter size={16} />
+        Filtros
+        {isFilterActive && (
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full border-2 border-white" />
+        )}
+      </Button>
+
+      <Modal
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="Filtros y Orden"
+      >
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Categoría
+            </label>
+            <select
+              className="w-full px-3 py-2 rounded-xl bg-gray-100 border-transparent text-sm font-medium focus:outline-none focus:ring-2 ring-primary"
+              value={prodFilterCategory}
+              onChange={(e) => setProdFilterCategory(e.target.value)}
+            >
+              <option value="ALL">Todas las categorías</option>
+              {uniqueCategories.map((cat: string) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Visibilidad
+            </label>
+            <select
+              className="w-full px-3 py-2 rounded-xl bg-gray-100 border-transparent text-sm font-medium focus:outline-none focus:ring-2 ring-primary"
+              value={prodFilterVisibility}
+              onChange={(e) => setProdFilterVisibility(e.target.value)}
+            >
+              <option value="ALL">Todos</option>
+              <option value="VISIBLE">Visibles</option>
+              <option value="HIDDEN">Ocultos</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ordenar por
+            </label>
+            <select
+              className="w-full px-3 py-2 rounded-xl bg-gray-100 border-transparent text-sm font-medium focus:outline-none focus:ring-2 ring-primary"
+              value={prodSortBy}
+              onChange={(e) => setProdSortBy(e.target.value)}
+            >
+              <option value="name-asc">Nombre A-Z</option>
+              <option value="name-desc">Nombre Z-A</option>
+              <option value="price-asc">Precio: Menor a Mayor</option>
+              <option value="price-desc">Precio: Mayor a Menor</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setProdFilterCategory("ALL");
+                setProdFilterVisibility("ALL");
+                setProdSortBy("name-asc");
+              }}
+              className="flex-1"
+            >
+              Restablecer
+            </Button>
+            <Button onClick={() => setIsOpen(false)} className="flex-1">
+              Aplicar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </>
+  );
+};

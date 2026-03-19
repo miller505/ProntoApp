@@ -44,6 +44,7 @@ export const ProfileView = () => {
 
   return (
     <div className="p-6 pb-24">
+      <h2 className="text-2xl mb-4 font-bold">Mi cuenta</h2>
       <Card className="flex flex-col py-6 space-y-4">
         <div className="flex items-center gap-4 px-2">
           <div

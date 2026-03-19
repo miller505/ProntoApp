@@ -279,7 +279,14 @@ export const OrdersView = ({
               } as any)
             : null;
           return (
-            <Card key={o.id}>
+            <Card 
+              key={o.id} 
+              className={`transition-all duration-500 ${
+                o.status === OrderStatus.ARRIVED 
+                  ? "border-2 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]" 
+                  : ""
+              }`}
+            >
               <div className="flex justify-between mb-2">
                 <span className="font-bold text-primary">
                   {store?.storeName || "Tienda"}
@@ -289,6 +296,13 @@ export const OrdersView = ({
               <p className="text-sm text-gray-500 mb-2">
                 ID: #{o.id.slice(-4)} • {formatDate(o.createdAt)}
               </p>
+              <div className="mb-3 text-xs text-gray-600 bg-gray-50 p-2 rounded-lg flex items-start gap-2">
+                <Icons.MapPin size={14} className="mt-0.5 flex-shrink-0" />
+                <span>
+                  Entregar en: {o.deliveryAddress.street} #
+                  {o.deliveryAddress.number}
+                </span>
+              </div>
               <div className="space-y-1 mb-3 bg-gray-50 p-3 rounded-xl">
                 {o.items.map((item, idx) => (
                   <div
@@ -339,6 +353,7 @@ export const OrdersView = ({
                       [OrderStatus.PREPARING]: "40%",
                       [OrderStatus.READY]: "60%",
                       [OrderStatus.ON_WAY]: "80%",
+                      [OrderStatus.ARRIVED]: "90%",
                       [OrderStatus.DELIVERED]: "100%",
                       [OrderStatus.REJECTED]: "100%",
                       [OrderStatus.CANCELLED]: "100%",
@@ -349,7 +364,16 @@ export const OrdersView = ({
               <p className="text-xs text-right mt-1 text-gray-400">
                 {o.status}
               </p>
-              {o.status === OrderStatus.ON_WAY && driver && (
+
+              {/* NOTIFICACIÓN VISUAL DE LLEGADA */}
+              {o.status === OrderStatus.ARRIVED && (
+                <div className="mt-4 p-3 bg-green-100 rounded-xl flex items-center gap-3 animate-pulse">
+                  <div className="bg-green-500 p-2 rounded-full text-white"><Icons.Bike size={20} /></div>
+                  <p className="text-green-800 font-bold text-sm">¡Tu repartidor ha llegado! Sal a recibir tu pedido.</p>
+                </div>
+              )}
+
+              {(o.status === OrderStatus.ON_WAY || o.status === OrderStatus.ARRIVED) && driver && (
                 <Button
                   variant="secondary"
                   className="w-full mt-3 py-2 text-sm relative"
@@ -361,7 +385,7 @@ export const OrdersView = ({
                   <Icons.Mail size={16} className="mr-2" />
                   Chatear con Repartidor
                   {unreadCounts[o.id] > 0 && (
-                    <span className="absolute top-3 right-4 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-sm">
                       {unreadCounts[o.id]}
                     </span>
                   )}
