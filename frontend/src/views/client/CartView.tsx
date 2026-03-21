@@ -312,7 +312,7 @@ export const CartView = ({
 
   return (
     <div className="px-4 pt-6 pb-24 max-w-lg mx-auto">
-      <h2 className="text-2xl font-bold mb-6">Tu Pedido</h2>
+      <h2 className="text-lg font-mega mb-6">TU PEDIDO</h2>
 
       <div className="space-y-4 mb-6">
         {cart.map((item, i) => (
@@ -322,7 +322,7 @@ export const CartView = ({
 
       {!addressStep ? (
         <div className="space-y-4">
-          <h3 className="font-bold">Dirección de Entrega</h3>
+          <h3 className="font-mega text-lg">DIRECCIÓN DE ENTREGA</h3>
           {(currentUser?.addresses || []).length > 0 ? (
             <div className="space-y-2">
               {currentUser?.addresses?.map((addr: any) => {
@@ -375,7 +375,7 @@ export const CartView = ({
       ) : (
         <div className="bg-white p-4 rounded-3xl space-y-3 shadow-sm">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="font-bold">Nueva Dirección</h3>
+            <h3 className="font-mega text-lg">NUEVA DIRECCIÓN</h3>
             <button
               onClick={() => setAddressStep(false)}
               className="text-xs text-red-500"

@@ -32,12 +32,14 @@ export const DeliveryDashboard = () => {
   const myDeliveries = orders.filter(
     (o: Order) =>
       o.driverId === currentUser?.id &&
-      (o.status === OrderStatus.ON_WAY || o.status === OrderStatus.ARRIVED),
+      (o.status.toUpperCase() === OrderStatus.ON_WAY ||
+        o.status.toUpperCase() === OrderStatus.ARRIVED),
   );
   const myCompletedDeliveries = orders
     .filter(
       (o: Order) =>
-        o.driverId === currentUser?.id && o.status === OrderStatus.DELIVERED,
+        o.driverId === currentUser?.id &&
+        o.status.toUpperCase() === OrderStatus.DELIVERED,
     )
     .sort(
       (a, b) =>
@@ -112,11 +114,11 @@ export const DeliveryDashboard = () => {
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <img
-            src="/logo.svg"
+            src="/logo.svg?v=2"
             alt="Logo"
             className="h-10 w-auto object-contain"
           />
-          <h1 className="text-xs font-bold text-primary">
+          <h1 className="text-xs font-mega text-primary">
             PANEL DE REPARTIDOR
           </h1>
         </div>
@@ -189,8 +191,11 @@ export const DeliveryDashboard = () => {
                     <span className="font-mono text-gray-500 text-xs">
                       #{order.id.slice(-4)}
                     </span>
-                    <Badge color={getOrderStatusColor(order.status)}>
-                      {order.status}
+                    <Badge
+                      color={getOrderStatusColor(order.status)}
+                      className="font-mega uppercase"
+                    >
+                      {order.status.toUpperCase()}
                     </Badge>
                   </div>
                   <div className="mb-4">
@@ -254,7 +259,7 @@ export const DeliveryDashboard = () => {
                 <Card key={order.id} className="border-l-4 border-blue-500">
                   <div className="flex justify-between mb-4">
                     <div>
-                      <span className="font-bold text-xl block">En Curso</span>
+                      <span className="font-mega text-xl block">EN CURSO </span>
                       <span className="text-xs font-mono text-gray-500">
                         ID: #{order.id.slice(-6)}
                       </span>
@@ -445,7 +450,7 @@ export const DeliveryDashboard = () => {
               )}
             </Card>
 
-            <h3 className="font-bold text-lg mb-2">Historial de Entregas</h3>
+            <h3 className="font-mega text-lg mb-2">HISTORIAL DE ENTREGAS</h3>
             {myCompletedDeliveries.length === 0 && (
               <p className="text-center text-gray-400 mt-10">
                 No has completado ninguna entrega.
@@ -471,8 +476,11 @@ export const DeliveryDashboard = () => {
                           {formatDate(order.createdAt)}
                         </span>
                       </div>
-                      <Badge color={getOrderStatusColor(order.status)}>
-                        {order.status}
+                      <Badge
+                        color={getOrderStatusColor(order.status)}
+                        className="font-mega uppercase"
+                      >
+                        {order.status.toUpperCase()}
                       </Badge>
                     </div>
                     <div className="mb-2">
@@ -549,8 +557,8 @@ export const DeliveryDashboard = () => {
             </div>
 
             <div>
-              <h3 className="font-bold text-lg mb-4 text-gray-800">
-                Resumen Semanal
+              <h3 className="font-mega text-lg mb-4 text-gray-800">
+                RESUMEN SEMANAL
               </h3>
               <div className="space-y-3">
                 {Object.entries(

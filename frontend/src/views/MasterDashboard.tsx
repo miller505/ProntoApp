@@ -38,6 +38,7 @@ export const MasterDashboard = () => {
     null,
   );
   const [editFormData, setEditFormData] = useState<any>({});
+  const [viewImage, setViewImage] = useState<string | null>(null);
 
   // ESTADO NUEVO: Controla las acciones en proceso para mostrar retroalimentación
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
@@ -142,11 +143,11 @@ export const MasterDashboard = () => {
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <img
-            src="/logo.svg"
+            src="/logo.svg?v=2"
             alt="Logo"
             className="h-10 w-auto object-contain"
           />
-          <h1 className="text-xs font-bold text-primary">
+          <h1 className="text-xs font-mega text-primary">
             ADMINISTRACIÓN GENERAL
           </h1>
         </div>
@@ -241,7 +242,8 @@ export const MasterDashboard = () => {
                       <img
                         src={u.ineImage}
                         alt="INE"
-                        className="w-16 h-10 object-cover rounded bg-gray-200"
+                        className="w-16 h-10 object-cover rounded bg-gray-200 cursor-pointer hover:opacity-80"
+                        onClick={() => setViewImage(u.ineImage || "")}
                       />
                     )}
                   </div>
@@ -634,6 +636,19 @@ export const MasterDashboard = () => {
             </Button>
           </div>
         </Modal>
+
+        {/* Image Viewer Modal */}
+        <Modal
+          isOpen={!!viewImage}
+          onClose={() => setViewImage(null)}
+          title="Documento Adjunto"
+        >
+          <img
+            src={viewImage || ""}
+            alt="Documento"
+            className="w-full h-auto rounded-lg"
+          />
+        </Modal>
       </div>
     </div>
   );
@@ -651,6 +666,7 @@ const MonitoringPanel = ({
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const ordersPerPage = 15;
 
   const filteredOrders = useMemo(() => {
@@ -660,7 +676,7 @@ const MonitoringPanel = ({
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
         const matchesStatus =
-          statusFilter === "ALL" || order.status === statusFilter;
+          statusFilter === "ALL" || order.status.toUpperCase() === statusFilter;
         return matchesId && matchesStatus;
       })
       .sort((a, b) => {
@@ -687,6 +703,41 @@ const MonitoringPanel = ({
 
   const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
+  // --- CHART LOGIC ---
+  const chartData = useMemo(() => {
+    const daysMap: Record<string, number> = {};
+    // Generar últimos 7 días
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toLocaleDateString("es-MX", {
+        weekday: "short",
+        day: "numeric",
+      });
+      daysMap[key] = 0;
+    }
+
+    orders.forEach((o) => {
+      const d = new Date(o.createdAt);
+      // Solo contar si es de la última semana (aprox)
+      const diffTime = Math.abs(Date.now() - d.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays <= 7) {
+        const key = d.toLocaleDateString("es-MX", {
+          weekday: "short",
+          day: "numeric",
+        });
+        if (daysMap[key] !== undefined) {
+          daysMap[key]++;
+        }
+      }
+    });
+
+    return Object.entries(daysMap);
+  }, [orders]);
+
+  const maxOrders = Math.max(...chartData.map(([_, count]) => count), 1);
+
   const OrderInfoCard = ({ order }: { order: Order }) => {
     const customer =
       typeof order.customerId === "object"
@@ -701,57 +752,109 @@ const MonitoringPanel = ({
       : null;
 
     return (
-      <Card className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-        <div className="col-span-1 md:col-span-2">
-          <div className="flex items-center gap-2 mb-2">
-            <Badge color={getOrderStatusColor(order.status)}>
-              {order.status}
-            </Badge>
+      <div
+        onClick={() => setSelectedOrder(order)}
+        className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
+      >
+        {/* Top Row: ID, Date, Repartidor, Monto */}
+        <div className="flex justify-between items-center text-xs mb-2 pb-2 border-b border-gray-50">
+          <div className="flex items-center gap-2">
             <span className="font-mono text-xs text-gray-400">
               #{order.id.slice(-6)}
             </span>
+            <span className="text-gray-500">{formatDate(order.createdAt)}</span>
           </div>
-          <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
-        </div>
-        <div className="col-span-1 md:col-span-2 grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-xs text-gray-400">Cliente</p>
-            <p className="font-semibold truncate">
-              {customer?.firstName || "N/A"}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400">Tienda</p>
-            <p className="font-semibold truncate">
-              {(store as StoreProfile)?.storeName || "N/A"}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400">Repartidor</p>
-            <p className="font-semibold truncate">
-              {driver?.firstName || "No asignado"}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400">Monto</p>
-            <p className="font-bold text-primary">${order.total.toFixed(2)}</p>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 text-gray-600">
+              <Icons.Bike size={12} />
+              <span className="truncate max-w-[100px]">
+                {driver?.firstName || "Sin asignar"}
+              </span>
+            </div>
+            <span className="font-bold text-primary bg-red-50 px-2 py-0.5 rounded">
+              ${order.total.toFixed(2)}
+            </span>
           </div>
         </div>
-      </Card>
+
+        {/* Bottom Row: Status, Client, Store */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Badge
+              color={getOrderStatusColor(order.status)}
+              className="shrink-0 text-[10px] px-1.5 font-mega uppercase"
+            >
+              {order.status.toUpperCase()}
+            </Badge>
+            <div className="flex items-center gap-1 text-xs text-gray-700 truncate">
+              <Icons.User size={12} className="text-gray-400" />
+              <span className="truncate">{customer?.firstName}</span>
+            </div>
+            <span className="text-gray-300">|</span>
+            <div className="flex items-center gap-1 text-xs text-gray-700 truncate">
+              <Icons.Store size={12} className="text-gray-400" />
+              <span className="truncate">
+                {(store as StoreProfile)?.storeName}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   };
 
   return (
     <div className="space-y-6">
+      {/* Chart Section */}
+      <Card className="p-4">
+        <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+          <Icons.BarChart2 size={18} /> Pedidos por Día (Última Semana)
+        </h3>
+        <br />
+        <div className="flex justify-between h-32 gap-2">
+          {chartData.map(([label, count]) => (
+            <div
+              key={label}
+              className="flex flex-col items-center flex-1 group h-full"
+            >
+              <div className="relative w-full flex justify-center items-end flex-1">
+                <div
+                  className="w-full max-w-[30px] bg-primary/80 rounded-t-lg transition-all duration-500 group-hover:bg-primary relative"
+                  style={{
+                    height: `${(count / maxOrders) * 100}%`,
+                    minHeight: count > 0 ? "4px" : "0",
+                  }}
+                >
+                  {count > 0 && (
+                    <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-bold text-gray-600">
+                      {count}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span className="text-[10px] text-gray-400 mt-2 font-medium">
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-4 items-center">
-        <Input
-          placeholder="Buscar por ID de pedido..."
-          value={searchTerm}
-          onChange={(e: any) => setSearchTerm(e.target.value)}
-          className="bg-white shadow-sm !mb-0 flex-grow"
-          wrapperClassName="!mb-0 flex-grow"
-        />
+        <div className="relative flex-grow w-full">
+          <Icons.Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            size={18}
+          />
+          <input
+            placeholder="Buscar por ID de pedido..."
+            value={searchTerm}
+            onChange={(e: any) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 rounded-2xl bg-white shadow-sm border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none transition-colors text-iosText placeholder-gray-400"
+          />
+        </div>
+
         <div className="flex gap-4 w-full sm:w-auto">
           <select
             value={statusFilter}
@@ -813,6 +916,89 @@ const MonitoringPanel = ({
           </Button>
         </div>
       )}
+
+      {/* Modal de Detalles del Pedido */}
+      <Modal
+        isOpen={!!selectedOrder}
+        onClose={() => setSelectedOrder(null)}
+        title="Detalles del Pedido"
+      >
+        {selectedOrder && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
+              <span className="font-bold text-lg">
+                #{selectedOrder.id.slice(-6)}
+              </span>
+              <Badge
+                color={getOrderStatusColor(selectedOrder.status)}
+                className="font-mega"
+              >
+                {selectedOrder.status}
+              </Badge>
+            </div>
+
+            <div className="border rounded-xl p-3 max-h-60 overflow-y-auto">
+              <h4 className="font-bold text-sm mb-2 text-gray-500">
+                Productos
+              </h4>
+              {selectedOrder.items.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex justify-between text-sm py-1 border-b border-gray-100 last:border-0"
+                >
+                  <span>
+                    {item.quantity}x {item.product.name}
+                  </span>
+                  <span>
+                    $
+                    {(
+                      (item.price || item.product.price) * item.quantity
+                    ).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-xl space-y-2 text-sm">
+              <h4 className="font-bold text-blue-800 mb-2">
+                Desglose Financiero
+              </h4>
+              <div className="flex justify-between">
+                <span>Subtotal Productos:</span>
+                <span className="font-medium">
+                  ${selectedOrder.subtotal.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Tarifa de Envío Total (Cliente paga):</span>
+                <span className="font-medium">
+                  ${selectedOrder.deliveryFee.toFixed(2)}
+                </span>
+              </div>
+              <div className="h-px bg-blue-200 my-1"></div>
+              <div className="flex justify-between text-xs text-blue-700">
+                <span>- Tarifa Repartidor (Por Km):</span>
+                <span>${(selectedOrder.driverFee || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-blue-700">
+                <span>- Banderazo (Comisión App):</span>
+                <span>
+                  $
+                  {(
+                    (selectedOrder.deliveryFee || 0) -
+                    (selectedOrder.driverFee || 0)
+                  ).toFixed(2)}
+                </span>
+              </div>
+              <div className="h-px bg-blue-200 my-1"></div>
+              <div className="flex justify-between font-bold text-lg text-blue-900">
+                <span>Total Cobrado:</span>
+                <span>${selectedOrder.total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
@@ -918,8 +1104,8 @@ const ColoniesPanel = ({
           onClick={() => setIsSettingsOpen(!isSettingsOpen)}
           className="flex justify-between items-center w-full"
         >
-          <h3 className="font-bold text-lg text-blue-900">
-            Tarifas Globales de Envío
+          <h3 className="font-mega text-lg text-blue-900">
+            TARIFAS GLOBALES DE ENVÍO
           </h3>
           <Icons.ChevronDown
             className={`text-blue-900 transition-transform ${
@@ -962,7 +1148,7 @@ const ColoniesPanel = ({
       </Card>
 
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-bold text-lg">Administrar Colonias</h3>
+        <h3 className="font-mega text-lg">ADMINISTRAR COLONIAS</h3>
         <Button onClick={handleOpenAdd} className="py-2 text-sm">
           <Icons.Plus size={16} /> Agregar
         </Button>
@@ -1078,7 +1264,7 @@ const ColoniesPanel = ({
 const FinancePanel = ({ orders }: { orders: Order[] }) => {
   // Only completed orders contribute to earnings
   const completedOrders = orders.filter(
-    (o) => o.status === OrderStatus.DELIVERED,
+    (o) => o.status.toUpperCase() === OrderStatus.DELIVERED,
   );
 
   // Calculate Total Earnings (Commision = DeliveryFee - DriverFee)
@@ -1186,8 +1372,8 @@ const FinancePanel = ({ orders }: { orders: Order[] }) => {
 
       {/* Weekly Breakdown */}
       <div>
-        <h3 className="font-bold text-lg mb-4 text-gray-800">
-          Resumen Semanal
+        <h3 className="font-mega text-lg mb-4 text-gray-800">
+          RESUMEN SEMANAL
         </h3>
         <div className="space-y-3">
           {sortedWeeks.length === 0 ? (

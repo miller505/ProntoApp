@@ -76,8 +76,11 @@ const OrderDetailsModal = ({ order, isOpen, onClose, onRateClick }: any) => {
           <span className="font-bold text-primary">
             {store?.storeName || "Tienda"}
           </span>
-          <Badge color={getOrderStatusColor(order.status)}>
-            {order.status}
+          <Badge
+            color={getOrderStatusColor(order.status)}
+            className="font-mega"
+          >
+            {order.status.toUpperCase()}
           </Badge>
         </div>
         <p className="text-sm text-gray-500 mb-4">
@@ -122,24 +125,26 @@ const OrderDetailsModal = ({ order, isOpen, onClose, onRateClick }: any) => {
           </div>
         </div>
         {/* Rating section inside modal */}
-        {order.status === OrderStatus.DELIVERED && !order.isReviewed && (
-          <Button
-            onClick={() => {
-              onRateClick();
-              onClose(); // Cierra este modal para abrir el de calificación
-            }}
-            className="w-full mt-4 !py-2 !text-sm bg-yellow-400 hover:bg-yellow-500 !text-yellow-900"
-          >
-            <Icons.Star size={16} />
-            Calificar Tienda
-          </Button>
-        )}
-        {order.status === OrderStatus.DELIVERED && order.isReviewed && (
-          <div className="w-full mt-4 py-2 text-sm bg-gray-100 text-gray-500 text-center rounded-xl font-medium flex items-center justify-center gap-2">
-            <Icons.Check size={16} />
-            Tienda Calificada
-          </div>
-        )}
+        {order.status.toUpperCase() === OrderStatus.DELIVERED &&
+          !order.isReviewed && (
+            <Button
+              onClick={() => {
+                onRateClick();
+                onClose(); // Cierra este modal para abrir el de calificación
+              }}
+              className="w-full mt-4 !py-2 !text-sm !bg-yellow-400 hover:!bg-yellow-500 !text-yellow-900"
+            >
+              <Icons.Star size={16} />
+              Calificar Tienda
+            </Button>
+          )}
+        {order.status.toUpperCase() === OrderStatus.DELIVERED &&
+          order.isReviewed && (
+            <div className="w-full mt-4 py-2 text-sm bg-gray-100 text-gray-500 text-center rounded-xl font-medium flex items-center justify-center gap-2">
+              <Icons.Check size={16} />
+              Tienda Calificada
+            </div>
+          )}
       </div>
     </Modal>
   );
@@ -162,28 +167,32 @@ const OrderHistoryCard = ({ order, onCardClick, onRateClick }: any) => {
           <p className="font-bold text-sm">{store?.storeName || "Tienda"}</p>
           <p className="text-xs text-gray-400">{formatDate(order.createdAt)}</p>
         </div>
-        <Badge color={getOrderStatusColor(order.status)}>{order.status}</Badge>
+        <Badge color={getOrderStatusColor(order.status)} className="font-mega">
+          {order.status.toUpperCase()}
+        </Badge>
       </div>
       <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          {order.status === OrderStatus.DELIVERED && !order.isReviewed && (
-            <Button
-              onClick={(e) => {
-                e.stopPropagation(); // Evita que se abra el modal de detalles
-                onRateClick();
-              }}
-              className="!py-1.5 !px-3 !text-xs bg-yellow-400 hover:bg-yellow-500 !text-yellow-900"
-            >
-              <Icons.Star size={14} />
-              Calificar
-            </Button>
-          )}
-          {order.status === OrderStatus.DELIVERED && order.isReviewed && (
-            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
-              <Icons.Check size={14} className="text-green-500" />
-              Calificada
-            </div>
-          )}
+          {order.status.toUpperCase() === OrderStatus.DELIVERED &&
+            !order.isReviewed && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation(); // Evita que se abra el modal de detalles
+                  onRateClick();
+                }}
+                className="!py-1.5 !px-3 !text-xs !bg-yellow-400 hover:!bg-yellow-500 !text-yellow-900"
+              >
+                <Icons.Star size={14} />
+                Calificar
+              </Button>
+            )}
+          {order.status.toUpperCase() === OrderStatus.DELIVERED &&
+            order.isReviewed && (
+              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
+                <Icons.Check size={14} className="text-green-500" />
+                Calificada
+              </div>
+            )}
         </div>
         <div>
           <span className="text-xs text-gray-500">Total: </span>
@@ -232,14 +241,14 @@ export const OrdersView = ({
           OrderStatus.DELIVERED,
           OrderStatus.REJECTED,
           OrderStatus.CANCELLED,
-        ].includes(o.status),
+        ].includes(o.status.toUpperCase() as any),
     );
     const past = myOrders.filter((o) =>
       [
         OrderStatus.DELIVERED,
         OrderStatus.REJECTED,
         OrderStatus.CANCELLED,
-      ].includes(o.status),
+      ].includes(o.status.toUpperCase() as any),
     );
 
     return { activeOrders: active, pastOrders: past };
@@ -261,7 +270,7 @@ export const OrdersView = ({
   return (
     <div className="px-4 py-6 pb-24 space-y-4">
       {/* Orders ACTIVES */}
-      <h2 className="text-2xl font-bold">Pedidos Activos</h2>
+      <h2 className="font-mega text-lg">PEDIDOS ACTIVOS</h2>
       {activeOrders.length > 0 ? (
         activeOrders.map((o) => {
           const store =
@@ -279,11 +288,11 @@ export const OrdersView = ({
               } as any)
             : null;
           return (
-            <Card 
-              key={o.id} 
+            <Card
+              key={o.id}
               className={`transition-all duration-500 ${
-                o.status === OrderStatus.ARRIVED 
-                  ? "border-2 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]" 
+                o.status === OrderStatus.ARRIVED
+                  ? "border-2 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
                   : ""
               }`}
             >
@@ -291,7 +300,12 @@ export const OrdersView = ({
                 <span className="font-bold text-primary">
                   {store?.storeName || "Tienda"}
                 </span>
-                <Badge color={getOrderStatusColor(o.status)}>{o.status}</Badge>
+                <Badge
+                  color={getOrderStatusColor(o.status)}
+                  className="font-mega"
+                >
+                  {o.status.toUpperCase()}
+                </Badge>
               </div>
               <p className="text-sm text-gray-500 mb-2">
                 ID: #{o.id.slice(-4)} • {formatDate(o.createdAt)}
@@ -361,51 +375,59 @@ export const OrdersView = ({
                   }}
                 ></div>
               </div>
-              <p className="text-xs text-right mt-1 text-gray-400">
-                {o.status}
+              <p className="text-xs text-right mt-1 text-gray-400 font-bold">
+                {o.status.toUpperCase()}
               </p>
 
               {/* NOTIFICACIÓN VISUAL DE LLEGADA */}
               {o.status === OrderStatus.ARRIVED && (
                 <div className="mt-4 p-3 bg-green-100 rounded-xl flex items-center gap-3 animate-pulse">
-                  <div className="bg-green-500 p-2 rounded-full text-white"><Icons.Bike size={20} /></div>
-                  <p className="text-green-800 font-bold text-sm">¡Tu repartidor ha llegado! Sal a recibir tu pedido.</p>
+                  <div className="bg-green-500 p-2 rounded-full text-white">
+                    <Icons.Bike size={20} />
+                  </div>
+                  <p className="text-green-800 font-bold text-sm">
+                    ¡Tu repartidor ha llegado! Sal a recibir tu pedido.
+                  </p>
                 </div>
               )}
 
-              {(o.status === OrderStatus.ON_WAY || o.status === OrderStatus.ARRIVED) && driver && (
-                <Button
-                  variant="secondary"
-                  className="w-full mt-3 py-2 text-sm relative"
-                  onClick={() => {
-                    setChatOrder(o);
-                    markOrderMessagesAsRead(o.id);
-                  }}
-                >
-                  <Icons.Mail size={16} className="mr-2" />
-                  Chatear con Repartidor
-                  {unreadCounts[o.id] > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-sm">
-                      {unreadCounts[o.id]}
-                    </span>
-                  )}
-                </Button>
-              )}
-              {o.status === OrderStatus.DELIVERED && !o.isReviewed && (
-                <Button
-                  className="w-full mt-3 py-2 text-sm bg-yellow-500 hover:bg-yellow-600 text-white"
-                  onClick={() => setRatingOrder(o)}
-                >
-                  <Icons.Star size={16} className="mr-2" />
-                  Calificar Tienda
-                </Button>
-              )}
-              {o.status === OrderStatus.DELIVERED && o.isReviewed && (
-                <div className="w-full mt-3 py-2 text-sm bg-gray-100 text-gray-500 text-center rounded-xl font-medium flex items-center justify-center gap-2">
-                  <Icons.Check size={16} />
-                  Tienda Calificada
-                </div>
-              )}
+              {(o.status === OrderStatus.ON_WAY ||
+                o.status === OrderStatus.ARRIVED) &&
+                driver && (
+                  <Button
+                    variant="secondary"
+                    className="w-full mt-3 py-2 text-sm relative"
+                    onClick={() => {
+                      setChatOrder(o);
+                      markOrderMessagesAsRead(o.id);
+                    }}
+                  >
+                    <Icons.Mail size={16} className="mr-2" />
+                    Chatear con Repartidor
+                    {unreadCounts[o.id] > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+                        {unreadCounts[o.id]}
+                      </span>
+                    )}
+                  </Button>
+                )}
+              {o.status.toUpperCase() === OrderStatus.DELIVERED &&
+                !o.isReviewed && (
+                  <Button
+                    className="w-full mt-3 py-2 text-sm !bg-yellow-500 hover:!bg-yellow-600 text-white"
+                    onClick={() => setRatingOrder(o)}
+                  >
+                    <Icons.Star size={16} className="mr-2" />
+                    Calificar Tienda
+                  </Button>
+                )}
+              {o.status.toUpperCase() === OrderStatus.DELIVERED &&
+                o.isReviewed && (
+                  <div className="w-full mt-3 py-2 text-sm bg-gray-100 text-gray-500 text-center rounded-xl font-medium flex items-center justify-center gap-2">
+                    <Icons.Check size={16} />
+                    Tienda Calificada
+                  </div>
+                )}
               {o.status === OrderStatus.PENDING && (
                 <Button
                   variant="danger"
@@ -436,7 +458,7 @@ export const OrdersView = ({
 
       {pastOrders.length > 0 && (
         <div className="pt-4">
-          <h2 className="text-2xl font-bold mb-4">Historial de Pedidos</h2>
+          <h2 className="text-lg font-mega mb-4">HISTORIAL DE PEDIDOS</h2>
           <div className="space-y-3">
             {pastOrders.slice(0, visibleHistoryCount).map((o) => (
               <OrderHistoryCard

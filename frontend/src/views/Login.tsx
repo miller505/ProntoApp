@@ -36,6 +36,7 @@ export const Login = () => {
 
   if (isRegistering) {
     return <Register onBack={() => setIsRegistering(false)} />;
+    return <Register onBack={() => setIsRegistering(false)} />;
   }
 
   return (
@@ -47,7 +48,7 @@ export const Login = () => {
       {/* Logo fuera de la caja */}
       <div className="z-10 mb-4 flex flex-col items-center animate-fade-in-down">
         <img
-          src="/logowhite.svg"
+          src="/logowhite.svg?v=2"
           alt="Logo"
           className="w-40 h-40 object-contain drop-shadow-xl"
         />

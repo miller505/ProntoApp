@@ -35,18 +35,18 @@ export const calculateDistance = (
 export const getOrderStatusColor = (
   status: string,
 ): "yellow" | "blue" | "green" | "red" => {
-  switch (status) {
-    case "Pendiente":
+  switch (status.toUpperCase()) {
+    case "PENDIENTE":
       return "yellow";
-    case "Preparando":
-    case "Listo para Recoger":
-    case "En Camino":
-    case "Llegó al domicilio":
+    case "PREPARANDO":
+    case "LISTO PARA RECOGER":
+    case "EN CAMINO":
+    case "LLEGÓ AL DOMICILIO":
       return "blue";
-    case "Entregado":
+    case "ENTREGADO":
       return "green";
-    case "Rechazado":
-    case "Cancelado":
+    case "RECHAZADO":
+    case "CANCELADO":
       return "red";
     default:
       return "blue";

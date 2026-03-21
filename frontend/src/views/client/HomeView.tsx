@@ -231,9 +231,9 @@ export const HomeView = ({
           {/* Ultra Section */}
           {(loading || ultraStores.length > 0) && (
             <div className="pl-4">
-              <h2 className="font-bold text-lg mb-2 flex items-center gap-2">
-                <Icons.Store className="text-primary" size={20} /> La mejor
-                opción
+              <h2 className="font-mega text-lg mb-2 flex items-center gap-2">
+                <Icons.Store className="text-primary" size={20} /> LA MEJOR
+                OPCIÓN
               </h2>
               <div
                 className="flex overflow-x-auto gap-3 pb-2 pr-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-primary/30 scrollbar-track-transparent"
@@ -311,7 +311,7 @@ export const HomeView = ({
 
           {/* Vertical Feed */}
           <div className="px-4 pb-20 mt-4">
-            <h2 className="font-bold text-lg mb-2">Para ti</h2>
+            <h2 className="font-mega text-lg mb-2">PARA TI</h2>
             <div className="grid grid-cols-2 gap-3">
               {loading
                 ? // SKELETONS PARA FEED NORMAL

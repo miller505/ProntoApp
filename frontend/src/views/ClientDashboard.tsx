@@ -246,10 +246,10 @@ const FeaturedProductCard = ({
         />
       </div>
       <div className="p-2 flex-1 flex flex-col">
-        <h4 className="font-bold text-[10px] line-clamp-2 mb-1 leading-tight">
+        <h4 className="font-bold text-sm line-clamp-2 mb-1 leading-tight text-gray-800">
           {product.name}
         </h4>
-        <p className="font-bold text-primary text-xs mt-auto">
+        <p className="font-bold text-primary text-sm mt-auto">
           ${product.price}
         </p>
 
@@ -458,7 +458,7 @@ const StoreView = ({
                 className="text-yellow-500"
                 fill="currentColor"
               />
-              <h2 className="font-bold text-lg text-gray-800">Destacados</h2>
+              <h2 className="font-mega text-lg text-gray-800">DESTACADOS</h2>
             </div>
 
             <div className="flex overflow-x-auto gap-4 px-6 pb-4 snap-x snap-mandatory no-scrollbar">
@@ -486,7 +486,7 @@ const StoreView = ({
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeCategory === cat ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-gray-100 text-gray-500"}`}
+                className={`px-4 py-2 rounded-full text-sm font-mega uppercase whitespace-nowrap transition-colors ${activeCategory === cat ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-gray-100 text-gray-500"}`}
               >
                 {cat === "ALL" ? "Todo" : cat}
               </button>

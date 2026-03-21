@@ -40,25 +40,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoadingAuth(false);
   }, []);
 
-  // Lógica de caducidad de sesión (15 minutos)
+  // Listener de actividad (Solo actualiza el timestamp, el checkeo se mueve a App.tsx/Main)
   useEffect(() => {
     if (!currentUser) return;
-    const TIMEOUT_MS = 15 * 60 * 1000;
-
-    // Optimización: No escribir en localStorage en cada frame
     let lastUpdate = Date.now();
-
-    const checkActivity = () => {
-      const lastActive = localStorage.getItem("lastActive");
-      if (lastActive && Date.now() - Number(lastActive) > TIMEOUT_MS) {
-        logout();
-      }
-      // No necesitamos escribir aquí, ya se actualiza con los eventos
-    };
 
     const handleActivity = () => {
       const now = Date.now();
-      // Solo actualizar si ha pasado más de 1 minuto para evitar I/O excesivo
       if (now - lastUpdate > 60000) {
         localStorage.setItem("lastActive", now.toString());
         lastUpdate = now;
@@ -68,15 +56,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Inicializar
     localStorage.setItem("lastActive", Date.now().toString());
 
-    const intervalId = setInterval(checkActivity, 60000);
-
     window.addEventListener("mousemove", handleActivity);
     window.addEventListener("keypress", handleActivity);
     window.addEventListener("click", handleActivity);
     window.addEventListener("scroll", handleActivity);
 
     return () => {
-      clearInterval(intervalId);
       window.removeEventListener("mousemove", handleActivity);
       window.removeEventListener("keypress", handleActivity);
       window.removeEventListener("click", handleActivity);

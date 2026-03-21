@@ -272,7 +272,8 @@ app.post("/api/register", async (req, res) => {
 app.get("/api/finances/stats", verifyToken, async (req, res) => {
   try {
     const { id, role } = req.user;
-    let filter = { status: "Entregado" };
+    // CORRECCIÓN: Aceptamos ambos formatos para recuperar historial antiguo
+    let filter = { status: { $in: ["ENTREGADO", "Entregado"] } };
 
     if (role === "STORE") filter.storeId = id;
     else if (role === "DELIVERY") filter.driverId = id;
@@ -344,7 +345,9 @@ app.get("/api/finances/stats", verifyToken, async (req, res) => {
         0,
       );
     } else if (role === "MASTER") {
-      const allDelivered = await Order.find({ status: "Entregado" });
+      const allDelivered = await Order.find({
+        status: { $in: ["ENTREGADO", "Entregado"] },
+      });
       stats.totalVolume = allDelivered.reduce((acc, o) => acc + o.total, 0);
 
       stats.earnings = allDelivered.reduce((acc, o) => {
@@ -377,7 +380,7 @@ app.get("/api/orders", verifyToken, async (req, res) => {
       filter = {
         $or: [
           { driverId: req.user.id },
-          { status: "Listo para Recoger", driverId: null },
+          { status: "LISTO PARA RECOGER", driverId: null },
         ],
       };
     }
@@ -483,7 +486,7 @@ app.post("/api/orders", verifyToken, async (req, res) => {
       deliveryFee: calculatedDeliveryFee,
       driverFee: calculatedDriverFee,
       total: calculatedTotal,
-      status: "Pendiente",
+      status: "PENDIENTE",
       deliveryAddress,
       paymentMethod,
       isReviewed: false,
@@ -535,11 +538,11 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
       );
     } else if (role === "DELIVERY") {
       // Repartidor toma/entrega
-      if (status === "En Camino") {
+      if (status === "EN CAMINO") {
         // INTEGRIDAD DE DATOS: Operación atómica para evitar que dos repartidores tomen la misma orden
         updatedOrder = await Order.findOneAndUpdate(
-          { _id: orderId, status: "Listo para Recoger", driverId: null }, // Condición estricta
-          { status: "En Camino", driverId: userId },
+          { _id: orderId, status: "LISTO PARA RECOGER", driverId: null }, // Condición estricta
+          { status: "EN CAMINO", driverId: userId },
           { new: true },
         );
 
@@ -548,7 +551,7 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
             .status(409)
             .json({ error: "La orden ya fue tomada o no está lista." });
         }
-      } else if (status === "Llegó al domicilio") {
+      } else if (status === "LLEGÓ AL DOMICILIO") {
         if (currentOrder.driverId?.toString() !== userId)
           return res.status(403).json({ error: "No es tu orden" });
 
@@ -557,7 +560,7 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
           { status },
           { new: true },
         );
-      } else if (status === "Entregado") {
+      } else if (status === "ENTREGADO") {
         if (currentOrder.driverId?.toString() !== userId)
           return res.status(403).json({ error: "No es tu orden" });
 
@@ -570,19 +573,19 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
     } else if (role === "CLIENT") {
       // Cliente cancela
       // SEGURIDAD: El cliente solo puede cancelar, y solo si está pendiente.
-      if (status !== "Cancelado") {
+      if (status !== "CANCELADO") {
         return res
           .status(403)
           .json({ error: "Acción no permitida para clientes." });
       }
-      if (currentOrder.status !== "Pendiente") {
+      if (currentOrder.status !== "PENDIENTE") {
         return res
           .status(400)
           .json({ error: "No se puede cancelar una orden en proceso." });
       }
       updatedOrder = await Order.findByIdAndUpdate(
         orderId,
-        { status: "Cancelado" },
+        { status: "CANCELADO" },
         { new: true },
       );
     } else if (role === "MASTER") {
@@ -622,11 +625,11 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
     }
 
     // Si la orden está lista, notificar a TODOS los repartidores disponibles
-    if (status === "Listo para Recoger") {
+    if (status === "LISTO PARA RECOGER") {
       io.to("DRIVERS_ROOM").emit("order_update", orderJSON);
     }
     // Si la orden fue tomada, notificar a los repartidores para que la quiten de su lista "Disponibles"
-    if (status === "En Camino") {
+    if (status === "EN CAMINO") {
       io.to("DRIVERS_ROOM").emit("order_update", orderJSON);
     }
 

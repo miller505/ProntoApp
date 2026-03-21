@@ -33,6 +33,7 @@ export const StoreDashboard = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<any[]>([]);
   const [financeStats, setFinanceStats] = useState<any>(null);
+  const [visibleHistoryCount, setVisibleHistoryCount] = useState(7);
 
   // ESTADO NUEVO: Controla la animación de carga al abrir/cerrar tienda
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
@@ -123,7 +124,7 @@ export const StoreDashboard = () => {
             OrderStatus.DELIVERED,
             OrderStatus.REJECTED,
             OrderStatus.CANCELLED,
-          ].includes(o.status),
+          ].includes(o.status.toUpperCase() as any),
       ).length,
     [myOrders],
   );
@@ -143,10 +144,19 @@ export const StoreDashboard = () => {
         const isHidden = p.isAvailable === false;
         const matchesVisibility =
           prodFilterVisibility === "ALL" ||
+          prodFilterVisibility === "FEATURED" ||
           (prodFilterVisibility === "VISIBLE" && !isHidden) ||
           (prodFilterVisibility === "HIDDEN" && isHidden);
 
-        return matchesSearch && matchesCategory && matchesVisibility;
+        const matchesFeatured =
+          prodFilterVisibility !== "FEATURED" || p.isFeatured;
+
+        return (
+          matchesSearch &&
+          matchesCategory &&
+          matchesVisibility &&
+          matchesFeatured
+        );
       })
       .sort((a, b) => {
         switch (prodSortBy) {
@@ -514,8 +524,8 @@ export const StoreDashboard = () => {
         {/* --- ORDERS --- */}
         {activeTab === "orders" && (
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-gray-800 ml-1">
-              Comandas Activas
+            <h2 className="text-lg font-mega text-gray-800 ml-1">
+              COMANDAS ACTIVAS
             </h2>
             {activeOrdersCount === 0 && (
               <div className="text-center py-10 text-gray-400">
@@ -529,7 +539,7 @@ export const StoreDashboard = () => {
                     OrderStatus.DELIVERED,
                     OrderStatus.REJECTED,
                     OrderStatus.CANCELLED,
-                  ].includes(o.status),
+                  ].includes(o.status.toUpperCase() as any),
               )
               .map((order) => (
                 <Card key={order.id} className="border-l-4 border-primary">
@@ -542,8 +552,11 @@ export const StoreDashboard = () => {
                         {formatDate(order.createdAt)}
                       </span>
                     </div>
-                    <Badge color={getOrderStatusColor(order.status)}>
-                      {order.status}
+                    <Badge
+                      color={getOrderStatusColor(order.status)}
+                      className="font-mega"
+                    >
+                      {order.status.toUpperCase()}
                     </Badge>
                   </div>
                   <div className="space-y-2 mb-4">
@@ -615,15 +628,15 @@ export const StoreDashboard = () => {
                 </Card>
               ))}
 
-            <h2 className="text-lg font-bold text-gray-800 ml-1 mt-8">
-              Historial de Pedidos
+            <h2 className="text-lg font-mega text-gray-800 ml-1 mt-8">
+              HISTORIAL DE PEDIDOS
             </h2>
             {myOrders.filter((o) =>
               [
                 OrderStatus.DELIVERED,
                 OrderStatus.REJECTED,
                 OrderStatus.CANCELLED,
-              ].includes(o.status),
+              ].includes(o.status.toUpperCase() as any),
             ).length === 0 && (
               <div className="text-center py-10 text-gray-400">
                 No hay pedidos en el historial
@@ -635,13 +648,14 @@ export const StoreDashboard = () => {
                   OrderStatus.DELIVERED,
                   OrderStatus.REJECTED,
                   OrderStatus.CANCELLED,
-                ].includes(o.status),
+                ].includes(o.status.toUpperCase() as any),
               )
               .sort(
                 (a, b) =>
                   new Date(b.createdAt).getTime() -
                   new Date(a.createdAt).getTime(),
               )
+              .slice(0, visibleHistoryCount)
               .map((order) => {
                 return (
                   <Card key={order.id} className="opacity-70">
@@ -654,8 +668,11 @@ export const StoreDashboard = () => {
                           {formatDate(order.createdAt)}
                         </span>
                       </div>
-                      <Badge color={getOrderStatusColor(order.status)}>
-                        {order.status}
+                      <Badge
+                        color={getOrderStatusColor(order.status)}
+                        className="font-mega"
+                      >
+                        {order.status.toUpperCase()}
                       </Badge>
                     </div>
                     <div className="space-y-2 mb-4">
@@ -681,6 +698,21 @@ export const StoreDashboard = () => {
                   </Card>
                 );
               })}
+            {myOrders.filter((o) =>
+              [
+                OrderStatus.DELIVERED,
+                OrderStatus.REJECTED,
+                OrderStatus.CANCELLED,
+              ].includes(o.status.toUpperCase() as any),
+            ).length > visibleHistoryCount && (
+              <Button
+                variant="secondary"
+                className="w-full mt-4"
+                onClick={() => setVisibleHistoryCount((prev) => prev + 7)}
+              >
+                Cargar más
+              </Button>
+            )}
           </div>
         )}
 
@@ -823,8 +855,8 @@ export const StoreDashboard = () => {
         {activeTab === "reviews" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-lg font-bold text-gray-800 ml-1">
-                Reseñas de Clientes
+              <h2 className="text-lg font-mega text-gray-800 ml-1">
+                RESEÑAS DE CLIENTES
               </h2>
               <div className="flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-xl border border-yellow-100">
                 <Icons.Star
@@ -934,8 +966,8 @@ export const StoreDashboard = () => {
                   </div>
                 </div>
 
-                <h3 className="font-bold text-lg mb-4 text-gray-800">
-                  Resumen Semanal
+                <h3 className="font-mega text-lg mb-4 text-gray-800">
+                  RESUMEN SEMANAL
                 </h3>
                 <div className="space-y-3">
                   {(!financeStats.weeklyBreakdown ||
@@ -994,7 +1026,7 @@ export const StoreDashboard = () => {
         {activeTab === "profile" && (
           <div className="space-y-4">
             <Card>
-              <h3 className="font-bold text-lg mb-4">Suscripción y Límites</h3>
+              <h3 className="font-mega text-lg mb-4">MI SUSCRIPCIÓN</h3>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <Icons.Award
@@ -1052,8 +1084,8 @@ export const StoreDashboard = () => {
                 onClick={() => setIsCustomizationOpen(!isCustomizationOpen)}
                 className="flex justify-between items-center w-full"
               >
-                <h3 className="font-bold text-lg">
-                  Personalización de la tienda
+                <h3 className="font-mega text-lg">
+                  PERSONALIZACIÓN DE LA TIENDA
                 </h3>
                 <Icons.ChevronDown
                   className={`transition-transform duration-300 ${isCustomizationOpen ? "rotate-180" : ""}`}
@@ -1187,7 +1219,7 @@ export const StoreDashboard = () => {
             </Card>
 
             <Card>
-              <h3 className="font-bold text-lg mb-4">Datos del Propietario</h3>
+              <h3 className="font-mega text-lg mb-4">DATOS DEL PROPIETARIO</h3>
               <div className="space-y-4 text-sm">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1511,6 +1543,7 @@ const FilterModal = ({ uniqueCategories, filters, setFilters }: any) => {
               <option value="ALL">Todos</option>
               <option value="VISIBLE">Visibles</option>
               <option value="HIDDEN">Ocultos</option>
+              <option value="FEATURED">Destacados</option>
             </select>
           </div>
           <div>

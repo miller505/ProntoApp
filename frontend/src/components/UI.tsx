@@ -75,7 +75,7 @@ export const Card = ({ children, className = "" }: any) => (
 );
 
 // Badge
-export const Badge = ({ children, color = "gray" }: any) => {
+export const Badge = ({ children, color = "gray", className = "" }: any) => {
   const colors = {
     red: "bg-red-100 text-red-600",
     green: "bg-green-100 text-green-600",
@@ -87,7 +87,7 @@ export const Badge = ({ children, color = "gray" }: any) => {
 
   return (
     <span
-      className={`px-2 py-1 rounded-lg text-xs font-bold ${colors[color as keyof typeof colors]}`}
+      className={`px-2 py-1 rounded-lg text-xs font-bold ${colors[color as keyof typeof colors]} ${className}`}
     >
       {children}
     </span>

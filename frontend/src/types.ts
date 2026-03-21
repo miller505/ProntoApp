@@ -21,14 +21,14 @@ export interface Message {
 }
 
 export enum OrderStatus {
-  PENDING = "Pendiente",
-  PREPARING = "Preparando",
-  READY = "Listo para Recoger",
-  ON_WAY = "En Camino",
-  ARRIVED = "Llegó al domicilio",
-  DELIVERED = "Entregado",
-  REJECTED = "Rechazado",
-  CANCELLED = "Cancelado",
+  PENDING = "PENDIENTE",
+  PREPARING = "PREPARANDO",
+  READY = "LISTO PARA RECOGER",
+  ON_WAY = "EN CAMINO",
+  ARRIVED = "LLEGÓ AL DOMICILIO",
+  DELIVERED = "ENTREGADO",
+  REJECTED = "RECHAZADO",
+  CANCELLED = "CANCELADO",
 }
 
 export interface SystemSettings {
@@ -98,6 +98,7 @@ export interface Address {
 export interface CartItem {
   product: Product;
   quantity: number;
+  price?: number;
   notes?: string;
 }
 
@@ -108,6 +109,7 @@ export interface Order {
   driverId?: string;
   items: CartItem[];
   status: OrderStatus;
+  subtotal: number;
   total: number;
   deliveryFee: number;
   driverFee?: number; // What the driver earns
