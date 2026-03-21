@@ -27,19 +27,20 @@ export const DeliveryDashboard = () => {
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(10);
 
   const availableOrders = orders.filter(
-    (o: Order) => o.status === OrderStatus.READY && !o.driverId,
+    (o: Order) =>
+      (o.status || "").toUpperCase() === OrderStatus.READY && !o.driverId,
   );
   const myDeliveries = orders.filter(
     (o: Order) =>
       o.driverId === currentUser?.id &&
-      (o.status.toUpperCase() === OrderStatus.ON_WAY ||
-        o.status.toUpperCase() === OrderStatus.ARRIVED),
+      ((o.status || "").toUpperCase() === OrderStatus.ON_WAY ||
+        (o.status || "").toUpperCase() === OrderStatus.ARRIVED),
   );
   const myCompletedDeliveries = orders
     .filter(
       (o: Order) =>
         o.driverId === currentUser?.id &&
-        o.status.toUpperCase() === OrderStatus.DELIVERED,
+        (o.status || "").toUpperCase() === OrderStatus.DELIVERED,
     )
     .sort(
       (a, b) =>
@@ -195,7 +196,7 @@ export const DeliveryDashboard = () => {
                       color={getOrderStatusColor(order.status)}
                       className="font-mega uppercase"
                     >
-                      {order.status.toUpperCase()}
+                      {(order.status || "").toUpperCase()}
                     </Badge>
                   </div>
                   <div className="mb-4">
@@ -480,7 +481,7 @@ export const DeliveryDashboard = () => {
                         color={getOrderStatusColor(order.status)}
                         className="font-mega uppercase"
                       >
-                        {order.status.toUpperCase()}
+                        {(order.status || "").toUpperCase()}
                       </Badge>
                     </div>
                     <div className="mb-2">

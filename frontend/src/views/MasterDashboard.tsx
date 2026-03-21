@@ -676,7 +676,7 @@ const MonitoringPanel = ({
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
         const matchesStatus =
-          statusFilter === "ALL" || order.status.toUpperCase() === statusFilter;
+          statusFilter === "ALL" || (order.status || "").toUpperCase() === statusFilter;
         return matchesId && matchesStatus;
       })
       .sort((a, b) => {
@@ -784,7 +784,7 @@ const MonitoringPanel = ({
               color={getOrderStatusColor(order.status)}
               className="shrink-0 text-[10px] px-1.5 font-mega uppercase"
             >
-              {order.status.toUpperCase()}
+              {(order.status || "").toUpperCase()}
             </Badge>
             <div className="flex items-center gap-1 text-xs text-gray-700 truncate">
               <Icons.User size={12} className="text-gray-400" />
@@ -1264,7 +1264,7 @@ const ColoniesPanel = ({
 const FinancePanel = ({ orders }: { orders: Order[] }) => {
   // Only completed orders contribute to earnings
   const completedOrders = orders.filter(
-    (o) => o.status.toUpperCase() === OrderStatus.DELIVERED,
+    (o) => (o.status || "").toUpperCase() === OrderStatus.DELIVERED,
   );
 
   // Calculate Total Earnings (Commision = DeliveryFee - DriverFee)

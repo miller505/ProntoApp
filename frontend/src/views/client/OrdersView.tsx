@@ -80,7 +80,7 @@ const OrderDetailsModal = ({ order, isOpen, onClose, onRateClick }: any) => {
             color={getOrderStatusColor(order.status)}
             className="font-mega"
           >
-            {order.status.toUpperCase()}
+            {(order.status || "").toUpperCase()}
           </Badge>
         </div>
         <p className="text-sm text-gray-500 mb-4">
@@ -125,20 +125,20 @@ const OrderDetailsModal = ({ order, isOpen, onClose, onRateClick }: any) => {
           </div>
         </div>
         {/* Rating section inside modal */}
-        {order.status.toUpperCase() === OrderStatus.DELIVERED &&
+        {(order.status || "").toUpperCase() === OrderStatus.DELIVERED &&
           !order.isReviewed && (
             <Button
               onClick={() => {
                 onRateClick();
                 onClose(); // Cierra este modal para abrir el de calificación
               }}
-              className="w-full mt-4 !py-2 !text-sm !bg-yellow-400 hover:!bg-yellow-500 !text-yellow-900"
+              className="w-full mt-4 !py-2 !text-sm !bg-yellow-400 hover:!bg-yellow-500 !text-yellow-900 !shadow-yellow-500/30"
             >
               <Icons.Star size={16} />
               Calificar Tienda
             </Button>
           )}
-        {order.status.toUpperCase() === OrderStatus.DELIVERED &&
+        {(order.status || "").toUpperCase() === OrderStatus.DELIVERED &&
           order.isReviewed && (
             <div className="w-full mt-4 py-2 text-sm bg-gray-100 text-gray-500 text-center rounded-xl font-medium flex items-center justify-center gap-2">
               <Icons.Check size={16} />
@@ -168,25 +168,25 @@ const OrderHistoryCard = ({ order, onCardClick, onRateClick }: any) => {
           <p className="text-xs text-gray-400">{formatDate(order.createdAt)}</p>
         </div>
         <Badge color={getOrderStatusColor(order.status)} className="font-mega">
-          {order.status.toUpperCase()}
+          {(order.status || "").toUpperCase()}
         </Badge>
       </div>
       <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          {order.status.toUpperCase() === OrderStatus.DELIVERED &&
+          {(order.status || "").toUpperCase() === OrderStatus.DELIVERED &&
             !order.isReviewed && (
               <Button
                 onClick={(e) => {
                   e.stopPropagation(); // Evita que se abra el modal de detalles
                   onRateClick();
                 }}
-                className="!py-1.5 !px-3 !text-xs !bg-yellow-400 hover:!bg-yellow-500 !text-yellow-900"
+                className="!py-1.5 !px-3 !text-xs !bg-yellow-400 hover:!bg-yellow-500 !text-yellow-900 !shadow-yellow-500/30"
               >
                 <Icons.Star size={14} />
                 Calificar
               </Button>
             )}
-          {order.status.toUpperCase() === OrderStatus.DELIVERED &&
+          {(order.status || "").toUpperCase() === OrderStatus.DELIVERED &&
             order.isReviewed && (
               <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
                 <Icons.Check size={14} className="text-green-500" />
@@ -241,14 +241,14 @@ export const OrdersView = ({
           OrderStatus.DELIVERED,
           OrderStatus.REJECTED,
           OrderStatus.CANCELLED,
-        ].includes(o.status.toUpperCase() as any),
+        ].includes((o.status || "").toUpperCase() as any),
     );
     const past = myOrders.filter((o) =>
       [
         OrderStatus.DELIVERED,
         OrderStatus.REJECTED,
         OrderStatus.CANCELLED,
-      ].includes(o.status.toUpperCase() as any),
+      ].includes((o.status || "").toUpperCase() as any),
     );
 
     return { activeOrders: active, pastOrders: past };
@@ -304,7 +304,7 @@ export const OrdersView = ({
                   color={getOrderStatusColor(o.status)}
                   className="font-mega"
                 >
-                  {o.status.toUpperCase()}
+                  {(o.status || "").toUpperCase()}
                 </Badge>
               </div>
               <p className="text-sm text-gray-500 mb-2">
@@ -376,7 +376,7 @@ export const OrdersView = ({
                 ></div>
               </div>
               <p className="text-xs text-right mt-1 text-gray-400 font-bold">
-                {o.status.toUpperCase()}
+                {(o.status || "").toUpperCase()}
               </p>
 
               {/* NOTIFICACIÓN VISUAL DE LLEGADA */}
@@ -411,17 +411,17 @@ export const OrdersView = ({
                     )}
                   </Button>
                 )}
-              {o.status.toUpperCase() === OrderStatus.DELIVERED &&
+              {(o.status || "").toUpperCase() === OrderStatus.DELIVERED &&
                 !o.isReviewed && (
                   <Button
-                    className="w-full mt-3 py-2 text-sm !bg-yellow-500 hover:!bg-yellow-600 text-white"
+                    className="w-full mt-3 py-2 text-sm !bg-yellow-500 hover:!bg-yellow-600 text-white !shadow-yellow-500/30"
                     onClick={() => setRatingOrder(o)}
                   >
                     <Icons.Star size={16} className="mr-2" />
                     Calificar Tienda
                   </Button>
                 )}
-              {o.status.toUpperCase() === OrderStatus.DELIVERED &&
+              {(o.status || "").toUpperCase() === OrderStatus.DELIVERED &&
                 o.isReviewed && (
                   <div className="w-full mt-3 py-2 text-sm bg-gray-100 text-gray-500 text-center rounded-xl font-medium flex items-center justify-center gap-2">
                     <Icons.Check size={16} />

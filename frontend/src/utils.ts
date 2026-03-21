@@ -35,7 +35,7 @@ export const calculateDistance = (
 export const getOrderStatusColor = (
   status: string,
 ): "yellow" | "blue" | "green" | "red" => {
-  switch (status.toUpperCase()) {
+  switch ((status || "").toUpperCase()) {
     case "PENDIENTE":
       return "yellow";
     case "PREPARANDO":

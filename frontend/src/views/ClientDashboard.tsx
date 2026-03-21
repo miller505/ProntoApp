@@ -479,14 +479,14 @@ const StoreView = ({
         )}
 
       {/* Categories Nav */}
-      <div className="sticky top-0 bg-white z-20 py-3 px-6 shadow-sm border-b border-gray-50">
+      <div className="sticky top-0 bg-white z-20 py-3 px-6 border-b border-gray-50">
         <div className="overflow-x-auto no-scrollbar">
           <div className="flex gap-3">
             {categories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`px-4 py-2 rounded-full text-sm font-mega uppercase whitespace-nowrap transition-colors ${activeCategory === cat ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-gray-100 text-gray-500"}`}
+                className={`px-4 py-2 rounded-full text-sm font-mega uppercase whitespace-nowrap transition-colors ${activeCategory === cat ? "bg-primary text-white" : "bg-gray-100 text-gray-500"}`}
               >
                 {cat === "ALL" ? "Todo" : cat}
               </button>

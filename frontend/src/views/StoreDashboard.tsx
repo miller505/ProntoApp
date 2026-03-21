@@ -124,7 +124,7 @@ export const StoreDashboard = () => {
             OrderStatus.DELIVERED,
             OrderStatus.REJECTED,
             OrderStatus.CANCELLED,
-          ].includes(o.status.toUpperCase() as any),
+          ].includes((o.status || "").toUpperCase() as any),
       ).length,
     [myOrders],
   );
@@ -539,7 +539,7 @@ export const StoreDashboard = () => {
                     OrderStatus.DELIVERED,
                     OrderStatus.REJECTED,
                     OrderStatus.CANCELLED,
-                  ].includes(o.status.toUpperCase() as any),
+                  ].includes((o.status || "").toUpperCase() as any),
               )
               .map((order) => (
                 <Card key={order.id} className="border-l-4 border-primary">
@@ -556,7 +556,7 @@ export const StoreDashboard = () => {
                       color={getOrderStatusColor(order.status)}
                       className="font-mega"
                     >
-                      {order.status.toUpperCase()}
+                      {(order.status || "").toUpperCase()}
                     </Badge>
                   </div>
                   <div className="space-y-2 mb-4">
@@ -636,7 +636,7 @@ export const StoreDashboard = () => {
                 OrderStatus.DELIVERED,
                 OrderStatus.REJECTED,
                 OrderStatus.CANCELLED,
-              ].includes(o.status.toUpperCase() as any),
+              ].includes((o.status || "").toUpperCase() as any),
             ).length === 0 && (
               <div className="text-center py-10 text-gray-400">
                 No hay pedidos en el historial
@@ -648,7 +648,7 @@ export const StoreDashboard = () => {
                   OrderStatus.DELIVERED,
                   OrderStatus.REJECTED,
                   OrderStatus.CANCELLED,
-                ].includes(o.status.toUpperCase() as any),
+                ].includes((o.status || "").toUpperCase() as any),
               )
               .sort(
                 (a, b) =>
@@ -672,7 +672,7 @@ export const StoreDashboard = () => {
                         color={getOrderStatusColor(order.status)}
                         className="font-mega"
                       >
-                        {order.status.toUpperCase()}
+                        {(order.status || "").toUpperCase()}
                       </Badge>
                     </div>
                     <div className="space-y-2 mb-4">
@@ -703,7 +703,7 @@ export const StoreDashboard = () => {
                 OrderStatus.DELIVERED,
                 OrderStatus.REJECTED,
                 OrderStatus.CANCELLED,
-              ].includes(o.status.toUpperCase() as any),
+              ].includes((o.status || "").toUpperCase() as any),
             ).length > visibleHistoryCount && (
               <Button
                 variant="secondary"
