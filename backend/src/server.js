@@ -10,6 +10,8 @@ import { v2 as cloudinary } from "cloudinary";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import helmet from "helmet";
+import { z } from "zod";
+import rateLimit from "express-rate-limit";
 
 // SEGURIDAD: Importamos middlewares
 import { verifyToken, verifyRole, verifySocketToken } from "./middleware.js";
@@ -23,6 +25,7 @@ import {
   Message,
   Settings,
   Review,
+  CommunityMessage,
 } from "./models.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,6 +35,13 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 
 const app = express();
 const httpServer = createServer(app);
+
+// --- CONFIGURACIÓN DE SEGURIDAD ---
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10, // Máximo 10 intentos por IP
+  message: { error: "Demasiados intentos. Intenta de nuevo en 15 minutos." },
+});
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -69,6 +79,73 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
+
+// --- HELPER: Cálculo unificado de Tarifas (Fuente de Verdad) ---
+const calculateOrderFees = async (storeId, deliveryAddress, subtotal) => {
+  const settings = (await Settings.findOne()) || {
+    commissionRate: 5,
+    kmRate: 5,
+    companyKmRate: 2,
+  };
+  const store = await User.findById(storeId);
+  if (!store) throw new Error("Tienda no encontrada");
+
+  const storeColony = await Colony.findById(store.storeAddress.colonyId);
+  const clientColony = await Colony.findById(deliveryAddress.colonyId);
+
+  if (!storeColony || !clientColony)
+    throw new Error("Ubicación geográfica no válida");
+
+  // Si la dirección trae coordenadas exactas (Leaflet), las usamos. Si no, usamos el centro de la colonia.
+  const lat1 = deliveryAddress.lat || clientColony.lat;
+  const lng1 = deliveryAddress.lng || clientColony.lng;
+  const lat2 = store.storeAddress.lat || storeColony.lat;
+  const lng2 = store.storeAddress.lng || storeColony.lng;
+
+  const distKm = calculateDistance(lat1, lng1, lat2, lng2);
+
+  const driverFee = Math.max(
+    settings.kmRate,
+    Math.ceil(distKm * settings.kmRate),
+  );
+  const appCommission = subtotal * (settings.commissionRate / 100);
+  const companyDistanceFee = Math.max(
+    settings.companyKmRate || 0,
+    Math.ceil(distKm * (settings.companyKmRate || 0)),
+  );
+  const deliveryFee = appCommission + driverFee + companyDistanceFee;
+
+  return {
+    deliveryFee,
+    driverFee,
+    companyDistanceFee,
+    total: subtotal + deliveryFee,
+    distKm,
+  };
+};
+
+// --- SCHEMAS DE VALIDACIÓN (ZOD) ---
+const OrderCreateSchema = z.object({
+  storeId: z.string().min(20),
+  items: z
+    .array(
+      z.object({
+        productId: z.string(),
+        quantity: z.number().positive(),
+        notes: z.string().max(100).optional(),
+      }),
+    )
+    .min(1),
+  deliveryAddress: z.object({
+    street: z.string().min(1),
+    number: z.string().min(1),
+    colonyId: z.string().min(1),
+    reference: z.string().optional(),
+    lat: z.number().optional(),
+    lng: z.number().optional(),
+  }),
+  paymentMethod: z.enum(["CASH", "CARD"]),
+});
 
 const allowedOrigins = [
   "http://localhost:3000",
@@ -190,9 +267,9 @@ io.on("connection", (socket) => {
 
 // Límites de productos por tipo de suscripción (Fuente de verdad)
 const SUBSCRIPTION_LIMITS = {
-  STANDARD: 10,
-  PREMIUM: 40,
-  ULTRA: 100,
+  STANDARD: 20,
+  PREMIUM: 50,
+  BLACK: 130,
 };
 
 // ==========================================
@@ -222,7 +299,7 @@ app.get("/api/upload-signature", async (req, res) => {
 });
 
 // --- AUTH ---
-app.post("/api/login", async (req, res) => {
+app.post("/api/login", loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
@@ -244,6 +321,70 @@ app.post("/api/login", async (req, res) => {
     res.json({ user, token });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    const { token, role } = req.body;
+
+    // 1. Validar token con Google
+    const googleRes = await fetch(
+      `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${token}`,
+    );
+    if (!googleRes.ok)
+      return res.status(401).json({ error: "Token de Google inválido" });
+
+    const data = await googleRes.json();
+    const { email, sub: googleId, given_name, family_name, picture } = data;
+
+    // 2. Buscar usuario existente
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // Si existe, actualizar Google ID si no lo tiene
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.authProvider = "GOOGLE"; // Opcional: Marcar que ahora usa Google
+        await user.save();
+      }
+    } else {
+      // 3. Si no existe, crear nuevo usuario
+      if (!role) {
+        // Si viene del Login y no existe, no podemos adivinar el rol.
+        // Lo registramos como CLIENT por defecto para no bloquear.
+        // O podríamos devolver error pidiendo registro. Asumiremos CLIENTE.
+      }
+
+      user = await User.create({
+        email,
+        firstName: given_name || "Usuario",
+        lastName: family_name || "",
+        googleId,
+        authProvider: "GOOGLE",
+        role: role || "CLIENT",
+        approved: role === "CLIENT" || !role, // Auto-aprobar SOLO si es cliente. Socios requieren revisión.
+        phone: "0000000000", // Placeholder hasta que lo actualice
+        ineImage: picture, // Usar foto de perfil como placeholder
+      });
+
+      // Notificar al Master si es un rol sensible
+      if (user.role === "STORE" || user.role === "DELIVERY") {
+        io.to("MASTER_ROOM").emit("user_update", user);
+      }
+    }
+
+    // 4. Generar Token JWT propio
+    const jwtToken = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    res.json({ user, token: jwtToken });
+  } catch (error) {
+    console.error("Error Google Auth:", error);
+    res.status(500).json({ error: "Error en autenticación con Google" });
   }
 });
 
@@ -375,8 +516,11 @@ app.get("/api/orders", verifyToken, async (req, res) => {
   try {
     let filter = {};
     if (req.user.role === "CLIENT") filter.customerId = req.user.id;
-    else if (req.user.role === "STORE") filter.storeId = req.user.id;
-    else if (req.user.role === "DELIVERY") {
+    else if (req.user.role === "STORE") {
+      filter.storeId = req.user.id;
+      // Solo mostrar pedidos que no requieran pago o que ya hayan sido pagados
+      filter.status = { $ne: "PAGO_PENDIENTE" };
+    } else if (req.user.role === "DELIVERY") {
       filter = {
         $or: [
           { driverId: req.user.id },
@@ -398,13 +542,21 @@ app.get("/api/orders", verifyToken, async (req, res) => {
 app.post("/api/orders", verifyToken, async (req, res) => {
   try {
     const { storeId, items, deliveryAddress, paymentMethod } = req.body;
-    if (!storeId || !items || !items.length || !deliveryAddress) {
+
+    // VALIDACIÓN DE ENTRADA BÁSICA (Debería usarse Zod/Joi)
+    if (
+      !storeId ||
+      !Array.isArray(items) ||
+      items.length === 0 ||
+      !deliveryAddress
+    ) {
       return res.status(400).json({ error: "Datos incompletos" });
     }
 
     const settings = (await Settings.findOne()) || {
       commissionRate: 5,
       kmRate: 5,
+      companyKmRate: 2,
     };
     const store = await User.findById(storeId);
     if (!store) return res.status(404).json({ error: "Tienda no encontrada" });
@@ -418,19 +570,6 @@ app.post("/api/orders", verifyToken, async (req, res) => {
         error:
           "Ubicación de tienda o cliente inválida (Colonia no encontrada).",
       });
-    }
-
-    let calculatedDriverFee = 0;
-    if (storeColony && clientColony) {
-      const distKm = calculateDistance(
-        clientColony.lat,
-        clientColony.lng,
-        storeColony.lat,
-        storeColony.lng,
-      );
-      const driverPart = Math.ceil(distKm * settings.kmRate);
-      calculatedDriverFee =
-        driverPart < settings.kmRate ? settings.kmRate : driverPart;
     }
 
     let calculatedSubtotal = 0;
@@ -447,7 +586,7 @@ app.post("/api/orders", verifyToken, async (req, res) => {
           .json({ error: `El producto ${product.name} no está disponible.` });
       }
 
-      const price = product.price;
+      const price = product.price; // Usamos el precio del servidor, NO del req.body
       const quantity = parseInt(item.quantity);
 
       // VALIDACIÓN: Cantidad positiva
@@ -474,9 +613,20 @@ app.post("/api/orders", verifyToken, async (req, res) => {
       });
     }
 
-    const appCommission = calculatedSubtotal * (settings.commissionRate / 100);
-    const calculatedDeliveryFee = appCommission + calculatedDriverFee;
-    const calculatedTotal = calculatedSubtotal + calculatedDeliveryFee;
+    // 2. Usar Helper Unificado (Fuente de Verdad)
+    const fees = await calculateOrderFees(
+      storeId,
+      deliveryAddress,
+      calculatedSubtotal,
+    );
+
+    const calculatedDeliveryFee = fees.deliveryFee;
+    const calculatedDriverFee = fees.driverFee;
+    const calculatedCompanyDistanceFee = fees.companyDistanceFee;
+    const calculatedTotal = fees.total;
+    const isCard = paymentMethod === "CARD";
+    const initialStatus = isCard ? "PAGO_PENDIENTE" : "PENDIENTE";
+
     const newOrder = await Order.create({
       customerId: req.user.id,
       storeId,
@@ -485,12 +635,18 @@ app.post("/api/orders", verifyToken, async (req, res) => {
       subtotal: calculatedSubtotal,
       deliveryFee: calculatedDeliveryFee,
       driverFee: calculatedDriverFee,
+      companyDistanceFee: calculatedCompanyDistanceFee,
       total: calculatedTotal,
-      status: "PENDIENTE",
+      status: initialStatus,
       deliveryAddress,
       paymentMethod,
       isReviewed: false,
     });
+
+    if (isCard) {
+      newOrder.mercadoPagoPreferenceId = `dummy_pref_${newOrder._id}`;
+      await newOrder.save();
+    }
 
     // Poblar datos antes de emitir por socket para que el frontend tenga la info completa
     const populatedOrder = await newOrder.populate(
@@ -499,10 +655,13 @@ app.post("/api/orders", verifyToken, async (req, res) => {
     );
     const orderJSON = populatedOrder.toJSON();
 
-    // SEGURIDAD: Emitir SOLO a los interesados
-    io.to(storeId.toString()).emit("order_update", orderJSON); // A la tienda
-    io.to(req.user.id.toString()).emit("order_update", orderJSON); // Al cliente
-    io.to("MASTER_ROOM").emit("order_update", orderJSON); // Al master
+    // SEGURIDAD: Emitir SOLO a los interesados y SOLO si ya fue pagada (o es en efectivo)
+    if (!isCard) {
+      io.to(storeId.toString()).emit("order_update", orderJSON); // A la tienda
+      io.to("MASTER_ROOM").emit("order_update", orderJSON); // Al master
+    }
+    // Siempre notificamos al cliente para que vea su estado de pago pendiente
+    io.to(req.user.id.toString()).emit("order_update", orderJSON);
 
     res.status(201).json(newOrder);
   } catch (error) {
@@ -578,7 +737,10 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
           .status(403)
           .json({ error: "Acción no permitida para clientes." });
       }
-      if (currentOrder.status !== "PENDIENTE") {
+      if (
+        currentOrder.status !== "PENDIENTE" &&
+        currentOrder.status !== "PAGO_PENDIENTE"
+      ) {
         return res
           .status(400)
           .json({ error: "No se puede cancelar una orden en proceso." });
@@ -598,6 +760,19 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
 
     if (!updatedOrder)
       return res.status(400).json({ error: "No se pudo actualizar" });
+
+    // Cuando se entrega correctamente, sumamos las ventas a los productos (Phase 5)
+    if (status === "ENTREGADO") {
+      try {
+        for (const item of updatedOrder.items) {
+          await Product.findByIdAndUpdate(item.productId, {
+            $inc: { salesCount: item.quantity },
+          });
+        }
+      } catch (err) {
+        console.error("Error actualizando salesCount:", err);
+      }
+    }
 
     // Asegurar que el objeto emitido tenga los datos poblados
     await updatedOrder.populate(
@@ -641,6 +816,90 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
 
 // --- USERS & STORES ---
 app.get(
+  "/api/users/:id/stats",
+  verifyToken,
+  verifyRole(["MASTER"]),
+  async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const user = await User.findById(userId);
+      if (!user)
+        return res.status(404).json({ error: "Usuario no encontrado" });
+
+      let totalOrders = 0;
+      let weeklyRevenue = 0;
+      let weeklyOrders = 0;
+      let weeklyChart = [];
+
+      const now = new Date();
+      const currentDay = now.getDay();
+      const diff = now.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
+      const weekStart = new Date(now.setDate(diff)).setHours(0, 0, 0, 0);
+
+      if (user.role === "STORE") {
+        const orders = await Order.find({
+          storeId: userId,
+          status: { $in: ["ENTREGADO", "Entregado"] },
+        });
+        totalOrders = orders.length;
+
+        const breakdown = {};
+        for (let i = 0; i < 7; i++) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          d.setHours(0, 0, 0, 0);
+          breakdown[d.getTime()] = { date: d.getTime(), total: 0, count: 0 };
+        }
+
+        orders.forEach((o) => {
+          const d = new Date(o.createdAt);
+          const dayStart = new Date(d).setHours(0, 0, 0, 0);
+
+          const oDay = d.getDay();
+          const oDiff = d.getDate() - oDay + (oDay === 0 ? -6 : 1);
+          const oWeekStart = new Date(new Date(d).setDate(oDiff)).setHours(
+            0,
+            0,
+            0,
+            0,
+          );
+
+          if (oWeekStart === weekStart) {
+            weeklyOrders++;
+            weeklyRevenue += o.subtotal || 0;
+          }
+
+          if (breakdown[dayStart]) {
+            breakdown[dayStart].total += o.subtotal || 0;
+            breakdown[dayStart].count++;
+          }
+        });
+        weeklyChart = Object.values(breakdown).sort((a, b) => a.date - b.date);
+      } else if (user.role === "CLIENT") {
+        totalOrders = await Order.countDocuments({
+          customerId: userId,
+          status: { $in: ["ENTREGADO", "Entregado"] },
+        });
+      } else if (user.role === "DELIVERY") {
+        totalOrders = await Order.countDocuments({
+          driverId: userId,
+          status: { $in: ["ENTREGADO", "Entregado"] },
+        });
+      }
+
+      res.json({
+        totalOrders,
+        weeklyRevenue,
+        weeklyOrders,
+        weeklyChart,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+app.get(
   "/api/admin/users",
   verifyToken,
   verifyRole(["MASTER"]), // ELIMINADO: DELIVERY no debe ver todos los usuarios
@@ -683,6 +942,7 @@ app.put("/api/users/:id", verifyToken, async (req, res) => {
       delete req.body.role;
       delete req.body.approved;
       delete req.body.subscription;
+      delete req.body.subscriptionExpiresAt;
     }
 
     // SEGURIDAD: Hashear contraseña si se envía
@@ -705,31 +965,40 @@ app.put("/api/users/:id", verifyToken, async (req, res) => {
       const oldLimit = SUBSCRIPTION_LIMITS[oldSubscription] || 0;
       const newLimit = SUBSCRIPTION_LIMITS[newSubscription] || 0;
 
-      // Si es un downgrade
       if (newLimit < oldLimit) {
-        const storeId = userToUpdate._id;
-        const allStoreProducts = await Product.find({ storeId });
-        const visibleProducts = allStoreProducts.filter(
-          (p) => p.isAvailable !== false,
-        );
-
+        // Downgrade: Ocultar excedentes
+        const visibleProducts = await Product.find({
+          storeId: userToUpdate._id,
+          isAvailable: true,
+        });
         if (visibleProducts.length > newLimit) {
-          const excessCount = visibleProducts.length - newLimit;
-
-          // Ocultar los productos más recientes
-          const productsToHide = visibleProducts
-            .sort(
-              (a, b) =>
-                new Date(b.createdAt).getTime() -
-                new Date(a.createdAt).getTime(),
-            )
-            .slice(0, excessCount);
-
-          const productIdsToHide = productsToHide.map((p) => p._id);
-
+          const toHide = visibleProducts
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, visibleProducts.length - newLimit);
           await Product.updateMany(
-            { _id: { $in: productIdsToHide } },
-            { $set: { isAvailable: false } },
+            { _id: { $in: toHide.map((p) => p._id) } },
+            { isAvailable: false },
+          );
+        }
+      } else if (newLimit > oldLimit) {
+        // Upgrade: Reactivar automáticamente productos que fueron ocultados
+        const hiddenProducts = await Product.find({
+          storeId: userToUpdate._id,
+          isAvailable: false,
+        });
+        const currentlyVisible = await Product.countDocuments({
+          storeId: userToUpdate._id,
+          isAvailable: true,
+        });
+        const space = newLimit - currentlyVisible;
+
+        if (hiddenProducts.length > 0 && space > 0) {
+          const toRestore = hiddenProducts
+            .sort((a, b) => a.createdAt - b.createdAt)
+            .slice(0, space);
+          await Product.updateMany(
+            { _id: { $in: toRestore.map((p) => p._id) } },
+            { isAvailable: true },
           );
         }
       }
@@ -747,10 +1016,36 @@ app.put("/api/users/:id", verifyToken, async (req, res) => {
         "storeName",
         "storeAddress",
         "subscription",
+        "subscriptionExpiresAt",
+        "subscriptionPriority",
         "approved",
         "isOpen",
       ],
-      STORE: ["isOpen", "logo", "coverImage", "description", "prepTime"],
+      STORE: [
+        "isOpen",
+        "logo",
+        "coverImage",
+        "description",
+        "prepTime",
+        "storeAddress",
+      ],
+      // Permitir que Clientes y Repartidores editen sus datos básicos y notas
+      CLIENT: [
+        "firstName",
+        "lastName",
+        "phone",
+        "addresses",
+        "ineImage",
+        "defaultNotes",
+      ],
+      DELIVERY: [
+        "firstName",
+        "lastName",
+        "phone",
+        "addresses",
+        "ineImage",
+        "defaultNotes",
+      ],
       // Clientes y Repartidores pueden ser editados por el Master, no por ellos mismos (excepto contraseña, etc. en otro endpoint)
     };
 
@@ -848,12 +1143,7 @@ app.post(
       if (req.user.role === "STORE") {
         const user = await User.findById(req.user.id);
         const count = await Product.countDocuments({ storeId: req.user.id });
-        let limit =
-          user.subscription === "PREMIUM"
-            ? 30
-            : user.subscription === "ULTRA"
-              ? 50
-              : 10;
+        const limit = SUBSCRIPTION_LIMITS[user.subscription] || 20;
         if (count >= limit)
           return res
             .status(403)
@@ -1090,6 +1380,98 @@ app.put("/api/messages/read/:orderId", verifyToken, async (req, res) => {
   }
 });
 
+// --- COMMUNITY MESSAGES (NEWSLETTER) ---
+app.post(
+  "/api/community-messages",
+  verifyToken,
+  verifyRole(["MASTER"]),
+  async (req, res) => {
+    try {
+      if (req.body.imageUrl && req.body.imageUrl.startsWith("data:")) {
+        req.body.imageUrl = await uploadImage(req.body.imageUrl);
+      }
+      const msg = await CommunityMessage.create(req.body);
+      io.emit("community_message_update", msg); // Notificar a todos
+      res.status(201).json(msg);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  },
+);
+
+app.put(
+  "/api/community-messages/:id",
+  verifyToken,
+  verifyRole(["MASTER"]),
+  async (req, res) => {
+    try {
+      if (req.body.imageUrl && req.body.imageUrl.startsWith("data:")) {
+        req.body.imageUrl = await uploadImage(req.body.imageUrl);
+      }
+      const msg = await CommunityMessage.findByIdAndUpdate(
+        req.params.id,
+        req.body,
+        { new: true },
+      );
+      io.emit("community_message_update", msg); // Notificar a todos
+      res.json(msg);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  },
+);
+
+app.delete(
+  "/api/community-messages/:id",
+  verifyToken,
+  verifyRole(["MASTER"]),
+  async (req, res) => {
+    try {
+      await CommunityMessage.findByIdAndDelete(req.params.id);
+      io.emit("community_message_delete", req.params.id); // Notificar a todos
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  },
+);
+
+// --- MERCADOPAGO WEBHOOKS ---
+app.post("/api/webhooks/mercadopago", async (req, res) => {
+  try {
+    const payment = req.body;
+    // Dummy: simulamos que nos llega el orderId desde external_reference
+    const external_reference = payment?.external_reference || req.query.id;
+    const status = payment?.status || "approved";
+
+    if (external_reference && status === "approved") {
+      const updatedOrder = await Order.findByIdAndUpdate(
+        external_reference,
+        {
+          status: "PENDIENTE",
+          paymentStatus: "PAID",
+        },
+        { new: true },
+      ).populate("customerId", "firstName lastName phone addresses");
+
+      if (updatedOrder) {
+        const orderJSON = updatedOrder.toJSON();
+        io.to(updatedOrder.storeId.toString()).emit("order_update", orderJSON);
+        io.to("MASTER_ROOM").emit("order_update", orderJSON);
+        io.to(updatedOrder.customerId._id.toString()).emit(
+          "order_update",
+          orderJSON,
+        );
+      }
+    }
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error("Webhook MP error:", error);
+    res.sendStatus(500);
+  }
+});
+
 app.get("/api/init", async (req, res) => {
   try {
     const { role, userId } = req.query;
@@ -1098,31 +1480,57 @@ app.get("/api/init", async (req, res) => {
     let userFilter = { role: "STORE", isOpen: true, approved: true };
     let productSelect = ""; // Por defecto trae todo
 
+    // Si es Master, debe poder ver todos los usuarios para gestión
+    if (role === "MASTER") {
+      userFilter = {};
+    }
     // OPTIMIZACIÓN: Si es tienda, solo descargar sus propios datos
-    if (role === "STORE" && userId) {
+    else if (role === "STORE" && userId) {
       productFilter = { storeId: userId };
       userFilter = { _id: userId }; // Solo traerse a sí mismo
     } else if (role === "CLIENT") {
       // OPTIMIZACIÓN EXTREMA: Carga perezosa (Lazy Loading).
       // El cliente descarga SOLO las tiendas. Los productos se cargan al entrar a la tienda.
       // SELECCIÓN DE CAMPOS: Solo traer lo necesario para la tarjeta de la tienda, evitando datos pesados innecesarios.
-      const [users, colonies, settings] = await Promise.all([
+
+      // Filtrar mensajes de comunidad que no hayan expirado
+      const now = new Date();
+      const [users, colonies, settings, communityMessages] = await Promise.all([
         User.find(userFilter).select(
           "storeName storeAddress logo coverImage description prepTime averageRating ratingCount isOpen subscription role",
         ),
         Colony.find(),
         Settings.findOne(),
+        CommunityMessage.find({ expiresAt: { $gt: now } }).sort({
+          createdAt: -1,
+        }),
       ]);
       // Retornamos array vacío de productos para que la carga sea instantánea
-      return res.json({ users, products: [], orders: [], colonies, settings });
+      return res.json({
+        users,
+        products: [],
+        orders: [],
+        colonies,
+        settings,
+        communityMessages,
+      });
     }
 
-    const [users, products, colonies, settings] = await Promise.all([
-      User.find(userFilter).select("-password"),
-      Product.find(productFilter).select(productSelect),
-      Colony.find(),
-      Settings.findOne(),
-    ]);
+    // Para el Master, traemos TODOS los mensajes (incluso expirados)
+    // Para Store/Delivery, no son necesarios por ahora, pero por consistencia los enviamos si se requieren
+    let messagesPromise = Promise.resolve([]);
+    if (role === "MASTER") {
+      messagesPromise = CommunityMessage.find().sort({ createdAt: -1 });
+    }
+
+    const [users, products, colonies, settings, communityMessages] =
+      await Promise.all([
+        User.find(userFilter).select("-password"),
+        Product.find(productFilter).select(productSelect),
+        Colony.find(),
+        Settings.findOne(),
+        messagesPromise,
+      ]);
 
     res.json({
       users,
@@ -1130,6 +1538,7 @@ app.get("/api/init", async (req, res) => {
       orders: [], // No enviar órdenes públicas
       colonies,
       settings,
+      communityMessages,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

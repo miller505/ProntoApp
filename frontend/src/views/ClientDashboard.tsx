@@ -2,12 +2,16 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useCart } from "../contexts/CartContext";
+import { useProducts } from "../contexts/ProductContext";
+import { useOrders } from "../contexts/OrderContext";
+import { useChat } from "../contexts/ChatContext";
 import { Button } from "../components/UI";
 import { Icons } from "../constants";
 import {
   StoreProfile,
   SubscriptionType,
   Product,
+  User,
   UserRole,
   OrderStatus,
 } from "../types";
@@ -16,36 +20,54 @@ import {
 import { HomeView } from "./client/HomeView";
 import { CartView } from "./client/CartView";
 import { OrdersView } from "./client/OrdersView";
+import { CheckoutView } from "./client/CheckoutView";
 import { ProfileView } from "./client/ProfileView";
 import { ProductItem } from "../components/ProductItem";
 import { NavBtn } from "../components/NavBtn";
 import { shuffleArray } from "../utils";
+import { Modal, Input } from "../components/UI";
+
+const ScrollToTopButton = () => {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const handleScroll = () => setShow(window.scrollY > 300);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  if (!show) return null;
+  return (
+    <button
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      className="fixed bottom-24 right-4 bg-primary text-white p-3.5 rounded-full shadow-[0_4px_14px_rgba(0,0,0,0.3)] z-50 hover:bg-opacity-90 transition-all active:scale-90 animate-fade-in-up"
+      aria-label="Volver arriba"
+    >
+      <Icons.ArrowUp size={24} />
+    </button>
+  );
+};
 
 const ClientDashboard = () => {
-  const {
-    users,
-    products,
-    unreadCounts,
-    loading, // Importamos el estado de carga global
-    fetchStoreProducts,
-    orders,
-  } = useApp();
+  const { users, colonies, loading, communityMessages } = useApp();
+  const { products, fetchStoreProducts } = useProducts();
+  const { orders } = useOrders();
+  const { unreadCounts } = useChat();
 
-  const { currentUser } = useAuth();
+  const { currentUser, updateUser } = useAuth();
   const { cart } = useCart();
 
-  const [view, setView] = useState<"home" | "cart" | "orders" | "profile">(
-    "home",
-  );
+  const [view, setView] = useState<
+    "home" | "cart" | "orders" | "profile" | "checkout"
+  >("home");
   const [selectedStore, setSelectedStore] = useState<StoreProfile | null>(null);
 
   // --- SOLUCIÓN: Manejo del historial del navegador para el gesto "Atrás" ---
   useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      // Si el estado es el que creamos para la tienda, ciérrala.
-      if (event.state?.view === "store") {
-        setSelectedStore(null);
-      }
+    const handlePopState = () => {
+      // Si el usuario hace el gesto "atrás" y hay una tienda abierta, la cerramos.
+      setSelectedStore((current) => {
+        return current ? null : current;
+      });
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -68,10 +90,10 @@ const ClientDashboard = () => {
   );
 
   // Memoize the shuffled stores to prevent re-shuffling on every render
-  const { ultraStores, otherStores } = useMemo(() => {
-    // Filtramos las Ultra
-    const newUltraStores = shuffleArray(
-      stores.filter((s) => s.subscription === SubscriptionType.ULTRA),
+  const { blackStores, otherStores } = useMemo(() => {
+    // Filtramos las Black
+    const newBlackStores = shuffleArray(
+      stores.filter((s) => s.subscription === "BLACK"),
     );
     // Filtramos y aleatorizamos las Premium
     const premiumStores = shuffleArray(
@@ -85,7 +107,7 @@ const ClientDashboard = () => {
     );
 
     return {
-      ultraStores: newUltraStores,
+      blackStores: newBlackStores,
       otherStores: [...premiumStores, ...standardStores],
     };
   }, [stores]);
@@ -109,24 +131,81 @@ const ClientDashboard = () => {
     });
   }, [orders, currentUser]);
 
+  // --- LÓGICA DE VERIFICACIÓN DE TELÉFONO ---
+  const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
+  const [phoneForm, setPhoneForm] = useState("");
+
+  const checkPhoneRequirement = () => {
+    // Si el teléfono es el placeholder o está vacío, exigir actualización
+    if (
+      !currentUser?.phone ||
+      currentUser.phone === "0000000000" ||
+      currentUser.phone.length < 10
+    ) {
+      setIsPhoneModalOpen(true);
+      return false;
+    }
+    return true;
+  };
+
+  const handleSavePhone = async () => {
+    if (phoneForm.length !== 10 || isNaN(Number(phoneForm))) {
+      return alert("Ingresa un número válido de 10 dígitos.");
+    }
+    await updateUser({ ...currentUser, phone: phoneForm } as User);
+    setIsPhoneModalOpen(false);
+    alert("¡Teléfono guardado! Ahora puedes continuar con tu compra.");
+  };
+  // ---------------------------------------------
+
   if (selectedStore) {
     return (
-      <StoreView
-        store={selectedStore}
-        onBack={() => {
-          // CORRECCIÓN: Hacemos la acción de la UI inmediata y luego sincronizamos el historial.
-          // Esto elimina la dependencia en el evento `popstate` para la acción del botón, haciéndolo más rápido y fiable.
-          setSelectedStore(null);
-          window.history.back();
-        }}
-        fetchStoreProducts={fetchStoreProducts}
-        onGoToCart={() => {
-          // Al ir al carrito, no queremos que el historial de la tienda se quede
-          window.history.replaceState(null, "", window.location.pathname);
-          setSelectedStore(null);
-          setView("cart");
-        }}
-      />
+      <>
+        <StoreView
+          store={selectedStore}
+          onBack={() => {
+            window.history.back();
+          }}
+          fetchStoreProducts={fetchStoreProducts}
+          onGoToCart={() => {
+            // Al ir al carrito, no queremos que el historial de la tienda se quede
+            window.history.replaceState(null, "", window.location.pathname);
+            setSelectedStore(null);
+            setView("cart");
+          }}
+        />
+        <Modal
+          isOpen={isPhoneModalOpen}
+          onClose={() => setIsPhoneModalOpen(false)}
+          title="Falta un paso"
+        >
+          <div className="space-y-4">
+            <p className="text-gray-600 text-sm">
+              Para que el repartidor pueda comunicarse contigo, necesitamos tu
+              número de celular.
+            </p>
+            <div className="flex gap-2 items-center">
+              <div className="px-3 py-3 bg-gray-100 rounded-2xl text-gray-500 font-bold border-2 border-transparent">
+                +52
+              </div>
+              <Input
+                placeholder="10 dígitos"
+                value={phoneForm}
+                onChange={(e: any) => {
+                  const val = e.target.value.replace(/[^0-9]/g, "");
+                  if (val.length <= 10) setPhoneForm(val);
+                }}
+                type="tel"
+                className="flex-1"
+              />
+            </div>
+            <Button onClick={handleSavePhone} className="w-full">
+              Guardar y Continuar
+            </Button>
+          </div>
+        </Modal>
+        <ScrollToTopButton />
+      </>
     );
   }
 
@@ -134,69 +213,124 @@ const ClientDashboard = () => {
     <div className="min-h-screen bg-secondary">
       {/* Content Area */}
       {view === "home" && (
-        <HomeView
-          stores={stores}
-          ultraStores={ultraStores}
-          otherStores={otherStores}
-          onStoreSelect={(store) => {
-            // Empujamos un nuevo estado al historial del navegador
-            window.history.pushState({ view: "store" }, "", "");
-            setSelectedStore(store);
+        <>
+          <div className="w-full flex justify-center pt-2 pb-1">
+            <img
+              src="/logo.svg?v=2"
+              alt="Pronto"
+              className="h-5 w-auto object-contain"
+            />
+          </div>
+          <HomeView
+            stores={stores}
+            blackStores={blackStores}
+            otherStores={otherStores}
+            onStoreSelect={(store) => {
+              // Empujamos un nuevo estado al historial del navegador
+              window.history.pushState({ view: "store" }, "", "");
+              setSelectedStore(store);
+            }}
+            loading={loading} // Pasamos el estado a la vista
+            communityMessages={communityMessages}
+            orders={orders}
+          />
+        </>
+      )}
+      {view === "cart" && (
+        <CartView
+          setView={setView}
+          onCheckout={() => {
+            if (checkPhoneRequirement()) setView("checkout");
           }}
-          loading={loading} // Pasamos el estado a la vista
         />
       )}
-      {view === "cart" && <CartView setView={setView} />}
+      {view === "checkout" && <CheckoutView setView={setView} />}
       {view === "orders" && <OrdersView setView={setView} />}
       {view === "profile" && <ProfileView />}
 
+      {/* Modal de Teléfono (Disponible en vistas principales como el Carrito) */}
+      <Modal
+        isOpen={isPhoneModalOpen}
+        onClose={() => setIsPhoneModalOpen(false)}
+        title="Falta un paso"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 text-sm">
+            Para que el repartidor pueda comunicarse contigo, necesitamos tu
+            número de celular.
+          </p>
+          <div className="flex gap-2 items-center">
+            <div className="px-3 py-3 bg-gray-100 rounded-2xl text-gray-500 font-bold border-2 border-transparent">
+              +52
+            </div>
+            <Input
+              placeholder="10 dígitos"
+              value={phoneForm}
+              onChange={(e: any) => {
+                const val = e.target.value.replace(/[^0-9]/g, "");
+                if (val.length <= 10) setPhoneForm(val);
+              }}
+              type="tel"
+              className="flex-1"
+            />
+          </div>
+          <Button onClick={handleSavePhone} className="w-full">
+            Guardar y Continuar
+          </Button>
+        </div>
+      </Modal>
+
       {/* Bottom Nav */}
-      <nav className="fixed bottom-0 w-full bg-white/90 backdrop-blur-lg border-t border-gray-200 pb-safe pt-2 px-6 flex justify-between z-40">
-        <NavBtn
-          icon={<Icons.Home />}
-          label="Inicio"
-          active={view === "home"}
-          onClick={() => setView("home")}
-        />
-        <div className="relative">
+      {view !== "checkout" && (
+        <nav className="fixed bottom-0 w-full bg-white/90 backdrop-blur-lg border-t border-gray-200 pb-safe pt-2 px-6 flex justify-between z-40">
           <NavBtn
-            icon={<Icons.ShoppingBag />}
-            label="Pedidos"
-            active={view === "orders"}
-            onClick={() => setView("orders")}
+            icon={<Icons.Home />}
+            label="Inicio"
+            active={view === "home"}
+            onClick={() => setView("home")}
           />
-          {hasArrivedOrder ? (
-            <span className="absolute -top-3 -right-2 bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-full border-2 border-white shadow-sm animate-bounce flex items-center gap-1 z-50 pointer-events-none">
-              <Icons.Bike size={12} /> ¡Llegó!
-            </span>
-          ) : (
-            totalUnread > 0 && (
-              <span className="absolute top-0 right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white pointer-events-none">
-                {totalUnread > 9 ? "9+" : totalUnread}
+          <div className="relative">
+            <NavBtn
+              icon={<Icons.ShoppingBag />}
+              label="Pedidos"
+              active={view === "orders"}
+              onClick={() => setView("orders")}
+            />
+            {hasArrivedOrder ? (
+              <span className="absolute -top-3 -right-2 bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-full border-2 border-white shadow-sm animate-bounce flex items-center gap-1 z-50 pointer-events-none">
+                <Icons.Bike size={12} /> ¡Llegó!
               </span>
-            )
-          )}
-        </div>
-        <div className="relative">
+            ) : (
+              totalUnread > 0 && (
+                <span className="absolute top-0 right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white pointer-events-none">
+                  {totalUnread > 9 ? "9+" : totalUnread}
+                </span>
+              )
+            )}
+          </div>
+          <div className="relative">
+            <NavBtn
+              icon={<Icons.ShoppingCart />}
+              label="Carrito"
+              active={view === "cart"}
+              onClick={() => setView("cart")}
+            />
+            {cart.length > 0 && (
+              <span className="absolute -top-1 right-2 w-5 h-5 bg-primary text-white text-[10px] flex items-center justify-center rounded-full font-bold">
+                {cart.reduce((a, b) => a + b.quantity, 0)}
+              </span>
+            )}
+          </div>
           <NavBtn
-            icon={<Icons.ShoppingCart />}
-            label="Carrito"
-            active={view === "cart"}
-            onClick={() => setView("cart")}
+            icon={<Icons.User />}
+            label="Perfil"
+            active={view === "profile"}
+            onClick={() => setView("profile")}
           />
-          {cart.length > 0 && (
-            <span className="absolute -top-1 right-2 w-5 h-5 bg-primary text-white text-[10px] flex items-center justify-center rounded-full font-bold">
-              {cart.reduce((a, b) => a + b.quantity, 0)}
-            </span>
-          )}
-        </div>
-        <NavBtn
-          icon={<Icons.User />}
-          label="Perfil"
-          active={view === "profile"}
-          onClick={() => setView("profile")}
-        />
-      </nav>
+        </nav>
+      )}
+
+      <ScrollToTopButton />
     </div>
   );
 };
@@ -297,6 +431,7 @@ const StoreView = ({
   onGoToCart: () => void;
   fetchStoreProducts: (storeId: string) => Promise<void>;
 }) => {
+  const { currentUser } = useAuth();
   const { addToCart, removeFromCart, cart } = useCart();
   const [activeCategory, setActiveCategory] = useState("ALL");
   const [notification, setNotification] = useState("");
@@ -310,10 +445,10 @@ const StoreView = ({
   }, [store.id]);
 
   // Los productos se obtienen del AppContext, que se actualiza con fetchStoreProducts
-  const { products } = useApp();
+  const { products } = useProducts();
 
   const handleAddToCart = (product: Product, quantity: number) => {
-    addToCart(product, quantity);
+    addToCart(product, quantity, currentUser?.defaultNotes);
     setNotification("Agregado al carrito");
     setTimeout(() => setNotification(""), 2000);
   };

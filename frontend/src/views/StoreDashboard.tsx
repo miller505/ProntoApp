@@ -1,25 +1,19 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext";
+import { useProducts } from "../contexts/ProductContext";
+import { useOrders } from "../contexts/OrderContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
 import { uploadToCloudinary } from "../api";
 import { SUBSCRIPTION_LIMITS } from "../constants";
 import { StoreProfile, Product, Order, OrderStatus } from "../types";
 import { formatDate, getOrderStatusColor } from "../utils";
-
 export const StoreDashboard = () => {
-  const {
-    products,
-    addProduct,
-    updateProduct,
-    deleteProduct,
-    orders,
-    updateOrderStatus,
-    colonies,
-    getStoreReviews,
-    getFinanceStats,
-  } = useApp();
+  const { colonies, refreshData } = useApp();
+  const { products, addProduct, updateProduct, deleteProduct } = useProducts();
+  const { orders, updateOrderStatus, getFinanceStats, getStoreReviews } =
+    useOrders();
 
   const { currentUser, updateUser, logout } = useAuth();
 
@@ -129,6 +123,30 @@ export const StoreDashboard = () => {
     [myOrders],
   );
 
+  const getSubscriptionStyle = (sub: string = "STANDARD") => {
+    switch (sub) {
+      case "BLACK":
+        return {
+          bg: "bg-gradient-to-r from-gray-900 to-black",
+          text: "text-white",
+          logo: "/logowhite.svg?v=2",
+        };
+      case "PREMIUM":
+        return {
+          bg: "bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-500",
+          text: "text-gray-900",
+          logo: "/logoblack.svg?v=2",
+        };
+      case "STANDARD":
+      default:
+        return {
+          bg: "bg-gradient-to-r from-gray-200 via-gray-300 to-gray-400",
+          text: "text-gray-800",
+          logo: "/logoblack.svg?v=2",
+        };
+    }
+  };
+
   const myProducts = products.filter((p) => p.storeId === store?.id);
 
   // Filter and sort products, memoized for performance
@@ -168,6 +186,8 @@ export const StoreDashboard = () => {
             return a.price - b.price;
           case "price-desc":
             return b.price - a.price;
+          case "sales-desc":
+            return (b.salesCount || 0) - (a.salesCount || 0);
           default:
             return 0;
         }
@@ -217,7 +237,7 @@ export const StoreDashboard = () => {
 
   const handleToggleProductVisibility = (p: Product) => {
     const currentVisibility = p.isAvailable !== false;
-    const productLimit = SUBSCRIPTION_LIMITS[store.subscription] || 10;
+    const productLimit = SUBSCRIPTION_LIMITS[store.subscription] || 20;
     const visibleProducts = myProducts.filter(
       (p) => p.isAvailable !== false,
     ).length;
@@ -236,10 +256,24 @@ export const StoreDashboard = () => {
   };
 
   const handleToggleFeatured = (p: Product) => {
+    // 0. Validar que no está oculto
+    if (p.isAvailable === false) {
+      return alert(
+        "No puedes destacar un producto oculto. Hazlo visible primero.",
+      );
+    }
+
+    // 0. Validar que no está oculto
+    if (p.isAvailable === false) {
+      return alert(
+        "No puedes destacar un producto oculto. Hazlo visible primero.",
+      );
+    }
+
     // 1. Validar Suscripción
     if (store.subscription === "STANDARD") {
       return alert(
-        "La función de destacar productos es exclusiva para socios Premium y Ultra. ¡Mejora tu plan para vender más!",
+        "La función de destacar productos es exclusiva para socios Premium y Black. ¡Mejora tu plan para vender más!",
       );
     }
 
@@ -373,6 +407,9 @@ export const StoreDashboard = () => {
       description: desc,
       logo: profileForm.logo,
       coverImage: profileForm.coverImage,
+      storeAddress: {
+        ...store.storeAddress,
+      },
     };
 
     // Merge with current store data, preserving Master-controlled fields
@@ -429,8 +466,27 @@ export const StoreDashboard = () => {
 
   if (!store) return null; // Prevención de errores si aún está cargando la sesión
 
+  const subStyle = getSubscriptionStyle(store.subscription);
+
   return (
     <div className="min-h-screen bg-secondary pb-24">
+      {/* Subscription Banner */}
+      <div
+        className={`w-full py-1.5 ${subStyle.bg} ${subStyle.text} flex items-center justify-center gap-2 text-xs shadow-sm relative z-40`}
+      >
+        <span
+          className="font-bold text-xxs tracking-wider uppercase"
+          style={{ fontFamily: "Inter, sans-serif" }}
+        >
+          SOCIO {store.subscription}
+        </span>
+        <img
+          src={subStyle.logo}
+          alt="Pronto"
+          className="h-5 w-auto object-contain"
+        />
+      </div>
+
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">
@@ -754,7 +810,7 @@ export const StoreDashboard = () => {
                   className="py-2 text-sm"
                   disabled={
                     myProducts.length >=
-                    (SUBSCRIPTION_LIMITS[store.subscription] || 10)
+                    (SUBSCRIPTION_LIMITS[store.subscription] || 20)
                   }
                 >
                   <Icons.Plus size={16} /> Nuevo
@@ -778,6 +834,12 @@ export const StoreDashboard = () => {
                       src={p.image}
                       className="w-20 h-20 rounded-xl object-cover bg-gray-100 flex-shrink-0"
                     />
+                    {p.salesCount > 0 && (
+                      <div className="absolute top-2 left-2 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10 flex items-center gap-0.5">
+                        <Icons.TrendingUp size={10} />
+                        {p.salesCount} vendidos
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <h4
                         className="font-bold text-sm text-gray-800 mb-1 leading-tight truncate"
@@ -966,57 +1028,122 @@ export const StoreDashboard = () => {
                   </div>
                 </div>
 
-                <h3 className="font-mega text-lg mb-4 text-gray-800">
-                  RESUMEN SEMANAL
-                </h3>
-                <div className="space-y-3">
-                  {(!financeStats.weeklyBreakdown ||
-                    financeStats.weeklyBreakdown.length === 0) && (
-                    <p className="text-gray-400 text-center">
-                      No hay ventas registradas.
-                    </p>
-                  )}
-                  {(financeStats.weeklyBreakdown || []).map((stat: any) => {
-                    const labelStart = new Date(
-                      stat.startDate,
-                    ).toLocaleDateString("es-MX", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    });
-                    const endDate = new Date(stat.startDate);
-                    endDate.setDate(endDate.getDate() + 6);
-                    const labelEnd = endDate.toLocaleDateString("es-MX", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    });
+                {store.subscription !== "STANDARD" ? (
+                  <>
+                    <h3 className="font-mega text-lg mb-4 text-gray-800 mt-8">
+                      PRODUCTOS MÁS VENDIDOS
+                    </h3>
+                    <Card className="mb-8">
+                      <div className="space-y-4">
+                        {myProducts
+                          .sort(
+                            (a, b) => (b.salesCount || 0) - (a.salesCount || 0),
+                          )
+                          .filter((p) => (p.salesCount || 0) > 0)
+                          .slice(0, 10)
+                          .map((p, idx) => {
+                            const maxSales = Math.max(
+                              ...myProducts.map((x) => x.salesCount || 0),
+                              1,
+                            );
+                            const percentage =
+                              ((p.salesCount || 0) / maxSales) * 100;
+                            return (
+                              <div key={p.id} className="space-y-1">
+                                <div className="flex justify-between text-xs font-bold">
+                                  <span className="truncate flex-1">
+                                    {idx + 1}. {p.name}
+                                  </span>
+                                  <span className="text-primary">
+                                    {p.salesCount} unidades
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-primary transition-all duration-1000"
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        {myProducts.every((p) => !p.salesCount) && (
+                          <p className="text-center text-gray-400 py-4 text-sm">
+                            No hay datos de ventas aún.
+                          </p>
+                        )}
+                      </div>
+                    </Card>
 
-                    return (
-                      <Card
-                        key={stat.startDate}
-                        className="flex justify-between items-center"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-green-50 text-green-600 rounded-lg">
-                            <Icons.Calendar size={20} />
-                          </div>
-                          <div>
-                            <p className="font-bold text-gray-800">
-                              {labelStart} - {labelEnd}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {stat.count} pedidos
-                            </p>
-                          </div>
-                        </div>
-                        <p className="font-bold text-lg text-green-600">
-                          ${stat.total.toFixed(2)}
+                    <h3 className="font-mega text-lg mb-4 text-gray-800 mt-8">
+                      RESUMEN SEMANAL
+                    </h3>
+
+                    <div className="space-y-3">
+                      {(!financeStats.weeklyBreakdown ||
+                        financeStats.weeklyBreakdown.length === 0) && (
+                        <p className="text-gray-400 text-center py-6 bg-white rounded-xl shadow-sm">
+                          No hay ventas registradas en las semanas recientes.
                         </p>
-                      </Card>
-                    );
-                  })}
-                </div>
+                      )}
+                      {(financeStats.weeklyBreakdown || []).map((stat: any) => {
+                        const labelStart = new Date(
+                          stat.startDate,
+                        ).toLocaleDateString("es-MX", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        });
+                        const endDate = new Date(stat.startDate);
+                        endDate.setDate(endDate.getDate() + 6);
+                        const labelEnd = endDate.toLocaleDateString("es-MX", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        });
+
+                        return (
+                          <Card
+                            key={stat.startDate}
+                            className="flex justify-between items-center"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                                <Icons.Calendar size={20} />
+                              </div>
+                              <div>
+                                <p className="font-bold text-gray-800">
+                                  {labelStart} - {labelEnd}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  {stat.count} pedidos entregados
+                                </p>
+                              </div>
+                            </div>
+                            <p className="font-bold text-lg text-green-600">
+                              ${stat.total.toFixed(2)}
+                            </p>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-6 rounded-2xl text-center border border-yellow-200 mt-8 shadow-sm">
+                    <Icons.Award
+                      size={36}
+                      className="text-yellow-500 mx-auto mb-3 drop-shadow-sm"
+                    />
+                    <h3 className="font-bold text-yellow-800 text-lg mb-1 font-mega">
+                      DESBLOQUEA ESTADÍSTICAS
+                    </h3>
+                    <p className="text-sm text-yellow-700 mb-0 px-2 leading-relaxed opacity-90">
+                      Mejora tu plan a Premium o Black para acceder al desglose
+                      de ventas semanales estructurado y comprender el
+                      crecimiento de tu negocio.
+                    </p>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1024,283 +1151,341 @@ export const StoreDashboard = () => {
 
         {/* --- PROFILE (Simplified) --- */}
         {activeTab === "profile" && (
-          <div className="space-y-4">
-            <Card>
-              <h3 className="font-mega text-lg mb-4">MI SUSCRIPCIÓN</h3>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Icons.Award
-                    size={20}
-                    className={
-                      store.subscription === "ULTRA"
-                        ? "text-purple-500"
-                        : store.subscription === "PREMIUM"
-                          ? "text-yellow-500"
-                          : "text-gray-500"
-                    }
-                  />
-                  <span className="font-bold text-lg">
-                    {store.subscription}
-                  </span>
-                </div>
-                <span
-                  className={`text-sm font-medium text-right transition-colors ${
-                    myProducts.length >
-                    (SUBSCRIPTION_LIMITS[store.subscription] || 10)
-                      ? "text-red-500"
-                      : "text-gray-500"
-                  }`}
-                >
-                  {myProducts.length} /{" "}
-                  {SUBSCRIPTION_LIMITS[store.subscription] || 10} productos
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div
-                  className={`h-2.5 rounded-full transition-all duration-500 ${
-                    myProducts.length >
-                    (SUBSCRIPTION_LIMITS[store.subscription] || 10)
-                      ? "bg-red-500"
-                      : store.subscription === "ULTRA"
-                        ? "bg-purple-500"
-                        : store.subscription === "PREMIUM"
-                          ? "bg-yellow-500"
-                          : "bg-gray-500"
-                  }`}
-                  style={{
-                    width: `${Math.min(
-                      (myProducts.length /
-                        (SUBSCRIPTION_LIMITS[store.subscription] || 10)) *
-                        100,
-                      100,
-                    )}%`,
-                  }}
-                ></div>
-              </div>
-            </Card>
-
-            <Card>
-              <button
-                onClick={() => setIsCustomizationOpen(!isCustomizationOpen)}
-                className="flex justify-between items-center w-full"
-              >
-                <h3 className="font-mega text-lg">
-                  PERSONALIZACIÓN DE LA TIENDA
+          <div className="space-y-6">
+            <div>
+              <div className="flex justify-between items-center mb-2 px-1">
+                <h3 className="font-mega text-lg text-gray-800 uppercase tracking-tight">
+                  Mi suscripción
                 </h3>
-                <Icons.ChevronDown
-                  className={`transition-transform duration-300 ${isCustomizationOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-
-              {isCustomizationOpen && (
-                <div className="space-y-6 mt-4 pt-4 border-t border-gray-100">
-                  {/* Cover Image Upload */}
-                  <div className="flex flex-col items-center">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Portada de Tienda
-                    </label>
-                    <div className="flex items-center gap-4">
-                      {profileForm.coverImage && (
-                        <img
-                          src={profileForm.coverImage}
-                          alt="Cover"
-                          className="w-32 h-20 rounded-xl object-cover border border-gray-200"
-                        />
-                      )}
-                      <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Icons.Camera size={18} />
-                          <span>
-                            {isUploading
-                              ? "Subiendo..."
-                              : profileForm.coverImage
-                                ? "Cambiar"
-                                : "Subir"}
-                          </span>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) =>
-                            handleProfileImageUpload(e, "coverImage")
+              </div>
+              <Card>
+                <div className="flex flex-col gap-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-gray-50 rounded-2xl border border-gray-100">
+                        <Icons.Award
+                          size={32}
+                          className={
+                            store.subscription === "BLACK"
+                              ? "text-purple-500"
+                              : store.subscription === "PREMIUM"
+                                ? "text-yellow-500"
+                                : "text-gray-400"
                           }
-                          className="hidden"
                         />
-                      </label>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                          Plan Actual
+                        </p>
+                        <span className="font-mega text-2xl leading-none">
+                          {store.subscription}
+                        </span>
+                      </div>
                     </div>
+
+                    {store.subscriptionExpiresAt &&
+                      (() => {
+                        const expDate = new Date(store.subscriptionExpiresAt);
+                        const now = new Date();
+                        const diffDays = Math.ceil(
+                          (expDate.getTime() - now.getTime()) /
+                            (1000 * 60 * 60 * 24),
+                        );
+
+                        let statusColor =
+                          "bg-green-100 text-green-700 border-green-200";
+                        if (diffDays <= 2)
+                          statusColor =
+                            "bg-red-100 text-red-700 border-red-200 animate-pulse";
+                        else if (diffDays <= 5)
+                          statusColor =
+                            "bg-yellow-100 text-yellow-700 border-yellow-200";
+
+                        return (
+                          <div
+                            className={`px-3 py-1.5 rounded-full text-[10px] font-bold border ${statusColor} shadow-sm`}
+                          >
+                            PRÓXIMO PAGO: {expDate.toLocaleDateString()}
+                          </div>
+                        );
+                      })()}
                   </div>
 
-                  {/* Logo Upload */}
-                  <div className="flex flex-col items-center">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Avatar de Tienda
-                    </label>
-                    <div className="flex items-center gap-4">
-                      {profileForm.logo && (
-                        <img
-                          src={profileForm.logo}
-                          alt="Logo"
-                          className="w-20 h-20 rounded-full object-cover border border-gray-200"
-                        />
-                      )}
-                      <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Icons.Camera size={18} />
-                          <span>
-                            {isUploading
-                              ? "..."
-                              : profileForm.logo
-                                ? "Cambiar"
-                                : "Subir"}
-                          </span>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleProfileImageUpload(e, "logo")}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                  </div>
+                  <div className="h-px bg-gray-100 w-full" />
 
-                  <div>
-                    <div className="flex justify-between items-baseline">
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">
-                        Tiempo estimado de preparación
-                      </label>
-                      <span className="text-xs text-gray-400">Máx 120 min</span>
-                    </div>
-                    <Input
-                      type="number"
-                      placeholder="Ej. 20"
-                      value={profileForm.prepTime}
-                      onChange={(e: any) =>
-                        setProfileForm({
-                          ...profileForm,
-                          prepTime: e.target.value,
-                        })
-                      }
-                      min={0}
-                      max={120}
-                      step={1}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-baseline">
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">
-                        Descripción de la tienda
-                      </label>
-                      <span className="text-xs text-gray-400">
-                        {(profileForm.description || "").length}/70
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                      <span className="text-gray-400 text-[9px] uppercase font-bold block mb-1">
+                        Visibles en App
                       </span>
+                      <p className="font-bold text-iosText text-xl">
+                        {
+                          myProducts.filter((p) => p.isAvailable !== false)
+                            .length
+                        }
+                      </p>
                     </div>
-                    <Input
-                      value={profileForm.description}
-                      onChange={(e: any) =>
-                        setProfileForm({
-                          ...profileForm,
-                          description: e.target.value,
-                        })
-                      }
-                      maxLength={70}
-                    />
+                    <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                      <span className="text-gray-400 text-[9px] uppercase font-bold block mb-1">
+                        Límite del Plan
+                      </span>
+                      <p className="font-bold text-gray-500 text-xl">
+                        {SUBSCRIPTION_LIMITS[store.subscription] || 20}
+                      </p>
+                    </div>
                   </div>
-                  <Button
-                    className="w-full mt-4"
-                    onClick={handleSaveProfile}
-                    disabled={isUploading}
-                  >
-                    Guardar Cambios
-                  </Button>
                 </div>
-              )}
-            </Card>
 
-            <Card>
-              <h3 className="font-mega text-lg mb-4">DATOS DEL PROPIETARIO</h3>
-              <div className="space-y-4 text-sm">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-gray-400 text-xs block">Nombre</span>
-                    <p className="font-medium text-gray-800">
-                      {store.firstName}
-                    </p>
+                <div className="space-y-1 mt-6">
+                  <div className="flex justify-between items-end px-1 mb-1">
+                    <label className="text-gray-400 text-[10px] font-bold uppercase">
+                      Límite de productos
+                    </label>
+                    <span className="text-[10px] font-bold text-gray-500">
+                      {myProducts.length} /{" "}
+                      {SUBSCRIPTION_LIMITS[store.subscription] || 20}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div
+                      className={`h-2.5 rounded-full transition-all duration-500 ${
+                        myProducts.length >
+                        (SUBSCRIPTION_LIMITS[store.subscription] || 20)
+                          ? "bg-red-500"
+                          : store.subscription === "BLACK"
+                            ? "bg-purple-500"
+                            : store.subscription === "PREMIUM"
+                              ? "bg-yellow-500"
+                              : "bg-gray-500"
+                      }`}
+                      style={{
+                        width: `${Math.min(
+                          (myProducts.length /
+                            (SUBSCRIPTION_LIMITS[store.subscription] || 20)) *
+                            100,
+                          100,
+                        )}%`,
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            <div>
+              <h3 className="font-mega text-lg mb-2 ml-1 text-gray-800">
+                PERSONALIZACIÓN DE LA TIENDA
+              </h3>
+              <Card>
+                <button
+                  onClick={() => setIsCustomizationOpen(!isCustomizationOpen)}
+                  className="flex justify-between items-center w-full"
+                >
+                  <span className="font-bold text-gray-800 text-lg">
+                    Editar mi perfil
+                  </span>
+                  <Icons.ChevronDown
+                    className={`transition-transform duration-300 ${isCustomizationOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {isCustomizationOpen && (
+                  <div className="space-y-6 mt-4 pt-4 border-t border-gray-100">
+                    {/* Cover Image Upload */}
+                    <div className="flex flex-col items-center">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Portada de Tienda
+                      </label>
+                      <div className="flex items-center gap-4">
+                        {profileForm.coverImage && (
+                          <img
+                            src={profileForm.coverImage}
+                            alt="Cover"
+                            className="w-32 h-20 rounded-xl object-cover border border-gray-200"
+                          />
+                        )}
+                        <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Icons.Camera size={18} />
+                            <span>
+                              {isUploading
+                                ? "Subiendo..."
+                                : profileForm.coverImage
+                                  ? "Cambiar"
+                                  : "Subir"}
+                            </span>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) =>
+                              handleProfileImageUpload(e, "coverImage")
+                            }
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Logo Upload */}
+                    <div className="flex flex-col items-center">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Avatar de Tienda
+                      </label>
+                      <div className="flex items-center gap-4">
+                        {profileForm.logo && (
+                          <img
+                            src={profileForm.logo}
+                            alt="Logo"
+                            className="w-20 h-20 rounded-full object-cover border border-gray-200"
+                          />
+                        )}
+                        <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Icons.Camera size={18} />
+                            <span>
+                              {isUploading
+                                ? "..."
+                                : profileForm.logo
+                                  ? "Cambiar"
+                                  : "Subir"}
+                            </span>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) =>
+                              handleProfileImageUpload(e, "logo")
+                            }
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-baseline">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Tiempo estimado de preparación
+                        </label>
+                        <span className="text-xs text-gray-400">
+                          Máx 120 min
+                        </span>
+                      </div>
+                      <Input
+                        type="number"
+                        placeholder="Ej. 20"
+                        value={profileForm.prepTime}
+                        onChange={(e: any) =>
+                          setProfileForm({
+                            ...profileForm,
+                            prepTime: e.target.value,
+                          })
+                        }
+                        min={0}
+                        max={120}
+                        step={1}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-baseline">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Descripción de la tienda
+                        </label>
+                        <span className="text-xs text-gray-400">
+                          {(profileForm.description || "").length}/70
+                        </span>
+                      </div>
+                      <Input
+                        value={profileForm.description}
+                        onChange={(e: any) =>
+                          setProfileForm({
+                            ...profileForm,
+                            description: e.target.value,
+                          })
+                        }
+                        maxLength={70}
+                      />
+                    </div>
+
+                    <Button
+                      className="w-full mt-4"
+                      onClick={handleSaveProfile}
+                      disabled={isUploading}
+                    >
+                      Guardar Cambios
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            <div>
+              <h3 className="font-mega text-lg mb-2 ml-1 text-gray-800 uppercase">
+                DATOS DEL PROPIETARIO
+              </h3>
+              <Card>
+                <div className="space-y-4 text-sm">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-gray-400 text-xs block">
+                        Nombre
+                      </span>
+                      <p className="font-medium text-gray-800">
+                        {store.firstName}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-xs block">
+                        Apellido
+                      </span>
+                      <p className="font-medium text-gray-800">
+                        {store.lastName}
+                      </p>
+                    </div>
                   </div>
                   <div>
                     <span className="text-gray-400 text-xs block">
-                      Apellido
+                      Número asociado
+                    </span>
+                    <p className="font-medium text-gray-800">{store.phone}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-xs block">
+                      Correo electrónico
+                    </span>
+                    <p className="font-medium text-gray-800">{store.email}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-xs block">
+                      Dirección de la tienda
                     </span>
                     <p className="font-medium text-gray-800">
-                      {store.lastName}
+                      {store.storeAddress.street} #{store.storeAddress.number}
+                      {store.storeAddress.colonyId && colonies
+                        ? `, ${colonies.find((c) => c.id === store.storeAddress.colonyId)?.name}`
+                        : ""}
                     </p>
                   </div>
+                  <div>
+                    <span className="text-gray-400 text-xs block mb-2">
+                      Identificación (INE)
+                    </span>
+                    {store.ineImage ? (
+                      <img
+                        src={store.ineImage}
+                        alt="INE"
+                        className="w-full h-48 object-cover rounded-xl border border-gray-200"
+                      />
+                    ) : (
+                      <p className="text-gray-400 italic">No disponible</p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <span className="text-gray-400 text-xs block">
-                    Número asociado
-                  </span>
-                  <p className="font-medium text-gray-800">{store.phone}</p>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-xs block">
-                    Correo electrónico
-                  </span>
-                  <p className="font-medium text-gray-800">{store.email}</p>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-xs block">
-                    Suscripción
-                  </span>
-                  <p className="font-medium text-gray-800">
-                    {store.subscription}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-xs block">
-                    Límite de productos
-                  </span>
-                  <p className="font-medium text-gray-800">
-                    {myProducts.length} de{" "}
-                    {SUBSCRIPTION_LIMITS[store.subscription] || 10}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-xs block">
-                    Productos Visibles
-                  </span>
-                  <p className="font-medium text-gray-800">
-                    {myProducts.filter((p) => p.isAvailable !== false).length}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-xs block">
-                    Dirección de la tienda
-                  </span>
-                  <p className="font-medium text-gray-800">
-                    {store.storeAddress.street} #{store.storeAddress.number}
-                    {store.storeAddress.colonyId && colonies
-                      ? `, ${colonies.find((c) => c.id === store.storeAddress.colonyId)?.name}`
-                      : ""}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-xs block mb-2">
-                    Identificación (INE)
-                  </span>
-                  {store.ineImage ? (
-                    <img
-                      src={store.ineImage}
-                      alt="INE"
-                      className="w-full h-48 object-cover rounded-xl border border-gray-200"
-                    />
-                  ) : (
-                    <p className="text-gray-400 italic">No disponible</p>
-                  )}
-                </div>
-              </div>
-            </Card>
+              </Card>
+            </div>
           </div>
         )}
       </div>
@@ -1312,6 +1497,17 @@ export const StoreDashboard = () => {
         title={editingProduct ? "Editar Producto" : "Nuevo Producto"}
       >
         <form onSubmit={handleProductSubmit} className="space-y-4">
+          {editingProduct && (
+            <div className="flex justify-between items-center bg-gray-50 px-3 py-2 rounded-xl border border-gray-100 mb-2">
+              <span className="text-xs text-gray-500 font-medium tracking-wide">
+                Ventas Históricas del Producto
+              </span>
+              <div className="flex items-center gap-1.5 bg-green-100 text-green-700 px-2 py-0.5 rounded text-sm font-bold">
+                <Icons.TrendingUp size={14} />
+                {editingProduct.salesCount || 0}
+              </div>
+            </div>
+          )}
           <Input
             label="Nombre del Producto"
             value={prodForm.name}
@@ -1352,17 +1548,31 @@ export const StoreDashboard = () => {
             <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
               Imagen
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-            />
-            {isUploading && (
-              <p className="text-xs text-blue-500 mt-1">
-                Subiendo imagen a la nube...
-              </p>
-            )}
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
+                {prodForm.image ? (
+                  <img
+                    src={prodForm.image}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Icons.Camera size={24} className="text-gray-300" />
+                )}
+              </div>
+              <div className="flex-1">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                />
+                {isUploading && (
+                  <p className="text-xs text-blue-500 mt-2 ml-1 font-medium animate-pulse">
+                    Subiendo imagen...
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -1557,6 +1767,7 @@ const FilterModal = ({ uniqueCategories, filters, setFilters }: any) => {
             >
               <option value="name-asc">Nombre A-Z</option>
               <option value="name-desc">Nombre Z-A</option>
+              <option value="sales-desc">Los Más Vendidos</option>
               <option value="price-asc">Precio: Menor a Mayor</option>
               <option value="price-desc">Precio: Mayor a Menor</option>
             </select>

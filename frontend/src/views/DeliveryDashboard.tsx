@@ -1,21 +1,17 @@
 import React, { useState, useMemo } from "react";
 import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext";
+import { useOrders } from "../contexts/OrderContext";
+import { useChat } from "../contexts/ChatContext";
 import { Button, Card, Badge } from "../components/UI";
 import { Icons } from "../constants";
 import { OrderStatus, StoreProfile, User, Order } from "../types";
 import { ChatModal } from "../components/ChatModal";
 import { formatDate, getOrderStatusColor } from "../utils";
-
 export const DeliveryDashboard = () => {
-  const {
-    orders,
-    updateOrderStatus,
-    users,
-    colonies,
-    unreadCounts,
-    markOrderMessagesAsRead,
-  } = useApp();
+  const { users, colonies } = useApp();
+  const { orders, updateOrderStatus } = useOrders();
+  const { unreadCounts, markOrderMessagesAsRead } = useChat();
 
   const { currentUser, logout } = useAuth();
 
@@ -23,6 +19,7 @@ export const DeliveryDashboard = () => {
     "available" | "mine" | "profile" | "finances"
   >("available");
   const [chatOrder, setChatOrder] = useState<any | null>(null);
+  const [visibleMapId, setVisibleMapId] = useState<string | null>(null); // 'store-id' o 'client-id'
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(10);
 
@@ -119,7 +116,7 @@ export const DeliveryDashboard = () => {
             alt="Logo"
             className="h-10 w-auto object-contain"
           />
-          <h1 className="text-xs font-mega text-primary">
+          <h1 className="text-xs font-mega text-iosGray">
             PANEL DE REPARTIDOR
           </h1>
         </div>
@@ -304,17 +301,33 @@ export const DeliveryDashboard = () => {
                           {store.storeAddress.street} #
                           {store.storeAddress.number}
                         </p>
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                            `${store.storeAddress.street} ${store.storeAddress.number}, ${storeColony?.name || ""}, Canatlán, Durango`,
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
-                        >
-                          <Icons.MapPin size={14} />
-                          Ver en Mapa
-                        </a>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() =>
+                              setVisibleMapId(
+                                visibleMapId === `store-${order.id}`
+                                  ? null
+                                  : `store-${order.id}`,
+                              )
+                            }
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs font-bold"
+                          >
+                            <Icons.MapPin size={14} />
+                            {visibleMapId === `store-${order.id}`
+                              ? "Ocultar Mapa"
+                              : "Ver Ubicación"}
+                          </button>
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${store.storeAddress.street} ${store.storeAddress.number}, ${storeColony?.name || ""}, Canatlán, Durango`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
+                          >
+                            <Icons.ExternalLink size={14} />
+                            Google Maps
+                          </a>
+                        </div>
+
                       </div>
                     </div>
 
@@ -334,17 +347,33 @@ export const DeliveryDashboard = () => {
                           {order.deliveryAddress.street} #
                           {order.deliveryAddress.number}
                         </p>
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                            `${order.deliveryAddress.street} ${order.deliveryAddress.number}, ${clientColony?.name || ""}, Canatlán, Durango`,
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
-                        >
-                          <Icons.MapPin size={14} />
-                          Ver en Mapa
-                        </a>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() =>
+                              setVisibleMapId(
+                                visibleMapId === `client-${order.id}`
+                                  ? null
+                                  : `client-${order.id}`,
+                              )
+                            }
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs font-bold"
+                          >
+                            <Icons.MapPin size={14} />
+                            {visibleMapId === `client-${order.id}`
+                              ? "Ocultar Mapa"
+                              : "Ver Ubicación"}
+                          </button>
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${order.deliveryAddress.street} ${order.deliveryAddress.number}, ${clientColony?.name || ""}, Canatlán, Durango`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
+                          >
+                            <Icons.ExternalLink size={14} />
+                            Google Maps
+                          </a>
+                        </div>
+
                         <a
                           href={`tel:${client?.phone}`}
                           className="text-primary text-sm font-bold mt-2 block"

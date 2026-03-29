@@ -9,7 +9,7 @@ import { Product, CartItem } from "../types";
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: Product, quantity?: number) => void;
+  addToCart: (product: Product, quantity?: number, notes?: string) => void;
   removeFromCart: (productId: string) => void;
   deleteFromCart: (productId: string) => void;
   clearCart: () => void;
@@ -29,8 +29,20 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("cart", JSON.stringify(cart));
   }, [cart]);
 
-  const addToCart = (product: Product, quantity: number = 1) => {
+  const addToCart = (
+    product: Product,
+    quantity: number = 1,
+    notes?: string,
+  ) => {
     setCart((prevCart) => {
+      if (prevCart.length > 0 && prevCart[0].product.storeId !== product.storeId) {
+        if (window.confirm("¿Deseas vaciar tu carrito actual para pedir de esta tienda? Solo puedes pedir de una tienda a la vez.")) {
+          return [{ product, quantity, notes }];
+        } else {
+          return prevCart;
+        }
+      }
+
       const existing = prevCart.find((i) => i.product.id === product.id);
       if (existing) {
         return prevCart.map((i) =>
@@ -39,7 +51,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
             : i,
         );
       }
-      return [...prevCart, { product, quantity }];
+      return [...prevCart, { product, quantity, notes }];
     });
   };
 

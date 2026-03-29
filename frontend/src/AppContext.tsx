@@ -7,68 +7,67 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
-import { Product, Order, Colony, Message, SystemSettings } from "./types";
+import {
+  Product,
+  Order,
+  Colony,
+  Message,
+  SystemSettings,
+  CommunityMessage,
+  OrderStatus,
+} from "./types";
+import { toast } from "sonner";
 import { api } from "./api";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./contexts/AuthContext";
-import { useCart } from "./contexts/CartContext";
-import { OrderStatus } from "./types";
+import { useProducts } from "./contexts/ProductContext";
+import { useOrders } from "./contexts/OrderContext";
+import { useChat } from "./contexts/ChatContext";
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 interface AppContextType {
   users: any[];
-  products: Product[];
-  orders: Order[];
   colonies: Colony[];
   settings: SystemSettings;
-  messages: Message[];
+  communityMessages: CommunityMessage[];
   loading: boolean;
-  unreadCounts: Record<string, number>;
-  placeOrder: (order: Order) => Promise<void>;
-  updateOrderStatus: (
-    orderId: string,
-    status: string,
-    driverId?: string,
-  ) => Promise<boolean>;
+  socket: Socket | null;
   deleteUser: (id: string) => Promise<void>;
-  addProduct: (product: any) => Promise<void>;
-  updateProduct: (product: Product) => Promise<void>;
-  deleteProduct: (id: string) => Promise<void>;
   addColony: (colony: Colony) => Promise<void>;
   updateColony: (colony: Colony) => Promise<void>;
   deleteColony: (id: string) => Promise<void>;
   fetchColonies: () => Promise<void>;
   updateSettings: (settings: SystemSettings) => Promise<void>;
-  fetchMessages: (orderId: string) => Promise<void>;
-  sendMessage: (msg: Partial<Message>) => Promise<void>;
+  sendMessage: (msg: Partial<Message>) => void;
   joinChatRoom: (orderId: string) => void;
-  markOrderMessagesAsRead: (orderId: string) => void;
   addReview: (review: any) => Promise<void>;
-  getStoreReviews: (storeId: string) => Promise<any[]>;
-  getFinanceStats: () => Promise<any>;
   refreshData: () => Promise<void>;
-  fetchStoreProducts: (storeId: string) => Promise<void>;
+  addCommunityMessage: (msg: any) => Promise<void>;
+  updateCommunityMessage: (msg: any) => Promise<boolean>;
+  deleteCommunityMessage: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { currentUser } = useAuth();
-  const { clearCart } = useCart();
+  const { setProducts } = useProducts();
+  const { setOrders } = useOrders();
+  const { setMessages, setUnreadCounts } = useChat();
 
   const [loading, setLoading] = useState(true);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [users, setUsers] = useState<any[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
   const [colonies, setColonies] = useState<Colony[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [communityMessages, setCommunityMessages] = useState<
+    CommunityMessage[]
+  >([]);
   const [settings, setSettings] = useState<SystemSettings>({
     commissionRate: 5, // Default 5%
     kmRate: 5, // Default $5/km
+    companyKmRate: 0,
   });
-  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
   // --- NOTIFICATION HELPER ---
   const sendNotification = (title: string, body: string) => {
@@ -76,7 +75,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     if (Notification.permission === "granted") {
       // Vibración patrón: vibrar 200ms, pausa 100ms, vibrar 200ms
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      try {
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      } catch (e) {
+        // Silenciamos el error de intervención del navegador
+      }
+      toast(title, { description: body }); // Notificación en pantalla
       new Notification(title, {
         body,
         icon: "/logo.svg", // Asegúrate de tener este logo en public
@@ -113,7 +117,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         ...updatedOrder,
         id: (updatedOrder as any)._id || updatedOrder.id,
       };
-      setOrders((prevOrders) => {
+      setOrders((prevOrders: Order[]) => {
         const exists = prevOrders.some((o) => o.id === normalizedOrder.id);
         if (exists)
           return prevOrders.map((o) =>
@@ -128,10 +132,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         currentUser.role === "CLIENT" &&
         normalizedOrder.customerId === currentUser.id
       ) {
-        sendNotification(
-          "Actualización de Pedido",
-          `Tu pedido está: ${normalizedOrder.status}`,
-        );
+        if (normalizedOrder.status === OrderStatus.ARRIVED) {
+          sendNotification(
+            "¡Tu repartidor ha llegado!",
+            "Sal a recibir tu pedido al domicilio. ¡Buen provecho!",
+          );
+        } else {
+          sendNotification(
+            "Actualización de Pedido",
+            `Tu pedido está: ${normalizedOrder.status}`,
+          );
+        }
       }
 
       // 2. Tienda: Nueva orden recibida (Pendiente)
@@ -165,7 +176,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         ...updatedProduct,
         id: (updatedProduct as any)._id || updatedProduct.id,
       };
-      setProducts((prev) => {
+      setProducts((prev: Product[]) => {
         const exists = prev.some((p) => p.id === normalizedProduct.id);
         if (exists)
           return prev.map((p) =>
@@ -219,7 +230,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     newSocket.on("new_message", (newMessage: Message) => {
       // Solo incrementar si no somos el remitente
       if (newMessage.senderId !== currentUser?.id) {
-        setUnreadCounts((prev) => ({
+        setUnreadCounts((prev: any) => ({
           ...prev,
           [newMessage.orderId]: (prev[newMessage.orderId] || 0) + 1,
         }));
@@ -233,7 +244,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on("receive_message", (newMessage: Message) => {
-      setMessages((prev) => {
+      setMessages((prev: Message[]) => {
         if (
           prev.some(
             (m) => (m.id || m._id) === (newMessage.id || newMessage._id),
@@ -242,6 +253,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           return prev;
         return [...prev, newMessage];
       });
+    });
+
+    // --- LISTENERS DE COMUNIDAD (NEWSLETTER) ---
+    newSocket.on("community_message_update", (msg: CommunityMessage) => {
+      const normalizedMsg = { ...msg, id: (msg as any)._id || msg.id };
+      setCommunityMessages((prev) => {
+        // Usamos String() para asegurar una comparación de IDs robusta
+        const exists = prev.some(
+          (m) => String(m.id) === String(normalizedMsg.id),
+        );
+        if (exists) {
+          return prev.map((m) =>
+            String(m.id) === String(normalizedMsg.id) ? normalizedMsg : m,
+          );
+        }
+        return [normalizedMsg, ...prev];
+      });
+    });
+
+    newSocket.on("community_message_delete", (id: string) => {
+      setCommunityMessages((prev) =>
+        prev.filter((m) => m.id !== id && (m as any)._id !== id),
+      );
     });
 
     return () => {
@@ -282,13 +316,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         settings: initSettings,
         products: initProds,
         users: initOpenStores,
+        communityMessages: initMsgs,
       } = initRes.data;
 
       setColonies(normalize(initCols));
       setSettings(initSettings);
       setProducts(normalize(initProds));
+      setCommunityMessages(normalize(initMsgs));
 
-      setOrders(normalize(ordersRes.data));
+      setOrders(normalize(ordersRes.data) as Order[]);
       // Si es Master/Delivery usamos la lista completa, si no, usamos la lista de tiendas abiertas de init
       setUsers(normalize(usersRes ? usersRes.data : initOpenStores));
     } catch (error) {
@@ -308,65 +344,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     }
   }, [currentUser, fetchInitialData]);
-
-  const placeOrder = async (order: Order) => {
-    // Eliminamos el try/catch y clearCart aquí para manejar múltiples pedidos en el frontend
-    // Si falla uno, el frontend decidirá qué hacer.
-    await api.post("/api/orders", order);
-  };
-
-  const updateOrderStatus = async (
-    id: string,
-    status: string,
-    driverId?: string,
-  ) => {
-    try {
-      await api.put(`/api/orders/${id}/status`, { status, driverId });
-      return true;
-    } catch (e: any) {
-      alert(e.response?.data?.error || "Error al actualizar estado");
-      if (currentUser) fetchInitialData(currentUser);
-      return false;
-    }
-  };
-
-  const updateProduct = async (p: Product) => {
-    // ANTI-RACE CONDITION: Guardamos estado previo para rollback
-    const previousProducts = [...products];
-
-    // Optimismo: Actualizamos UI de inmediato
-    setProducts((prev) =>
-      prev.map((prod) => (prod.id === p.id ? { ...prod, ...p } : prod)),
-    );
-
-    const { _id, id, ...rest } = p as any;
-    try {
-      await api.put(`/api/products/${p.id}`, rest);
-      if (currentUser) fetchInitialData(currentUser);
-    } catch (error: any) {
-      console.error("Error updating product:", error);
-      setProducts(previousProducts); // <--- REVERSIÓN SI EL SERVIDOR FALLA
-      alert(error.response?.data?.error || "Error al actualizar producto");
-    }
-  };
-
-  const addProduct = async (p: any) => {
-    try {
-      await api.post("/api/products", p);
-      if (currentUser) fetchInitialData(currentUser);
-    } catch (e: any) {
-      alert(e.response?.data?.error || "Error al agregar producto");
-    }
-  };
-
-  const deleteProduct = async (id: string) => {
-    try {
-      await api.delete(`/api/products/${id}`);
-      if (currentUser) fetchInitialData(currentUser);
-    } catch (e) {
-      alert("Error al eliminar");
-    }
-  };
 
   const deleteUser = async (id: string) => {
     try {
@@ -428,71 +405,46 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const fetchMessages = useCallback(async (orderId: string) => {
-    if (!orderId) return;
-    try {
-      const res = await api.get(`/api/messages/${orderId}`);
-      setMessages(res.data || []);
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
-
   const sendMessage = async (msg: Partial<Message>) => {
     socket?.emit("send_message", msg);
   };
-  const joinChatRoom = (id: string) => socket?.emit("join_room", id);
-  const markOrderMessagesAsRead = (id: string) => {
-    const newCounts = { ...unreadCounts };
-    delete newCounts[id];
-    setUnreadCounts(newCounts);
-  };
+  const joinChatRoom = (id: string) => socket?.emit("join_order_room", id);
 
   const addReview = async (r: any) => {
     try {
       await api.post("/api/reviews", r);
       if (currentUser) fetchInitialData(currentUser);
     } catch (e: any) {
-      alert(e.response?.data?.error || "Error");
+      toast.error(e.response?.data?.error || "Error al calificar");
     }
   };
 
-  const getStoreReviews = async (sid: string) => {
-    if (!sid || sid === "undefined") return [];
+  const addCommunityMessage = async (msg: any) => {
     try {
-      const r = await api.get(`/api/reviews/${sid}`);
-      return r.data;
+      await api.post("/api/community-messages", msg);
+      // La actualización del estado vendrá vía Socket.io (community_message_update)
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error al crear mensaje");
+    }
+  };
+
+  const updateCommunityMessage = async (msg: any) => {
+    try {
+      await api.put(`/api/community-messages/${msg.id}`, msg);
+      // La actualización vendrá vía Socket.io
+      return true;
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error al actualizar mensaje");
+      return false;
+    }
+  };
+
+  const deleteCommunityMessage = async (id: string) => {
+    try {
+      await api.delete(`/api/community-messages/${id}`);
+      // La eliminación vendrá vía Socket.io (community_message_delete)
     } catch (e) {
-      return [];
-    }
-  };
-
-  const getFinanceStats = async () => {
-    try {
-      // Agregamos timestamp para evitar que el navegador guarde en caché una respuesta vacía antigua
-      const res = await api.get(`/api/finances/stats?t=${Date.now()}`);
-      return res.data;
-    } catch (error) {
-      console.error("Error fetching finance stats:", error);
-      return null;
-    }
-  };
-
-  const fetchStoreProducts = async (storeId: string) => {
-    try {
-      const res = await api.get(`/api/products?storeId=${storeId}`);
-      const newProducts = res.data.map((item: any) => ({
-        ...item,
-        id: item._id || item.id,
-      }));
-
-      setProducts((prev) => {
-        // Reemplazamos los productos de esta tienda con los frescos, manteniendo los de otras tiendas si ya se cargaron
-        const others = prev.filter((p) => p.storeId !== storeId);
-        return [...others, ...newProducts];
-      });
-    } catch (error) {
-      console.error("Error fetching store products:", error);
+      alert("Error al eliminar mensaje");
     }
   };
 
@@ -500,35 +452,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     <AppContext.Provider
       value={{
         users,
-        products,
-        orders,
         colonies,
         settings,
-        messages,
+        communityMessages,
         loading,
-        placeOrder,
-        updateOrderStatus,
-        addProduct,
-        updateProduct,
-        deleteProduct,
+        socket,
         deleteUser,
         addColony,
         updateColony,
         deleteColony,
         fetchColonies,
-        fetchMessages,
         sendMessage,
         joinChatRoom,
-        markOrderMessagesAsRead,
-        unreadCounts,
         addReview,
-        getStoreReviews,
-        getFinanceStats,
-        fetchStoreProducts,
         refreshData,
+        addCommunityMessage,
+        updateCommunityMessage,
+        deleteCommunityMessage,
         updateSettings: async (s: any) => {
-          await api.put("/api/settings", s);
-          if (currentUser) fetchInitialData(currentUser);
+          try {
+            const res = await api.put("/api/settings", s);
+            setSettings(res.data); // Actualización inmediata del estado local
+            toast.success("Tarifas actualizadas correctamente");
+          } catch (e) {
+            toast.error("Error al guardar las tarifas");
+          }
         },
       }}
     >

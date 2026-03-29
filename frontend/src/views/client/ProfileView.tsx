@@ -1,14 +1,29 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../../AppContext";
 import { useAuth } from "../../contexts/AuthContext";
-import { Button, Card, Modal } from "../../components/UI";
+import { useOrders } from "../../contexts/OrderContext";
+import { Button, Card, Modal, Input } from "../../components/UI";
 import { Icons } from "../../constants";
 import { OrderStatus } from "../../types";
 
 export const ProfileView = () => {
-  const { colonies, orders } = useApp();
+  const { colonies } = useApp();
+  const { orders } = useOrders();
   const { currentUser, logout, updateUser } = useAuth();
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+
+  // Estado para nueva dirección
+  const [isAddingAddress, setIsAddingAddress] = useState(false);
+  const [newAddr, setNewAddr] = useState({
+    street: "",
+    number: "",
+    colonyId: "",
+    reference: "",
+    lat: 0,
+    lng: 0,
+  });
+  const [colSearch, setColSearch] = useState("");
+  const [isColListOpen, setIsColListOpen] = useState(false);
 
   const handleDeleteAddress = (addressId: string) => {
     if (!currentUser?.addresses) return;
@@ -19,6 +34,30 @@ export const ProfileView = () => {
       );
       updateUser({ ...currentUser, addresses: updatedAddresses } as any);
     }
+  };
+
+  const handleAddAddress = async () => {
+    if (!newAddr.street || !newAddr.number || !newAddr.colonyId) {
+      return alert("Por favor completa los campos obligatorios.");
+    }
+
+    const currentAddresses = currentUser?.addresses || [];
+    const updated = [
+      ...currentAddresses,
+      { ...newAddr, id: Date.now().toString() },
+    ];
+
+    await updateUser({ ...currentUser, addresses: updated } as any);
+    setIsAddingAddress(false);
+    setNewAddr({
+      street: "",
+      number: "",
+      colonyId: "",
+      reference: "",
+      lat: 0,
+      lng: 0,
+    });
+    setColSearch("");
   };
 
   const handleLogoutClick = () => {
@@ -33,7 +72,7 @@ export const ProfileView = () => {
           OrderStatus.DELIVERED,
           OrderStatus.REJECTED,
           OrderStatus.CANCELLED,
-        ].includes(o.status)
+        ].includes((o.status || "").toUpperCase() as any)
       );
     });
 
@@ -116,8 +155,8 @@ export const ProfileView = () => {
         {currentUser?.addresses && currentUser.addresses.length > 0 && (
           <div className="w-full mt-6 text-left">
             <h3 className="font-mega text-lg mb-3 flex items-center gap-2">
-              <Icons.MapPin size={18} className="text-primary" /> MIS
-              DIRECCIONES
+              {" "}
+              MIS DIRECCIONES
             </h3>
             <div className="space-y-2">
               {currentUser.addresses.map((addr: any, idx: number) => {
@@ -150,6 +189,15 @@ export const ProfileView = () => {
                   </div>
                 );
               })}
+              {currentUser.addresses.length < 3 && (
+                <Button
+                  variant="secondary"
+                  className="w-full border-dashed !py-2 text-sm"
+                  onClick={() => setIsAddingAddress(true)}
+                >
+                  <Icons.Plus size={16} /> Agregar Dirección
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -163,6 +211,88 @@ export const ProfileView = () => {
           Cerrar Sesión
         </Button>
       </Card>
+
+      {/* Modal Nueva Dirección */}
+      <Modal
+        isOpen={isAddingAddress}
+        onClose={() => setIsAddingAddress(false)}
+        title="NUEVA DIRECCIÓN"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Calle"
+            maxLength={50}
+            value={newAddr.street}
+            onChange={(e: any) =>
+              setNewAddr({ ...newAddr, street: e.target.value })
+            }
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Número"
+              maxLength={6}
+              value={newAddr.number}
+              onChange={(e: any) => {
+                const val = e.target.value.replace(/[^0-9]/g, "");
+                setNewAddr({ ...newAddr, number: val });
+              }}
+            />
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-500 mb-1">
+                Colonia
+              </label>
+              <Input
+                placeholder="Buscar..."
+                value={colSearch}
+                onChange={(e: any) => {
+                  setColSearch(e.target.value);
+                  setIsColListOpen(true);
+                }}
+                onFocus={() => setIsColListOpen(true)}
+              />
+              {isColListOpen && colSearch.length > 0 && (
+                <div className="absolute z-50 w-full mt-[-10px] bg-white border border-gray-200 rounded-xl shadow-xl max-h-40 overflow-y-auto">
+                  {colonies
+                    .filter((c) =>
+                      c.name.toLowerCase().includes(colSearch.toLowerCase()),
+                    )
+                    .map((col) => (
+                      <button
+                        key={col.id}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                        onClick={() => {
+                          setNewAddr({
+                            ...newAddr,
+                            colonyId: col.id,
+                            lat: col.lat,
+                            lng: col.lng,
+                          });
+                          setColSearch(col.name);
+                          setIsColListOpen(false);
+                        }}
+                      >
+                        {col.name}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Input
+            label="Referencias (Opcional)"
+            maxLength={100}
+            value={newAddr.reference}
+            onChange={(e: any) =>
+              setNewAddr({ ...newAddr, reference: e.target.value })
+            }
+          />
+
+          <Button onClick={handleAddAddress} className="w-full">
+            Guardar Dirección
+          </Button>
+        </div>
+      </Modal>
 
       {/* Modal de Advertencia Logout */}
       <Modal

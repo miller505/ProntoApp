@@ -1,6 +1,10 @@
 import React, { useEffect } from "react";
+import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { CartProvider } from "./contexts/CartContext";
+import { ProductProvider } from "./contexts/ProductContext";
+import { OrderProvider, useOrders } from "./contexts/OrderContext";
+import { ChatProvider } from "./contexts/ChatContext";
 import { AppProvider, useApp } from "./AppContext";
 import { Login } from "./views/Login";
 import { MasterDashboard } from "./views/MasterDashboard";
@@ -11,7 +15,7 @@ import { UserRole, OrderStatus } from "./types";
 
 const Main = () => {
   const { currentUser, loadingAuth, logout } = useAuth();
-  const { orders } = useApp(); // Accedemos a las órdenes para validar inactividad
+  const { orders } = useOrders(); // Accedemos a las órdenes para validar inactividad
 
   // Lógica de Logout por Inactividad (Controlada por pedidos activos)
   useEffect(() => {
@@ -20,6 +24,19 @@ const Main = () => {
 
     const checkTimeout = () => {
       const lastActive = localStorage.getItem("lastActive");
+
+      // REGLA 1: Master y Repartidores NUNCA caducan por inactividad
+      if (
+        currentUser.role === UserRole.MASTER ||
+        currentUser.role === UserRole.DELIVERY
+      ) {
+        return;
+      }
+
+      // REGLA 2: Tiendas NO caducan si están marcadas como ABIERTAS
+      if (currentUser.role === UserRole.STORE && currentUser.isOpen) {
+        return;
+      }
 
       // Chequeo especial para Clientes: Si tiene pedidos activos, NO cerrar sesión
       if (currentUser.role === UserRole.CLIENT) {
@@ -82,10 +99,17 @@ const Main = () => {
 const App = () => {
   return (
     <AuthProvider>
+      <Toaster position="top-center" richColors closeButton />
       <CartProvider>
-        <AppProvider>
-          <Main />
-        </AppProvider>
+        <ProductProvider>
+          <OrderProvider>
+            <ChatProvider>
+              <AppProvider>
+                <Main />
+              </AppProvider>
+            </ChatProvider>
+          </OrderProvider>
+        </ProductProvider>
       </CartProvider>
     </AuthProvider>
   );

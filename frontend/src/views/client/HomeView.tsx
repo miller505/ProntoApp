@@ -1,7 +1,14 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useCart } from "../../contexts/CartContext";
 import { Icons } from "../../constants";
-import { StoreProfile, SubscriptionType, Product } from "../../types";
+import {
+  StoreProfile,
+  SubscriptionType,
+  Product,
+  CommunityMessage,
+  Order,
+  OrderStatus,
+} from "../../types";
 import { api } from "../../api";
 import { ProductItem } from "../../components/ProductItem";
 
@@ -28,7 +35,7 @@ const StoreCard: React.FC<{ store: StoreProfile; onClick: () => void }> = ({
             ★ Recomendado
           </span>
         )}
-        {store.subscription === SubscriptionType.ULTRA && (
+        {store.subscription === "BLACK" && (
           <span className="bg-purple-500/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
             La mejor opción
           </span>
@@ -77,18 +84,158 @@ const StoreCard: React.FC<{ store: StoreProfile; onClick: () => void }> = ({
   </div>
 );
 
+const NewsletterCarousel = ({
+  messages,
+  onStoreSelect,
+  stores,
+}: {
+  messages: CommunityMessage[];
+  onStoreSelect: (s: StoreProfile) => void;
+  stores: StoreProfile[];
+}) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+
+  const resetTimer = () => {
+    if (timeoutRef.current) clearInterval(timeoutRef.current);
+    if (messages.length > 1) {
+      timeoutRef.current = setInterval(() => {
+        setCurrentIndex((prev) => (prev + 1) % messages.length);
+      }, 5000);
+    }
+  };
+
+  useEffect(() => {
+    resetTimer();
+
+    return () => {
+      if (timeoutRef.current) clearInterval(timeoutRef.current);
+    };
+  }, [messages.length]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.targetTouches[0].clientX;
+    if (timeoutRef.current) clearInterval(timeoutRef.current); // Pausar al tocar
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartX.current || !touchEndX.current) {
+      resetTimer(); // Reanudar si fue solo un toque
+      return;
+    }
+
+    const distance = touchStartX.current - touchEndX.current;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe) {
+      setCurrentIndex((prev) => (prev + 1) % messages.length);
+    }
+
+    if (isRightSwipe) {
+      setCurrentIndex((prev) => (prev - 1 + messages.length) % messages.length);
+    }
+
+    touchStartX.current = null;
+    touchEndX.current = null;
+    resetTimer(); // Reanudar auto-play
+  };
+
+  if (messages.length === 0) return null;
+
+  return (
+    <div className="px-4 mt-6 mb-8">
+      <h2 className="font-mega text-lg mb-2 flex items-center gap-2 leading-none">
+        <Icons.Star className="text-primary" size={20} /> NO TE LO PIERDAS
+      </h2>
+      <div
+        className="w-full aspect-[16/9] rounded-3xl overflow-hidden shadow-lg border border-gray-100 bg-gray-100 relative"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ touchAction: "pan-y" }} // Permite scroll vertical pero captura horizontal
+      >
+        <div
+          className="flex w-full h-full transition-transform duration-500 ease-out"
+          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+        >
+          {messages.map((msg, idx) => {
+            const handleClick = () => {
+              if (msg.storeId) {
+                const storeId =
+                  typeof msg.storeId === "object"
+                    ? (msg.storeId as any).id
+                    : msg.storeId;
+                const store = stores.find((s) => s.id === storeId);
+                if (store) onStoreSelect(store);
+              }
+            };
+
+            return (
+              <div
+                key={msg.id || idx}
+                className="w-full h-full flex-shrink-0 relative cursor-pointer"
+                onClick={handleClick}
+              >
+                <img
+                  src={msg.imageUrl}
+                  className="w-full h-full object-cover"
+                  alt={msg.title || "Newsletter"}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-4">
+                  {msg.title && (
+                    <h3 className="text-white font-mega text-lg leading-tight">
+                      {msg.title}
+                    </h3>
+                  )}
+                  {msg.description && (
+                    <p className="text-white/90 text-xs mt-1 line-clamp-2">
+                      {msg.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Indicators */}
+        {messages.length > 1 && (
+          <div className="absolute top-3 right-3 flex gap-1.5 z-10">
+            {messages.map((_, idx) => (
+              <div
+                key={idx}
+                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? "w-4 bg-white" : "w-1.5 bg-white/50"}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const HomeView = ({
   stores,
-  ultraStores,
+  blackStores,
   otherStores,
   onStoreSelect,
   loading,
+  communityMessages,
+  orders,
 }: {
   stores: StoreProfile[];
-  ultraStores: StoreProfile[];
+  blackStores: StoreProfile[];
   otherStores: StoreProfile[];
   onStoreSelect: (store: StoreProfile) => void;
   loading: boolean;
+  communityMessages: CommunityMessage[];
+  orders: Order[];
 }) => {
   const [search, setSearch] = useState("");
   const [foundProducts, setFoundProducts] = useState<Product[]>([]);
@@ -141,6 +288,26 @@ export const HomeView = ({
       return matchesName || hasMatchingProduct;
     });
   }, [search, stores, foundProducts]);
+
+  const recentStoreIds = useMemo(() => {
+    // Buscar tiendas de las últimas 5 órdenes entregadas
+    const pastDelivered = orders
+      .filter((o) => o.status === OrderStatus.DELIVERED)
+      .sort((a, b) => b.createdAt - a.createdAt);
+
+    // Extraer IDs únicos e iterar usando reduce para evitar duplicates, MAX 5
+    const ids: string[] = [];
+    for (const o of pastDelivered) {
+      const sId = typeof o.storeId === "object" ? o.storeId.id : o.storeId;
+      if (!ids.includes(sId)) {
+        ids.push(sId);
+      }
+      if (ids.length >= 5) break;
+    }
+    return ids;
+  }, [orders]);
+
+  const recentStores = stores.filter((s) => recentStoreIds.includes(s.id));
 
   return (
     <div className="space-y-2 pb-24">
@@ -229,11 +396,11 @@ export const HomeView = ({
       ) : (
         <>
           {/* Ultra Section */}
-          {(loading || ultraStores.length > 0) && (
+          {(loading || blackStores.length > 0) && (
             <div className="pl-4">
               <h2 className="font-mega text-lg mb-2 flex items-center gap-2">
-                <Icons.Store className="text-primary" size={20} /> LA MEJOR
-                OPCIÓN
+                <Icons.Store className="text-primary" size={20} />
+                LA MEJOR OPCIÓN
               </h2>
               <div
                 className="flex overflow-x-auto gap-3 pb-2 pr-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-primary/30 scrollbar-track-transparent"
@@ -260,16 +427,19 @@ export const HomeView = ({
                           </div>
                         </div>
                       ))
-                  : ultraStores.map((s: StoreProfile) => (
+                  : blackStores.map((s: StoreProfile) => (
                       <div
                         key={s.id}
                         onClick={() => onStoreSelect(s)}
-                        className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card relative cursor-pointer active:scale-95 transition-transform"
+                        className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card hover:shadow-xl relative cursor-pointer group active:scale-[0.98] transition-all duration-300"
                       >
-                        <img
-                          src={s.coverImage}
-                          className="w-full h-32 object-cover"
-                        />
+                        <div className="relative h-32 overflow-hidden">
+                          <img
+                            src={s.coverImage}
+                            className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
+                            alt={s.storeName}
+                          />
+                        </div>
                         {/* Logo Overlay for Ultra Stores */}
                         <div className="absolute top-2 right-2 bg-white p-1 rounded-xl shadow-sm">
                           <img
@@ -310,7 +480,7 @@ export const HomeView = ({
           )}
 
           {/* Vertical Feed */}
-          <div className="px-4 pb-20 mt-4">
+          <div className="px-4 pb-4 mt-4">
             <h2 className="font-mega text-lg mb-2">PARA TI</h2>
             <div className="grid grid-cols-2 gap-3">
               {loading
@@ -338,13 +508,58 @@ export const HomeView = ({
                   ))}
               {!loading &&
                 otherStores.length === 0 &&
-                ultraStores.length === 0 && (
+                blackStores.length === 0 && (
                   <p className="text-gray-400 text-center col-span-2 py-10">
                     No hay tiendas abiertas en este momento.
                   </p>
                 )}
             </div>
           </div>
+
+          {/* --- NEWSLETTER (COMUNIDAD) --- */}
+          {/* Movido antes de Pedir de nuevo por requerimiento de UX */}
+          <NewsletterCarousel
+            messages={communityMessages || []}
+            onStoreSelect={onStoreSelect}
+            stores={stores}
+          />
+
+          {/* --- PEDIR DE NUEVO --- */}
+          {!loading && recentStores.length > 0 && (
+            <div className="pl-4 mt-2 mb-6 animate-fade-in-up">
+              <br />
+              <h2 className="font-mega text-lg mb-2 flex items-center gap-2">
+                <Icons.RotateCcw className="text-primary" size={20} />
+                PEDIR DE NUEVO
+              </h2>
+              <div
+                className="flex overflow-x-auto gap-3 pb-2 pr-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-primary/30 scrollbar-track-transparent"
+                style={{
+                  WebkitOverflowScrolling: "touch",
+                  scrollbarWidth: "none",
+                }}
+              >
+                {recentStores.map((s: StoreProfile) => (
+                  <div
+                    key={`recent-${s.id}`}
+                    onClick={() => onStoreSelect(s)}
+                    className="snap-center shrink-0 w-[110px] bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md relative cursor-pointer active:scale-95 transition-all duration-300 border border-gray-100 flex flex-col items-center p-3"
+                  >
+                    <div className="w-14 h-14 mb-2 rounded-full overflow-hidden border-2 border-gray-50 shadow-sm">
+                      <img
+                        src={s.logo}
+                        className="w-full h-full object-cover"
+                        alt={s.storeName}
+                      />
+                    </div>
+                    <h3 className="font-bold text-[11px] text-gray-800 text-center line-clamp-2 w-full leading-tight">
+                      {s.storeName}
+                    </h3>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
       {/* Notification Toast */}

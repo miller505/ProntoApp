@@ -1,6 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import url("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
 
 /* --- FUENTE PROFESIONAL (Self-Hosted/Direct Link) --- */
 @font-face {
@@ -45,9 +46,19 @@ body {
   .text-primary {
     color: #ed2902 !important;
   }
+
+  .text-secondary {
+    color: #0000ff !important;
+  }
+
   .border-primary {
     border-color: #ed2902 !important;
   }
+
+  .border-secondary {
+    border-color: #0000ff !important;
+  }
+
   .ring-primary {
     --tw-ring-color: #ed2902 !important;
   }
@@ -136,6 +147,18 @@ body {
 }
 .animate-pulse-slow {
   animation: gentle-pulse 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
 }
 
 /* Corrección de escala para dispositivos Android pequeños (Viewport < 380px) */

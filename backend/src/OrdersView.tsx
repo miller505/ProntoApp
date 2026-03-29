@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { useApp } from "../../AppContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { useOrders } from "../../contexts/OrderContext";
@@ -223,15 +223,6 @@ export const OrdersView = ({
   const [isRating, setIsRating] = useState(false);
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(7);
 
-  // Efecto para actualizar los contadores de cancelación cada segundo
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTick((t) => t + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const { activeOrders, pastOrders } = useMemo(() => {
     const myOrders = orders.filter((o) => {
       const cId =
@@ -336,7 +327,7 @@ export const OrdersView = ({
                     className="!text-[10px] !py-0.5 shadow-sm font-bold border border-transparent"
                   >
                     {o.paymentMethod === "CARD"
-                      ? "Pago con Tarjeta"
+                      ? "Tarjeta (Prepago)"
                       : "Efectivo al recibir"}
                   </Badge>
                 </div>
@@ -388,7 +379,7 @@ export const OrdersView = ({
                   style={{
                     width:
                       {
-                        "PAGO PENDIENTE": "5%",
+                        PAGO_PENDIENTE: "5%",
                         [OrderStatus.PENDING]: "10%",
                         [OrderStatus.PREPARING]: "40%",
                         [OrderStatus.READY]: "60%",
@@ -406,7 +397,7 @@ export const OrdersView = ({
               <p
                 className={`text-[11px] text-right mt-1.5 font-bold transition-colors ${o.status === OrderStatus.ON_WAY ? "text-primary animate-pulse" : "text-gray-400"}`}
               >
-                {(o.status || "").replace("_", " ").toUpperCase()}
+                {(o.status || "").toUpperCase()}
                 {o.status === OrderStatus.ON_WAY ? " 🛵" : ""}
               </p>
 
@@ -460,34 +451,21 @@ export const OrdersView = ({
                   </div>
                 )}
               {(o.status === OrderStatus.PENDING ||
-                o.status === "PAGO_PENDIENTE" ||
-                o.status === "PAGO PENDIENTE") &&
-                (() => {
-                  const diffMs = Date.now() - new Date(o.createdAt).getTime();
-                  const isLocked = o.paymentMethod === "CARD" && diffMs < 60000;
-                  const remainingSecs = Math.ceil((60000 - diffMs) / 1000);
-
-                  return (
-                    <Button
-                      variant="danger"
-                      disabled={isLocked}
-                      className={`w-full mt-3 py-2 text-sm ${isLocked ? "opacity-50 grayscale cursor-not-allowed" : ""}`}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            "¿Seguro que deseas cancelar el pedido?",
-                          )
-                        ) {
-                          updateOrderStatus(o.id, OrderStatus.CANCELLED);
-                        }
-                      }}
-                    >
-                      {isLocked
-                        ? `Espera ${remainingSecs}s para cancelar`
-                        : "Cancelar Pedido"}
-                    </Button>
-                  );
-                })()}
+                o.status === "PAGO_PENDIENTE") && (
+                <Button
+                  variant="danger"
+                  className="w-full mt-3 py-2 text-sm"
+                  onClick={() => {
+                    if (
+                      window.confirm("¿Seguro que deseas cancelar el pedido?")
+                    ) {
+                      updateOrderStatus(o.id, OrderStatus.CANCELLED);
+                    }
+                  }}
+                >
+                  Cancelar Pedido
+                </Button>
+              )}
             </Card>
           );
         })

@@ -10,6 +10,8 @@ import {
   Plus,
   Trash2,
   Check,
+  ExternalLink,
+  CheckCircle,
   X,
   ChevronRight,
   ChevronLeft,
@@ -38,11 +40,19 @@ import {
   Zap,
   TrendingUp,
   AlertTriangle,
+  Megaphone,
   BarChart2,
+  RotateCcw,
 } from "lucide-react";
 
 // URL del backend. En producción Vercel usará la variable de entorno, en local usará localhost.
 export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+// Social Login IDs
+export const GOOGLE_CLIENT_ID = (
+  import.meta.env.VITE_GOOGLE_CLIENT_ID || ""
+).trim();
+export const APPLE_CLIENT_ID = import.meta.env.VITE_APPLE_CLIENT_ID || "";
 
 export const Icons = {
   Award,
@@ -55,6 +65,8 @@ export const Icons = {
   Plus,
   Trash2,
   Check,
+  ExternalLink,
+  CheckCircle,
   X,
   ChevronRight,
   ChevronLeft,
@@ -83,7 +95,9 @@ export const Icons = {
   Zap,
   TrendingUp,
   AlertTriangle,
+  Megaphone,
   BarChart2,
+  RotateCcw,
 };
 
 export const ALLOWED_EMAILS = [
@@ -95,7 +109,7 @@ export const ALLOWED_EMAILS = [
 
 // Límites de productos por tipo de suscripción
 export const SUBSCRIPTION_LIMITS = {
-  STANDARD: 10,
-  PREMIUM: 40,
-  ULTRA: 100,
+  STANDARD: 20,
+  PREMIUM: 50,
+  BLACK: 130,
 };

@@ -12,15 +12,25 @@ const UserSchema = new mongoose.Schema(
     lastName: { type: String, required: true },
     phone: { type: String, required: true },
     email: { type: String, required: true, unique: true, index: true },
-    password: { type: String, required: true },
+    password: { type: String }, // Opcional para usuarios de Google/Apple
+    googleId: { type: String, index: true },
+    appleId: { type: String, index: true },
+    authProvider: {
+      type: String,
+      enum: ["LOCAL", "GOOGLE", "APPLE"],
+      default: "LOCAL",
+    },
     ineImage: String,
     approved: { type: Boolean, default: false },
+    defaultNotes: { type: String, maxlength: 200 }, // Notas predeterminadas (ej: Sin cebolla)
     addresses: [
       {
         street: String,
         number: String,
         colonyId: String,
         reference: String,
+        lat: Number,
+        lng: Number,
       },
     ],
     // Store Specific
@@ -29,13 +39,16 @@ const UserSchema = new mongoose.Schema(
       street: String,
       number: String,
       colonyId: String,
+      lat: Number,
+      lng: Number,
     },
     subscription: {
       type: String,
-      enum: ["ULTRA", "PREMIUM", "STANDARD"],
+      enum: ["BLACK", "PREMIUM", "STANDARD", "CLIENT"],
       default: "STANDARD",
     },
     subscriptionPriority: { type: Number, default: 0 },
+    subscriptionExpiresAt: { type: Date, default: null },
     isOpen: { type: Boolean, default: false, index: true },
     logo: String,
     coverImage: String,
@@ -72,6 +85,7 @@ const ProductSchema = new mongoose.Schema(
     image: String,
     isAvailable: { type: Boolean, default: true },
     isFeatured: { type: Boolean, default: false },
+    salesCount: { type: Number, default: 0 },
     customizations: [
       {
         name: String,
@@ -137,10 +151,12 @@ const OrderSchema = new mongoose.Schema(
     subtotal: { type: Number, required: true },
     deliveryFee: { type: Number, required: true },
     driverFee: { type: Number, required: true },
+    companyDistanceFee: { type: Number, default: 0 },
     total: { type: Number, required: true },
     status: {
       type: String,
       enum: [
+        "PAGO_PENDIENTE",
         "PENDIENTE",
         "PREPARANDO",
         "LISTO PARA RECOGER",
@@ -158,8 +174,16 @@ const OrderSchema = new mongoose.Schema(
       number: String,
       colonyId: String,
       reference: String,
+      lat: Number,
+      lng: Number,
     },
     paymentMethod: { type: String, enum: ["CASH", "CARD"], required: true },
+    paymentStatus: {
+      type: String,
+      enum: ["PENDING", "PAID", "FAILED"],
+      default: "PENDING",
+    },
+    mercadoPagoPreferenceId: String,
     isReviewed: { type: Boolean, default: false },
   },
   { timestamps: true },
@@ -196,8 +220,9 @@ const ColonySchema = new mongoose.Schema({
 });
 
 const SettingsSchema = new mongoose.Schema({
-  commissionRate: { type: Number, default: 5 }, // Banderazo como %
+  commissionRate: { type: Number, default: 5 }, // Porcentaje del subtotal para la empresa
   kmRate: { type: Number, default: 5 }, // Tarifa por Km para el repartidor
+  companyKmRate: { type: Number, default: 0 }, // Nueva tarifa por Km para la empresa
 });
 
 const ReviewSchema = new mongoose.Schema(
@@ -224,6 +249,17 @@ const ReviewSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+const CommunityMessageSchema = new mongoose.Schema(
+  {
+    title: { type: String, maxlength: 50 },
+    description: { type: String, maxlength: 100 },
+    imageUrl: { type: String, required: true },
+    expiresAt: { type: Date, required: true },
+    storeId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  },
+  { timestamps: true },
+);
+
 export const User = mongoose.model("User", UserSchema);
 export const Product = mongoose.model("Product", ProductSchema);
 export const Order = mongoose.model("Order", OrderSchema);
@@ -231,3 +267,7 @@ export const Colony = mongoose.model("Colony", ColonySchema);
 export const Message = mongoose.model("Message", MessageSchema);
 export const Settings = mongoose.model("Settings", SettingsSchema);
 export const Review = mongoose.model("Review", ReviewSchema);
+export const CommunityMessage = mongoose.model(
+  "CommunityMessage",
+  CommunityMessageSchema,
+);

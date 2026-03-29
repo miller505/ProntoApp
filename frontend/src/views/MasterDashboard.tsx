@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext";
+import { useOrders } from "../contexts/OrderContext";
 import { Button, Card, Input, Badge, Modal } from "../components/UI";
 import { Icons } from "../constants";
+import { api, uploadToCloudinary } from "../api";
 import {
   UserRole,
   SubscriptionType,
@@ -10,6 +12,7 @@ import {
   User,
   Order,
   OrderStatus,
+  CommunityMessage,
 } from "../types";
 import { formatDate, getOrderStatusColor } from "../utils";
 
@@ -23,13 +26,17 @@ export const MasterDashboard = () => {
     deleteColony,
     settings,
     updateSettings,
-    orders, // Needed for Finances
+    communityMessages,
+    addCommunityMessage,
+    updateCommunityMessage,
+    deleteCommunityMessage,
   } = useApp();
+  const { orders } = useOrders();
 
   const { currentUser, logout, updateUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "users" | "requests" | "colonies" | "finances" | "monitoring"
+    "users" | "requests" | "colonies" | "finances" | "monitoring" | "community"
   >("requests");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("ALL");
@@ -37,21 +44,25 @@ export const MasterDashboard = () => {
   const [editingUser, setEditingUser] = useState<User | StoreProfile | null>(
     null,
   );
+  const [isEditMode, setIsEditMode] = useState(false); // Controla si estamos viendo o editando
   const [editFormData, setEditFormData] = useState<any>({});
   const [viewImage, setViewImage] = useState<string | null>(null);
+  const [tempExpiryDate, setTempExpiryDate] = useState("");
 
   // ESTADO NUEVO: Controla las acciones en proceso para mostrar retroalimentación
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [editingUserStats, setEditingUserStats] = useState<any>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   // Requests Logic
-  const pendingUsers = users.filter((u) => !u.approved);
+  const pendingUsers = (users || []).filter((u) => u && !u.approved);
 
   // Users Logic
-  const activeUsers = users.filter(
-    (u) => u.approved && u.role !== UserRole.MASTER,
+  const activeUsers = (users || []).filter(
+    (u) => u && u.approved && u.role !== UserRole.MASTER,
   );
   const filteredUsers = activeUsers.filter((u) => {
-    const matchesSearch = (u.firstName + " " + u.lastName)
+    const matchesSearch = ((u.firstName || "") + " " + (u.lastName || ""))
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
     const matchesStoreName =
@@ -98,8 +109,9 @@ export const MasterDashboard = () => {
     }
   };
 
-  const handleEditClick = (user: User | StoreProfile) => {
+  const handleUserClick = (user: User | StoreProfile) => {
     setEditingUser(user);
+    setIsEditMode(false); // Por defecto abrimos en modo lectura
     setEditFormData({
       firstName: user.firstName,
       lastName: user.lastName,
@@ -111,7 +123,27 @@ export const MasterDashboard = () => {
         storeAddress: (user as StoreProfile).storeAddress,
       }),
     });
+
+    // Inicializar fecha de expiración para el input
+    if ((user as any).subscriptionExpiresAt) {
+      setTempExpiryDate(
+        new Date((user as any).subscriptionExpiresAt)
+          .toISOString()
+          .split("T")[0],
+      );
+    } else {
+      setTempExpiryDate("");
+    }
     setIsEditModalOpen(true);
+
+    // Petición para conseguir los stats
+    setIsLoadingStats(true);
+    setEditingUserStats(null);
+    api
+      .get(`/api/users/${user.id}/stats`)
+      .then((res) => setEditingUserStats(res.data))
+      .catch((err) => console.error(err))
+      .finally(() => setIsLoadingStats(false));
   };
 
   const handleSaveEdit = async () => {
@@ -129,11 +161,31 @@ export const MasterDashboard = () => {
     }
 
     try {
-      await updateUser(updatedUser);
+      await api.put(
+        `/api/users/${updatedUser.id || updatedUser._id}`,
+        updatedUser,
+      );
       setIsEditModalOpen(false);
       setEditingUser(null);
+      window.location.reload();
+    } catch (e) {
+      alert("Error al guardar");
     } finally {
       setLoadingAction(null);
+    }
+  };
+
+  // Helper para obtener el estilo del badge de suscripción
+  const getSubscriptionBadgeStyle = (sub: string) => {
+    switch (sub) {
+      case "BLACK":
+        return "bg-black text-white border-gray-700";
+      case "PREMIUM":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "STANDARD":
+        return "bg-gray-100 text-gray-600 border-gray-200";
+      default:
+        return "bg-gray-50 text-gray-500 border-gray-100";
     }
   };
 
@@ -147,7 +199,7 @@ export const MasterDashboard = () => {
             alt="Logo"
             className="h-10 w-auto object-contain"
           />
-          <h1 className="text-xs font-mega text-primary">
+          <h1 className="text-xs font-mega text-iosGray">
             ADMINISTRACIÓN GENERAL
           </h1>
         </div>
@@ -188,6 +240,12 @@ export const MasterDashboard = () => {
               id: "monitoring",
               label: "Monitoreo",
               icon: <Icons.Zap size={18} />,
+              count: 0,
+            },
+            {
+              id: "community",
+              label: "Comunidad",
+              icon: <Icons.Megaphone size={18} />,
               count: 0,
             },
           ].map((tab) => (
@@ -266,7 +324,10 @@ export const MasterDashboard = () => {
                     <Button
                       variant="danger"
                       className="flex-1 py-2 text-sm disabled:opacity-50"
-                      onClick={() => handleDeleteUser(u.id)}
+                      onClick={() => {
+                        if (confirm(`¿Rechazar solicitud de ${u.firstName}?`))
+                          handleDeleteUser(u.id);
+                      }}
                       disabled={loadingAction !== null}
                     >
                       {loadingAction === `delete-${u.id}`
@@ -340,130 +401,86 @@ export const MasterDashboard = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredUsers.map((u) => (
-                <Card
+                <div
                   key={u.id}
-                  className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between py-3 px-4"
+                  onClick={(e) => handleUserClick(u)}
+                  className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all cursor-pointer group"
                 >
-                  <div className="flex items-center gap-3 w-full md:w-auto overflow-hidden">
+                  <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 shrink-0 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-sm">
                       {u.firstName[0]}
                       {u.lastName[0]}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="font-bold text-iosText truncate">
+                      <h4 className="font-bold text-iosText truncate text-sm leading-tight">
                         {u.firstName} {u.lastName}
                       </h4>
-                      {u.role === UserRole.STORE && (
-                        <>
-                          {/* Store Name Row */}
-                          <div className="flex items-center gap-1.5 mt-1.5">
-                            <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-lg border border-gray-100">
-                              <Icons.Store
-                                size={14}
-                                className="text-gray-500"
-                              />
-                              <span className="text-sm font-bold text-gray-800">
-                                {(u as StoreProfile).storeName}
-                              </span>
-                            </div>
-                          </div>
-                          {/* Rating and Subscription Row */}
-                          <div className="flex items-center gap-2 mt-1 w-full">
-                            <div className="flex items-center gap-1 text-xs font-bold text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg border border-yellow-100 shrink-0">
-                              <Icons.Star size={12} fill="currentColor" />
-                              {(u as StoreProfile).averageRating
-                                ? (u as StoreProfile).averageRating?.toFixed(1)
-                                : "N/A"}
-                            </div>
-                            <div className="ml-auto flex items-center gap-1 px-2 py-1 bg-gray-800 text-white rounded-lg text-[10px] font-bold shadow-sm shrink-0">
-                              <Icons.Award size={12} className="text-white" />
-                              {(u as StoreProfile).subscription}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      {/* End of store-specific info */}
-                      <div className="flex items-center gap-2 w-full mt-1">
-                        {" "}
-                        {/* Added mt-1 for spacing from store info */}
-                        <span className="text-xs text-gray-400 truncate flex-grow">
-                          {" "}
-                          {/* Allow email to grow but truncate */}
-                          {u.email}
-                        </span>
-                        <Badge
-                          color={
-                            u.role === UserRole.STORE
-                              ? "blue"
-                              : u.role === UserRole.DELIVERY
-                                ? "yellow"
-                                : "green"
-                          }
-                          className="text-[10px] px-1.5 py-0 shrink-0 ml-auto" // This ml-auto should now work correctly
-                        >
-                          {u.role === UserRole.STORE
-                            ? "Tienda"
-                            : u.role === UserRole.DELIVERY
-                              ? "Repartidor"
-                              : "Cliente"}
-                        </Badge>
-                      </div>
+                      <span className="text-xs text-gray-400 truncate block">
+                        {u.email}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="h-0.5 w-full bg-gray-200 rounded-full my-2 md:hidden" />
-                  <div className="flex gap-2 items-center w-full md:w-auto justify-end mt-1 md:mt-0">
-                    {u.role === UserRole.STORE &&
-                      (loadingAction === `sub-${u.id}` ? (
-                        <span className="text-xs font-semibold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg animate-pulse shrink-0">
-                          Cambiando...
-                        </span>
-                      ) : (
-                        <select
-                          className="text-xs p-1.5 rounded-lg bg-gray-100 border-none disabled:opacity-50 shrink-0"
-                          value={(u as StoreProfile).subscription}
-                          onChange={(e) =>
-                            handleChangeSubscription(
-                              u as StoreProfile,
-                              e.target.value as SubscriptionType,
-                            )
-                          }
-                          disabled={loadingAction !== null}
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge
+                      color={
+                        u.role === UserRole.STORE
+                          ? "blue"
+                          : u.role === UserRole.DELIVERY
+                            ? "yellow"
+                            : "green"
+                      }
+                      className="text-[10px] px-1.5 py-0 shrink-0 font-mega uppercase"
+                    >
+                      {u.role === UserRole.STORE
+                        ? "Tienda"
+                        : u.role === UserRole.DELIVERY
+                          ? "Repartidor"
+                          : "Cliente"}
+                    </Badge>
+
+                    {u.role === UserRole.STORE && (
+                      <>
+                        {/* Subscription Badge */}
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase ${getSubscriptionBadgeStyle(
+                            (u as StoreProfile).subscription,
+                          )}`}
                         >
-                          <option value={SubscriptionType.STANDARD}>
-                            STANDARD
-                          </option>
-                          <option value={SubscriptionType.PREMIUM}>
-                            PREMIUM
-                          </option>
-                          <option value={SubscriptionType.ULTRA}>ULTRA</option>
-                        </select>
-                      ))}
-                    <Button
-                      variant="secondary"
-                      className="px-3 py-1.5 text-xs h-8 disabled:opacity-50"
-                      onClick={() => handleEditClick(u)}
-                      disabled={loadingAction !== null}
-                    >
-                      Editar
-                    </Button>
-                    <button
-                      onClick={() => handleDeleteUser(u.id)}
-                      disabled={loadingAction !== null}
-                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center min-w-[32px]"
-                    >
-                      {loadingAction === `delete-${u.id}` ? (
-                        <span className="text-xs font-bold animate-pulse">
-                          ...
+                          {(u as StoreProfile).subscription || "STANDARD"}
                         </span>
-                      ) : (
-                        <Icons.Trash2 size={16} />
-                      )}
-                    </button>
+
+                        {/* Direct Subscription Selector */}
+                        <div
+                          onClick={(e) => e.stopPropagation()} // Evitar abrir modal
+                          className="ml-auto"
+                        >
+                          <select
+                            className="text-[10px] py-1 px-1 rounded bg-gray-50 border border-gray-200 focus:outline-none focus:border-primary cursor-pointer"
+                            value={(u as StoreProfile).subscription}
+                            onChange={(e) =>
+                              handleChangeSubscription(
+                                u as StoreProfile,
+                                e.target.value as SubscriptionType,
+                              )
+                            }
+                          >
+                            <option value="STANDARD">Standard</option>
+                            <option value="PREMIUM">Premium</option>
+                            <option value="BLACK">Black</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </Card>
+                  {u.role === UserRole.STORE && (
+                    <div className="mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-400 truncate">
+                      {(u as StoreProfile).storeName}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -489,11 +506,22 @@ export const MasterDashboard = () => {
           <MonitoringPanel orders={orders} users={users} />
         )}
 
+        {/* --- COMMUNITY PANEL --- */}
+        {activeTab === "community" && (
+          <CommunityPanel
+            users={users}
+            messages={communityMessages}
+            onAdd={addCommunityMessage}
+            onUpdate={updateCommunityMessage}
+            onDelete={deleteCommunityMessage}
+          />
+        )}
+
         {/* Edit User Modal */}
         <Modal
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
-          title={`Editar ${
+          title={`${isEditMode ? "Editar" : "Detalles de"} ${
             editingUser?.role === UserRole.STORE
               ? "Tienda"
               : editingUser?.role === UserRole.DELIVERY
@@ -502,138 +530,433 @@ export const MasterDashboard = () => {
           }`}
         >
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Nombre"
-                value={editFormData.firstName}
-                onChange={(e: any) =>
-                  setEditFormData({
-                    ...editFormData,
-                    firstName: e.target.value,
-                  })
-                }
-              />
-              <Input
-                label="Apellido"
-                value={editFormData.lastName}
-                onChange={(e: any) =>
-                  setEditFormData({ ...editFormData, lastName: e.target.value })
-                }
-              />
-            </div>
-            <Input
-              label="Email"
-              type="email"
-              value={editFormData.email}
-              onChange={(e: any) =>
-                setEditFormData({ ...editFormData, email: e.target.value })
-              }
-            />
-            <Input
-              label="Teléfono"
-              value={editFormData.phone}
-              onChange={(e: any) =>
-                setEditFormData({ ...editFormData, phone: e.target.value })
-              }
-            />
-            <div className="relative">
-              <Input
-                label="Contraseña"
-                type="text"
-                placeholder="Dejar vacío para no cambiar"
-                value={editFormData.password || ""}
-                onChange={(e: any) =>
-                  setEditFormData({ ...editFormData, password: e.target.value })
-                }
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Escribe una nueva contraseña solo si deseas cambiarla.
-              </p>
-            </div>
-            {editingUser?.role === UserRole.STORE && (
+            {/* --- MODO LECTURA --- */}
+            {!isEditMode && editingUser && (
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <div className="flex justify-between">
+                    <span className="text-xs text-gray-400">Nombre</span>
+                    <span className="font-bold">
+                      {editingUser.firstName} {editingUser.lastName}
+                    </span>
+                  </div>
+                  <div className="flex justify-between mt-2">
+                    <span className="text-xs text-gray-400">Email</span>
+                    <span className="font-medium">{editingUser.email}</span>
+                  </div>
+                  <div className="flex justify-between mt-2">
+                    <span className="text-xs text-gray-400">Teléfono</span>
+                    <span className="font-medium">{editingUser.phone}</span>
+                  </div>
+                  {editingUser.role === UserRole.STORE && (
+                    <>
+                      <div className="h-px bg-gray-200 my-2"></div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-gray-400">Tienda</span>
+                        <span className="font-bold">
+                          {(editingUser as StoreProfile).storeName}
+                        </span>
+                      </div>
+                      <div className="flex justify-between mt-2">
+                        <span className="text-xs text-gray-400">
+                          Suscripción
+                        </span>
+                        <select
+                          className="text-xs p-1 rounded border-gray-200"
+                          value={(editingUser as StoreProfile).subscription}
+                          onChange={(e) =>
+                            handleChangeSubscription(
+                              editingUser as StoreProfile,
+                              e.target.value as SubscriptionType,
+                            )
+                          }
+                        >
+                          <option value="STANDARD">STANDARD</option>
+                          <option value="PREMIUM">PREMIUM</option>
+                          <option value="BLACK">BLACK</option>
+                        </select>
+                      </div>
+
+                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+                        <span className="text-xs text-gray-400">
+                          Próximo Pago
+                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="flex gap-2">
+                            <input
+                              type="date"
+                              className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:ring-1 ring-primary outline-none"
+                              value={tempExpiryDate}
+                              onChange={(e) =>
+                                setTempExpiryDate(e.target.value)
+                              }
+                            />
+                            <button
+                              onClick={async () => {
+                                if (!tempExpiryDate)
+                                  return alert("Selecciona una fecha");
+                                setLoadingAction(`subd-${editingUser.id}`);
+                                try {
+                                  const newDate = new Date(
+                                    tempExpiryDate + "T23:59:59",
+                                  );
+                                  await updateUser({
+                                    ...editingUser,
+                                    subscriptionExpiresAt:
+                                      newDate.toISOString(),
+                                    isMasterUpdate: true,
+                                  } as any);
+                                  setEditingUser({
+                                    ...editingUser,
+                                    subscriptionExpiresAt:
+                                      newDate.toISOString(),
+                                  } as any);
+                                  alert("Fecha de pago actualizada");
+                                } finally {
+                                  setLoadingAction(null);
+                                }
+                              }}
+                              disabled={
+                                loadingAction === `subd-${editingUser.id}`
+                              }
+                              className="text-[10px] bg-primary text-white px-3 py-1 rounded-lg font-bold hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              {loadingAction === `subd-${editingUser.id}`
+                                ? "..."
+                                : "SET"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+                        <span className="text-xs text-gray-500">
+                          ¿Rebajar a Cliente?
+                        </span>
+                        <button
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                "¿Seguro que deseas convertir esta tienda en cliente? Su sesión caducará y no podrán vender.",
+                              )
+                            ) {
+                              api
+                                .put(`/api/users/${editingUser.id}`, {
+                                  ...editingUser,
+                                  role: UserRole.CLIENT,
+                                  isMasterUpdate: true,
+                                })
+                                .then(() => {
+                                  setIsEditModalOpen(false);
+                                  window.location.reload();
+                                });
+                            }
+                          }}
+                          className="text-[10px] text-red-600 font-bold border border-red-200 px-2 py-1 rounded hover:bg-red-50"
+                        >
+                          Desactivar Tienda
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {editingUser.role === UserRole.CLIENT &&
+                    (editingUser as any).storeName && (
+                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+                        <span className="text-xs text-gray-500">
+                          ¿Reactivar como Tienda?
+                        </span>
+                        <button
+                          onClick={() => {
+                            updateUser({
+                              ...editingUser,
+                              role: UserRole.STORE,
+                              isMasterUpdate: true,
+                            } as any);
+                            setIsEditModalOpen(false);
+                          }}
+                          className="text-[10px] text-green-600 font-bold border border-green-200 px-2 py-1 rounded hover:bg-green-50"
+                        >
+                          Activar Tienda
+                        </button>
+                      </div>
+                    )}
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mt-4">
+                  <h4 className="font-bold text-gray-700 text-sm mb-2">
+                    Estadísticas{" "}
+                    {isLoadingStats && (
+                      <span className="text-xs text-primary font-normal">
+                        (Cargando...)
+                      </span>
+                    )}
+                  </h4>
+                  {editingUserStats && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-xs text-gray-400">
+                          Pedidos Históricos
+                        </span>
+                        <span className="font-bold">
+                          {editingUserStats.totalOrders}
+                        </span>
+                      </div>
+                      {editingUser.role === UserRole.STORE && (
+                        <>
+                          <div className="flex justify-between border-t border-gray-200 pt-2 mt-2">
+                            <span className="text-xs text-gray-400">
+                              Ventas Semana
+                            </span>
+                            <span className="font-bold text-green-600">
+                              ${editingUserStats.weeklyRevenue.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-xs text-gray-400">
+                              Pedidos Semana
+                            </span>
+                            <span className="font-bold">
+                              {editingUserStats.weeklyOrders}
+                            </span>
+                          </div>
+                          {editingUserStats.weeklyChart &&
+                            editingUserStats.weeklyChart.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <p className="text-[10px] text-gray-400 mb-2">
+                                  Gráfico 7 días (Ventas $)
+                                </p>
+                                <div className="flex items-end gap-1 h-16 w-full">
+                                  {editingUserStats.weeklyChart.map(
+                                    (d: any, idx: number) => {
+                                      const max = Math.max(
+                                        ...editingUserStats.weeklyChart.map(
+                                          (x: any) => x.total,
+                                        ),
+                                        1,
+                                      );
+                                      return (
+                                        <div
+                                          key={idx}
+                                          className="flex flex-col justify-end items-center flex-1 group relative h-full"
+                                        >
+                                          <div
+                                            style={{
+                                              height: `${(d.total / max) * 100}%`,
+                                              minHeight:
+                                                d.total > 0 ? "4px" : "0",
+                                            }}
+                                            className="w-full bg-blue-300 rounded-t-sm group-hover:bg-blue-500 transition-colors"
+                                          />
+                                          {d.total > 0 && (
+                                            <span className="absolute -top-4 text-[8px] font-bold opacity-0 group-hover:opacity-100 z-10 bg-white rounded shadow-sm px-1 py-0.5 border">
+                                              ${Math.round(d.total)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    },
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {editingUser.ineImage && (
+                  <div>
+                    <span className="text-xs text-gray-400 mb-1 block">
+                      Documento de Identidad
+                    </span>
+                    <img
+                      src={editingUser.ineImage}
+                      alt="INE"
+                      className="w-full h-32 object-cover rounded-xl bg-gray-100"
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "¿Eliminar este usuario permanentemente?",
+                        )
+                      ) {
+                        handleDeleteUser(editingUser.id);
+                        setIsEditModalOpen(false);
+                      }
+                    }}
+                    className="flex-1"
+                  >
+                    <Icons.Trash2 size={16} /> Eliminar
+                  </Button>
+                  <Button
+                    onClick={() => setIsEditMode(true)}
+                    className="flex-[2]"
+                  >
+                    <Icons.Edit2 size={16} /> Editar Información
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* --- MODO EDICIÓN --- */}
+            {isEditMode && (
               <>
-                <Input
-                  label="Nombre de Tienda"
-                  value={editFormData.storeName}
-                  onChange={(e: any) =>
-                    setEditFormData({
-                      ...editFormData,
-                      storeName: e.target.value,
-                    })
-                  }
-                />
-                <Input
-                  label="Calle"
-                  value={editFormData.storeAddress?.street}
-                  onChange={(e: any) =>
-                    setEditFormData({
-                      ...editFormData,
-                      storeAddress: {
-                        ...editFormData.storeAddress,
-                        street: e.target.value,
-                      },
-                    })
-                  }
-                />
-                <Input
-                  label="Número"
-                  value={editFormData.storeAddress?.number}
-                  onChange={(e: any) =>
-                    setEditFormData({
-                      ...editFormData,
-                      storeAddress: {
-                        ...editFormData.storeAddress,
-                        number: e.target.value,
-                      },
-                    })
-                  }
-                />
-                <div className="mb-4 w-full">
-                  <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
-                    Colonia
-                  </label>
-                  <select
-                    className="w-full px-4 py-3 rounded-2xl bg-gray-100 border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none transition-colors text-iosText"
-                    value={editFormData.storeAddress?.colonyId || ""}
-                    onChange={(e) =>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Nombre"
+                    value={editFormData.firstName}
+                    onChange={(e: any) =>
                       setEditFormData({
                         ...editFormData,
-                        storeAddress: {
-                          ...editFormData.storeAddress,
-                          colonyId: e.target.value,
-                        },
+                        firstName: e.target.value,
                       })
                     }
+                  />
+                  <Input
+                    label="Apellido"
+                    value={editFormData.lastName}
+                    onChange={(e: any) =>
+                      setEditFormData({
+                        ...editFormData,
+                        lastName: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <Input
+                  label="Email"
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e: any) =>
+                    setEditFormData({ ...editFormData, email: e.target.value })
+                  }
+                />
+                <Input
+                  label="Teléfono"
+                  value={editFormData.phone}
+                  onChange={(e: any) =>
+                    setEditFormData({ ...editFormData, phone: e.target.value })
+                  }
+                />
+                <div className="relative">
+                  <Input
+                    label="Contraseña"
+                    type="text"
+                    placeholder="Dejar vacío para no cambiar"
+                    value={editFormData.password || ""}
+                    onChange={(e: any) =>
+                      setEditFormData({
+                        ...editFormData,
+                        password: e.target.value,
+                      })
+                    }
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Escribe una nueva contraseña solo si deseas cambiarla.
+                  </p>
+                </div>
+                {editingUser?.role === UserRole.STORE && (
+                  <>
+                    <Input
+                      label="Nombre de Tienda"
+                      value={editFormData.storeName}
+                      onChange={(e: any) =>
+                        setEditFormData({
+                          ...editFormData,
+                          storeName: e.target.value,
+                        })
+                      }
+                    />
+                    <Input
+                      label="Calle"
+                      value={editFormData.storeAddress?.street}
+                      onChange={(e: any) =>
+                        setEditFormData({
+                          ...editFormData,
+                          storeAddress: {
+                            ...editFormData.storeAddress,
+                            street: e.target.value,
+                          },
+                        })
+                      }
+                    />
+                    <Input
+                      label="Número"
+                      value={editFormData.storeAddress?.number}
+                      onChange={(e: any) =>
+                        setEditFormData({
+                          ...editFormData,
+                          storeAddress: {
+                            ...editFormData.storeAddress,
+                            number: e.target.value,
+                          },
+                        })
+                      }
+                    />
+                    <div className="mb-4 w-full">
+                      <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
+                        Colonia
+                      </label>
+                      <select
+                        className="w-full px-4 py-3 rounded-2xl bg-gray-100 border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none transition-colors text-iosText"
+                        value={editFormData.storeAddress?.colonyId || ""}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            storeAddress: {
+                              ...editFormData.storeAddress,
+                              colonyId: e.target.value,
+                            },
+                          })
+                        }
+                      >
+                        <option value="">Selecciona una colonia</option>
+                        {colonies.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+                {editingUser?.ineImage && (
+                  <div className="border-t pt-4">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">
+                      Identificación (INE)
+                    </p>
+                    <img
+                      src={editingUser.ineImage}
+                      alt="INE"
+                      className="w-full rounded-lg border border-gray-200"
+                    />
+                  </div>
+                )}
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setIsEditMode(false)}
+                    className="flex-1"
                   >
-                    <option value="">Selecciona una colonia</option>
-                    {colonies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSaveEdit}
+                    className="flex-[2]"
+                    disabled={loadingAction !== null}
+                  >
+                    {loadingAction ? "Guardando..." : "Guardar Cambios"}
+                  </Button>
                 </div>
               </>
             )}
-            {editingUser?.ineImage && (
-              <div className="border-t pt-4">
-                <p className="text-sm font-semibold text-gray-700 mb-2">
-                  Identificación (INE)
-                </p>
-                <img
-                  src={editingUser.ineImage}
-                  alt="INE"
-                  className="w-full rounded-lg border border-gray-200"
-                />
-              </div>
-            )}
-            <Button
-              onClick={handleSaveEdit}
-              className="w-full disabled:opacity-50"
-              disabled={loadingAction !== null}
-            >
-              {loadingAction ? "Guardando..." : "Guardar Cambios"}
-            </Button>
           </div>
         </Modal>
 
@@ -650,6 +973,302 @@ export const MasterDashboard = () => {
           />
         </Modal>
       </div>
+    </div>
+  );
+};
+
+// Sub-component for Community Messages (Newsletter)
+const CommunityPanel = ({
+  users,
+  messages,
+  onAdd,
+  onUpdate,
+  onDelete,
+}: any) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Stores for dropdown
+  const stores = users.filter(
+    (u: any) => u.role === UserRole.STORE && u.approved && u.isOpen !== false,
+  ) as StoreProfile[];
+
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    image: "",
+    expiresAtDate: "",
+    expiresAtTime: "",
+    storeId: "",
+  });
+
+  const handleEdit = (msg: CommunityMessage) => {
+    setEditingId(msg.id);
+
+    // Convertir fecha UTC/ISO a local para los inputs
+    const dateObj = new Date(msg.expiresAt);
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const day = String(dateObj.getDate()).padStart(2, "0");
+    const hours = String(dateObj.getHours()).padStart(2, "0");
+    const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+
+    setForm({
+      title: msg.title || "",
+      description: msg.description || "",
+      image: msg.imageUrl,
+      expiresAtDate: `${year}-${month}-${day}`,
+      expiresAtTime: `${hours}:${minutes}`,
+      storeId:
+        typeof msg.storeId === "object"
+          ? (msg.storeId as any).id
+          : msg.storeId || "",
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleClose = () => {
+    setIsModalOpen(false);
+    setEditingId(null);
+    // Reset form
+    setForm({
+      title: "",
+      description: "",
+      image: "",
+      expiresAtDate: "",
+      expiresAtTime: "",
+      storeId: "",
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setIsUploading(true);
+      try {
+        const url = await uploadToCloudinary(file);
+        setForm({ ...form, image: url });
+      } catch (error) {
+        alert("Error al subir imagen.");
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!form.image || !form.expiresAtDate || !form.expiresAtTime) {
+      return alert("Imagen y fecha/hora de expiración son obligatorios.");
+    }
+
+    const expiration = new Date(`${form.expiresAtDate}T${form.expiresAtTime}`);
+    if (expiration <= new Date()) {
+      return alert("La fecha de expiración debe ser futura.");
+    }
+
+    const payload = {
+      title: form.title,
+      description: form.description,
+      imageUrl: form.image,
+      expiresAt: expiration.toISOString(),
+      storeId: form.storeId || null,
+    };
+
+    if (editingId) {
+      await onUpdate({ ...payload, id: editingId });
+    } else {
+      await onAdd(payload);
+    }
+    handleClose();
+  };
+
+  const now = new Date();
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="font-mega text-lg text-gray-800">NEWSLETTER</h3>
+        <Button onClick={() => setIsModalOpen(true)} className="py-2 text-sm">
+          <Icons.Plus size={16} /> Crear Mensaje
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {messages.map((msg: CommunityMessage) => {
+          const isExpired = new Date(msg.expiresAt) <= now;
+          const linkedStore = stores.find((s) => s.id === msg.storeId);
+
+          return (
+            <Card
+              key={msg.id}
+              className={`overflow-hidden ${isExpired ? "opacity-60 grayscale" : ""}`}
+            >
+              <div className="relative aspect-video w-full bg-gray-100">
+                <img
+                  src={msg.imageUrl}
+                  className="w-full h-full object-cover"
+                  alt="Newsletter"
+                />
+                {isExpired && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <span className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold font-mega">
+                      EXPIRADO
+                    </span>
+                  </div>
+                )}
+                <div className="absolute top-2 right-2 flex gap-2">
+                  <button
+                    onClick={() => handleEdit(msg)}
+                    className="bg-white/90 text-blue-600 p-2 rounded-full shadow-sm hover:bg-white transition-colors"
+                  >
+                    <Icons.Edit2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => onDelete(msg.id)}
+                    className="bg-white/90 text-red-600 p-2 rounded-full shadow-sm hover:bg-white transition-colors"
+                  >
+                    <Icons.Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="p-3">
+                <h4 className="font-bold text-gray-800 mb-1">
+                  {msg.title || "Sin título"}
+                </h4>
+                <p className="text-xs text-gray-500 line-clamp-2 mb-3">
+                  {msg.description || "Sin descripción"}
+                </p>
+
+                <div className="flex justify-between items-end text-xs">
+                  <div className="text-gray-400">
+                    <p className="flex items-center gap-1">
+                      <Icons.Clock size={12} /> Expira:{" "}
+                      {new Date(msg.expiresAt).toLocaleString()}
+                    </p>
+                    {linkedStore && (
+                      <p className="flex items-center gap-1 mt-1 text-blue-600 font-semibold">
+                        <Icons.Store size={12} /> Link: {linkedStore.storeName}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+        {messages.length === 0 && (
+          <p className="col-span-full text-center text-gray-400 py-10">
+            No hay mensajes programados.
+          </p>
+        )}
+      </div>
+
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleClose}
+        title={editingId ? "Editar Mensaje" : "Programar Nuevo Mensaje"}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 ml-1">
+              Imagen (16:9 Obligatorio)
+            </label>
+            <div className="flex items-center gap-4">
+              <div className="w-32 h-[4.5rem] bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                {form.image ? (
+                  <img
+                    src={form.image}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                    Vista previa
+                  </div>
+                )}
+              </div>
+              <label className="flex-1 cursor-pointer">
+                <span className="inline-block w-full py-2 px-4 border-2 border-dashed border-gray-300 rounded-xl text-center text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors">
+                  {isUploading ? "Subiendo..." : "Subir Imagen"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+              </label>
+            </div>
+          </div>
+
+          <Input
+            label="Título (Opcional)"
+            value={form.title}
+            onChange={(e: any) => setForm({ ...form, title: e.target.value })}
+            maxLength={50}
+            placeholder="Ej. ¡Oferta Relámpago!"
+          />
+
+          <Input
+            as="textarea"
+            label="Descripción (Opcional)"
+            value={form.description}
+            onChange={(e: any) =>
+              setForm({ ...form, description: e.target.value })
+            }
+            maxLength={100}
+            rows={2}
+            placeholder="Breve descripción de la promoción..."
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Fecha de Expiración"
+              type="date"
+              value={form.expiresAtDate}
+              onChange={(e: any) =>
+                setForm({ ...form, expiresAtDate: e.target.value })
+              }
+              required
+            />
+            <Input
+              label="Hora de Expiración"
+              type="time"
+              value={form.expiresAtTime}
+              onChange={(e: any) =>
+                setForm({ ...form, expiresAtTime: e.target.value })
+              }
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 ml-1">
+              Enlace a Tienda (Opcional)
+            </label>
+            <select
+              className="w-full px-4 py-3 rounded-2xl bg-gray-100 border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none text-iosText"
+              value={form.storeId}
+              onChange={(e) => setForm({ ...form, storeId: e.target.value })}
+            >
+              <option value="">-- Sin enlace --</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.storeName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Button
+            onClick={handleSubmit}
+            className="w-full"
+            disabled={isUploading}
+          >
+            {editingId ? "Guardar Cambios" : "Programar Mensaje"}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 };
@@ -676,7 +1295,8 @@ const MonitoringPanel = ({
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
         const matchesStatus =
-          statusFilter === "ALL" || (order.status || "").toUpperCase() === statusFilter;
+          statusFilter === "ALL" ||
+          (order.status || "").toUpperCase() === statusFilter;
         return matchesId && matchesStatus;
       })
       .sort((a, b) => {
@@ -705,7 +1325,10 @@ const MonitoringPanel = ({
 
   // --- CHART LOGIC ---
   const chartData = useMemo(() => {
-    const daysMap: Record<string, number> = {};
+    const daysMap: Record<
+      string,
+      { delivered: number; rejected: number; cancelled: number }
+    > = {};
     // Generar últimos 7 días
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -714,7 +1337,7 @@ const MonitoringPanel = ({
         weekday: "short",
         day: "numeric",
       });
-      daysMap[key] = 0;
+      daysMap[key] = { delivered: 0, rejected: 0, cancelled: 0 };
     }
 
     orders.forEach((o) => {
@@ -728,7 +1351,10 @@ const MonitoringPanel = ({
           day: "numeric",
         });
         if (daysMap[key] !== undefined) {
-          daysMap[key]++;
+          const status = (o.status || "").toUpperCase();
+          if (status === "ENTREGADO") daysMap[key].delivered++;
+          else if (status === "RECHAZADO") daysMap[key].rejected++;
+          else if (status === "CANCELADO") daysMap[key].cancelled++;
         }
       }
     });
@@ -736,7 +1362,12 @@ const MonitoringPanel = ({
     return Object.entries(daysMap);
   }, [orders]);
 
-  const maxOrders = Math.max(...chartData.map(([_, count]) => count), 1);
+  const maxOrders = Math.max(
+    ...chartData.map(
+      ([_, count]) => count.delivered + count.rejected + count.cancelled,
+    ),
+    1,
+  );
 
   const OrderInfoCard = ({ order }: { order: Order }) => {
     const customer =
@@ -808,35 +1439,60 @@ const MonitoringPanel = ({
       {/* Chart Section */}
       <Card className="p-4">
         <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
-          <Icons.BarChart2 size={18} /> Pedidos por Día (Última Semana)
+          <Icons.BarChart2 size={18} /> Pedidos por día (Última Semana)
         </h3>
         <br />
         <div className="flex justify-between h-32 gap-2">
-          {chartData.map(([label, count]) => (
-            <div
-              key={label}
-              className="flex flex-col items-center flex-1 group h-full"
-            >
-              <div className="relative w-full flex justify-center items-end flex-1">
-                <div
-                  className="w-full max-w-[30px] bg-primary/80 rounded-t-lg transition-all duration-500 group-hover:bg-primary relative"
-                  style={{
-                    height: `${(count / maxOrders) * 100}%`,
-                    minHeight: count > 0 ? "4px" : "0",
-                  }}
-                >
-                  {count > 0 && (
-                    <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-bold text-gray-600">
-                      {count}
-                    </span>
-                  )}
+          {chartData.map(([label, count]) => {
+            const total = count.delivered + count.rejected + count.cancelled;
+            const hDelivered = (count.delivered / maxOrders) * 100;
+            const hRejected = (count.rejected / maxOrders) * 100;
+            const hCancelled = (count.cancelled / maxOrders) * 100;
+
+            return (
+              <div
+                key={label}
+                className="flex flex-col items-center flex-1 group h-full"
+              >
+                <div className="relative w-full flex justify-center items-end flex-1">
+                  <div className="w-full max-w-[30px] flex flex-col justify-end items-center h-full relative group-hover:opacity-80 transition-all">
+                    <div
+                      style={{ height: `${hCancelled}%` }}
+                      className="w-full bg-gray-400"
+                    />
+                    <div
+                      style={{ height: `${hRejected}%` }}
+                      className="w-full bg-red-500"
+                    />
+                    <div
+                      style={{ height: `${hDelivered}%` }}
+                      className={`w-full bg-green-600 ${hCancelled === 0 && hRejected === 0 ? "rounded-t-sm" : ""}`}
+                    />
+
+                    {total > 0 && (
+                      <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-bold text-gray-600">
+                        {total}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                <span className="text-[10px] text-gray-400 mt-2 font-medium">
+                  {label}
+                </span>
               </div>
-              <span className="text-[10px] text-gray-400 mt-2 font-medium">
-                {label}
-              </span>
-            </div>
-          ))}
+            );
+          })}
+        </div>
+        <div className="flex justify-center gap-4 mt-3 text-[10px] text-gray-500">
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-green-600 rounded"></div> Entregados
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-red-500 rounded"></div> Rechazados
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-gray-400 rounded"></div> Cancelados
+          </div>
         </div>
       </Card>
 
@@ -977,16 +1633,23 @@ const MonitoringPanel = ({
               </div>
               <div className="h-px bg-blue-200 my-1"></div>
               <div className="flex justify-between text-xs text-blue-700">
-                <span>- Tarifa Repartidor (Por Km):</span>
+                <span>- Pago a Repartidor (KM):</span>
                 <span>${(selectedOrder.driverFee || 0).toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xs text-blue-700">
-                <span>- Banderazo (Comisión App):</span>
+                <span>- Servicio Distancia Empresa (KM):</span>
+                <span>
+                  ${(selectedOrder.companyDistanceFee || 0).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-blue-700">
+                <span>- Comisión por Venta (%):</span>
                 <span>
                   $
                   {(
                     (selectedOrder.deliveryFee || 0) -
-                    (selectedOrder.driverFee || 0)
+                    (selectedOrder.driverFee || 0) -
+                    (selectedOrder.companyDistanceFee || 0)
                   ).toFixed(2)}
                 </span>
               </div>
@@ -1018,6 +1681,7 @@ const ColoniesPanel = ({
   const [globalForm, setGlobalForm] = useState({
     commissionRate: settings.commissionRate,
     kmRate: settings.kmRate,
+    companyKmRate: settings.companyKmRate || 0,
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -1029,6 +1693,7 @@ const ColoniesPanel = ({
     setGlobalForm({
       commissionRate: settings.commissionRate,
       kmRate: settings.kmRate,
+      companyKmRate: settings.companyKmRate || 0,
     });
   }, [settings]);
 
@@ -1079,13 +1744,13 @@ const ColoniesPanel = ({
     setModalOpen(false);
   };
 
-  const handleSaveGlobal = () => {
-    onUpdateSettings({
+  const handleSaveGlobal = async () => {
+    await onUpdateSettings({
       ...settings,
       commissionRate: Number(globalForm.commissionRate),
       kmRate: Number(globalForm.kmRate),
+      companyKmRate: Number(globalForm.companyKmRate),
     });
-    alert("Tarifas globales actualizadas");
   };
 
   // Filter and Sort Logic
@@ -1116,9 +1781,9 @@ const ColoniesPanel = ({
 
         {isSettingsOpen && (
           <div className="mt-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Input
-                label="Comisión de la App (%)"
+                label="% Empresa (Sobre Venta)"
                 type="number"
                 value={globalForm.commissionRate}
                 onChange={(e: any) =>
@@ -1129,7 +1794,18 @@ const ColoniesPanel = ({
                 }
               />
               <Input
-                label="Tarifa por Kilómetro (Para Repartidor)"
+                label="Tarifa KM Empresa (MXN)"
+                type="number"
+                value={globalForm.companyKmRate}
+                onChange={(e: any) =>
+                  setGlobalForm({
+                    ...globalForm,
+                    companyKmRate: e.target.value,
+                  })
+                }
+              />
+              <Input
+                label="Tarifa KM Repartidor (MXN)"
                 type="number"
                 value={globalForm.kmRate}
                 onChange={(e: any) =>

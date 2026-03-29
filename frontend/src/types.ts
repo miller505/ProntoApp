@@ -6,7 +6,7 @@ export enum UserRole {
 }
 
 export enum SubscriptionType {
-  ULTRA = "ULTRA",
+  BLACK = "BLACK",
   PREMIUM = "PREMIUM",
   STANDARD = "STANDARD",
 }
@@ -21,6 +21,7 @@ export interface Message {
 }
 
 export enum OrderStatus {
+  AWAITING_PAYMENT = "PAGO_PENDIENTE",
   PENDING = "PENDIENTE",
   PREPARING = "PREPARANDO",
   READY = "LISTO PARA RECOGER",
@@ -35,6 +36,7 @@ export interface SystemSettings {
   id?: string;
   commissionRate: number; // Banderazo como porcentaje
   kmRate: number; // Tarifa por Km para el repartidor
+  companyKmRate: number; // Tarifa por Km para el Master
 }
 
 export interface Colony {
@@ -52,7 +54,9 @@ export interface User {
   phone: string;
   email: string;
   password?: string;
+  authProvider?: "LOCAL" | "GOOGLE" | "APPLE";
   ineImage?: string; // base64 or url
+  defaultNotes?: string;
   addresses?: Address[];
   approved: boolean; // For registration approval
 }
@@ -73,6 +77,7 @@ export interface StoreProfile extends User {
   prepTime?: string; // e.g. "20-30 min"
   averageRating?: number;
   ratingCount?: number;
+  subscriptionExpiresAt?: string;
 }
 
 export interface Product {
@@ -85,6 +90,7 @@ export interface Product {
   image?: string;
   isAvailable?: boolean;
   isFeatured?: boolean;
+  salesCount?: number;
 }
 
 export interface Address {
@@ -113,8 +119,19 @@ export interface Order {
   total: number;
   deliveryFee: number;
   driverFee?: number; // What the driver earns
+  companyDistanceFee?: number; // Lo que gana el Master por distancia
   paymentMethod: "CARD" | "CASH";
   deliveryAddress: Address;
   createdAt: number;
   isReviewed?: boolean;
+}
+
+export interface CommunityMessage {
+  id: string;
+  title?: string;
+  description?: string;
+  imageUrl: string;
+  expiresAt: string; // ISO Date string
+  storeId?: string | StoreProfile; // Opcional: Enlace a tienda
+  createdAt: string;
 }

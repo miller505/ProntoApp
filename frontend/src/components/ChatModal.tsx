@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext"; // <-- Importamos AuthContext
+import { useChat } from "../contexts/ChatContext";
 import { Modal, Input, Button } from "./UI";
 import { Icons } from "../constants";
 import { User, StoreProfile } from "../types";
@@ -18,7 +19,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   orderId,
   otherParty,
 }) => {
-  const { messages, fetchMessages, sendMessage, joinChatRoom } = useApp();
+  const { sendMessage, joinChatRoom } = useApp();
+  const { messages, fetchMessages } = useChat();
   const { currentUser } = useAuth(); // <-- currentUser ahora viene de useAuth
 
   const [text, setText] = useState("");
