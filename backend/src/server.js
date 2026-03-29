@@ -164,7 +164,7 @@ const corsOptions = {
 
     const isLocalhost =
       origin.includes("localhost") || origin.includes("127.0.0.1");
-    const isVercel = origin.includes(".vercel.app");
+    const isVercel = origin.includes("vercel.app");
     const isProduction = origin.includes("prontomx.com");
     const isAllowedList = allowedOrigins.includes(origin);
 
