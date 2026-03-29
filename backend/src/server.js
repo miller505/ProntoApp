@@ -167,8 +167,12 @@ const corsOptions = {
     const isVercel = origin.includes("vercel.app");
     const isProduction = origin.includes("prontomx.com");
     const isAllowedList = allowedOrigins.includes(origin);
+    const isAllowed =
+      isAllowedList ||
+      origin.includes("vercel.app") ||
+      origin.includes("prontomx.com");
 
-    if (isLocalhost || isVercel || isProduction || isAllowedList) {
+    if (isAllowed || process.env.NODE_ENV !== "production") {
       callback(null, true);
     } else {
       console.warn(`CORS Bloqueado para el origen: ${origin}`);
