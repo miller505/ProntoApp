@@ -164,10 +164,11 @@ const corsOptions = {
 
     const isLocalhost =
       origin.includes("localhost") || origin.includes("127.0.0.1");
-    const isVercel = origin.endsWith(".vercel.app"); // Permite todos los despliegues de Vercel
+    const isVercel = origin.includes(".vercel.app");
+    const isProduction = origin.includes("prontomx.com");
     const isAllowedList = allowedOrigins.includes(origin);
 
-    if (isLocalhost || isVercel || isAllowedList) {
+    if (isLocalhost || isVercel || isProduction || isAllowedList) {
       callback(null, true);
     } else {
       console.warn(`CORS Bloqueado para el origen: ${origin}`);
