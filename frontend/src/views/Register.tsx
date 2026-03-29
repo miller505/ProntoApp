@@ -73,6 +73,7 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
   };
 
   const handleGoogleRegister = useGoogleLogin({
+    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
     onSuccess: async (tokenResponse) => {
       // Pasamos el rol seleccionado para que el backend sepa cómo crear el usuario
       const success = await googleLogin(tokenResponse.access_token, role);

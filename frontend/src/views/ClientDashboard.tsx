@@ -210,125 +210,127 @@ const ClientDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-secondary">
-      {/* Content Area */}
-      {view === "home" && (
-        <>
-          <div className="w-full flex justify-center pt-2 pb-1">
-            <img
-              src="/logo.svg?v=2"
-              alt="Pronto"
-              className="h-5 w-auto object-contain"
-            />
-          </div>
-          <HomeView
-            stores={stores}
-            blackStores={blackStores}
-            otherStores={otherStores}
-            onStoreSelect={(store) => {
-              // Empujamos un nuevo estado al historial del navegador
-              window.history.pushState({ view: "store" }, "", "");
-              setSelectedStore(store);
-            }}
-            loading={loading} // Pasamos el estado a la vista
-            communityMessages={communityMessages}
-            orders={orders}
-          />
-        </>
-      )}
-      {view === "cart" && (
-        <CartView
-          setView={setView}
-          onCheckout={() => {
-            if (checkPhoneRequirement()) setView("checkout");
-          }}
-        />
-      )}
-      {view === "checkout" && <CheckoutView setView={setView} />}
-      {view === "orders" && <OrdersView setView={setView} />}
-      {view === "profile" && <ProfileView />}
-
-      {/* Modal de Teléfono (Disponible en vistas principales como el Carrito) */}
-      <Modal
-        isOpen={isPhoneModalOpen}
-        onClose={() => setIsPhoneModalOpen(false)}
-        title="Falta un paso"
-      >
-        <div className="space-y-4">
-          <p className="text-gray-600 text-sm">
-            Para que el repartidor pueda comunicarse contigo, necesitamos tu
-            número de celular.
-          </p>
-          <div className="flex gap-2 items-center">
-            <div className="px-3 py-3 bg-gray-100 rounded-2xl text-gray-500 font-bold border-2 border-transparent">
-              +52
+    <div className="min-h-screen bg-secondary flex justify-center">
+      <div className="w-full max-w-md bg-white shadow-lg relative">
+        {/* Content Area */}
+        {view === "home" && (
+          <>
+            <div className="w-full flex justify-center pt-2 pb-1 bg-secondary">
+              <img
+                src="/logo.svg?v=2"
+                alt="Pronto"
+                className="h-5 w-auto object-contain"
+              />
             </div>
-            <Input
-              placeholder="10 dígitos"
-              value={phoneForm}
-              onChange={(e: any) => {
-                const val = e.target.value.replace(/[^0-9]/g, "");
-                if (val.length <= 10) setPhoneForm(val);
+            <HomeView
+              stores={stores}
+              blackStores={blackStores}
+              otherStores={otherStores}
+              onStoreSelect={(store) => {
+                // Empujamos un nuevo estado al historial del navegador
+                window.history.pushState({ view: "store" }, "", "");
+                setSelectedStore(store);
               }}
-              type="tel"
-              className="flex-1"
+              loading={loading} // Pasamos el estado a la vista
+              communityMessages={communityMessages}
+              orders={orders}
             />
-          </div>
-          <Button onClick={handleSavePhone} className="w-full">
-            Guardar y Continuar
-          </Button>
-        </div>
-      </Modal>
+          </>
+        )}
+        {view === "cart" && (
+          <CartView
+            setView={setView}
+            onCheckout={() => {
+              if (checkPhoneRequirement()) setView("checkout");
+            }}
+          />
+        )}
+        {view === "checkout" && <CheckoutView setView={setView} />}
+        {view === "orders" && <OrdersView setView={setView} />}
+        {view === "profile" && <ProfileView />}
 
-      {/* Bottom Nav */}
-      {view !== "checkout" && (
-        <nav className="fixed bottom-0 w-full bg-white/90 backdrop-blur-lg border-t border-gray-200 pb-safe pt-2 px-6 flex justify-between z-40">
-          <NavBtn
-            icon={<Icons.Home />}
-            label="Inicio"
-            active={view === "home"}
-            onClick={() => setView("home")}
-          />
-          <div className="relative">
+        {/* Modal de Teléfono (Disponible en vistas principales como el Carrito) */}
+        <Modal
+          isOpen={isPhoneModalOpen}
+          onClose={() => setIsPhoneModalOpen(false)}
+          title="Falta un paso"
+        >
+          <div className="space-y-4">
+            <p className="text-gray-600 text-sm">
+              Para que el repartidor pueda comunicarse contigo, necesitamos tu
+              número de celular.
+            </p>
+            <div className="flex gap-2 items-center">
+              <div className="px-3 py-3 bg-gray-100 rounded-2xl text-gray-500 font-bold border-2 border-transparent">
+                +52
+              </div>
+              <Input
+                placeholder="10 dígitos"
+                value={phoneForm}
+                onChange={(e: any) => {
+                  const val = e.target.value.replace(/[^0-9]/g, "");
+                  if (val.length <= 10) setPhoneForm(val);
+                }}
+                type="tel"
+                className="flex-1"
+              />
+            </div>
+            <Button onClick={handleSavePhone} className="w-full">
+              Guardar y Continuar
+            </Button>
+          </div>
+        </Modal>
+
+        {/* Bottom Nav */}
+        {view !== "checkout" && (
+          <nav className="fixed bottom-0 w-full max-w-md bg-white/90 backdrop-blur-lg border-t border-gray-200 pb-safe pt-2 px-6 flex justify-between z-40">
             <NavBtn
-              icon={<Icons.ShoppingBag />}
-              label="Pedidos"
-              active={view === "orders"}
-              onClick={() => setView("orders")}
+              icon={<Icons.Home />}
+              label="Inicio"
+              active={view === "home"}
+              onClick={() => setView("home")}
             />
-            {hasArrivedOrder ? (
-              <span className="absolute -top-3 -right-2 bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-full border-2 border-white shadow-sm animate-bounce flex items-center gap-1 z-50 pointer-events-none">
-                <Icons.Bike size={12} /> ¡Llegó!
-              </span>
-            ) : (
-              totalUnread > 0 && (
-                <span className="absolute top-0 right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white pointer-events-none">
-                  {totalUnread > 9 ? "9+" : totalUnread}
+            <div className="relative">
+              <NavBtn
+                icon={<Icons.ShoppingBag />}
+                label="Pedidos"
+                active={view === "orders"}
+                onClick={() => setView("orders")}
+              />
+              {hasArrivedOrder ? (
+                <span className="absolute -top-3 -right-2 bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-full border-2 border-white shadow-sm animate-bounce flex items-center gap-1 z-50 pointer-events-none">
+                  <Icons.Bike size={12} /> ¡Llegó!
                 </span>
-              )
-            )}
-          </div>
-          <div className="relative">
+              ) : (
+                totalUnread > 0 && (
+                  <span className="absolute top-0 right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white pointer-events-none">
+                    {totalUnread > 9 ? "9+" : totalUnread}
+                  </span>
+                )
+              )}
+            </div>
+            <div className="relative">
+              <NavBtn
+                icon={<Icons.ShoppingCart />}
+                label="Carrito"
+                active={view === "cart"}
+                onClick={() => setView("cart")}
+              />
+              {cart.length > 0 && (
+                <span className="absolute -top-1 right-2 w-5 h-5 bg-primary text-white text-[10px] flex items-center justify-center rounded-full font-bold">
+                  {cart.reduce((a, b) => a + b.quantity, 0)}
+                </span>
+              )}
+            </div>
             <NavBtn
-              icon={<Icons.ShoppingCart />}
-              label="Carrito"
-              active={view === "cart"}
-              onClick={() => setView("cart")}
+              icon={<Icons.User />}
+              label="Perfil"
+              active={view === "profile"}
+              onClick={() => setView("profile")}
             />
-            {cart.length > 0 && (
-              <span className="absolute -top-1 right-2 w-5 h-5 bg-primary text-white text-[10px] flex items-center justify-center rounded-full font-bold">
-                {cart.reduce((a, b) => a + b.quantity, 0)}
-              </span>
-            )}
-          </div>
-          <NavBtn
-            icon={<Icons.User />}
-            label="Perfil"
-            active={view === "profile"}
-            onClick={() => setView("profile")}
-          />
-        </nav>
-      )}
+          </nav>
+        )}
+      </div>
 
       <ScrollToTopButton />
     </div>

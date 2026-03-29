@@ -36,6 +36,7 @@ export const Login = () => {
   };
 
   const handleGoogleLogin = useGoogleLogin({
+    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
     onSuccess: async (tokenResponse) => {
       setLoading(true);
       const success = await googleLogin(tokenResponse.access_token);
