@@ -339,7 +339,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (currentUser) {
       setLoading(true); // CORRECCIÓN: Activar loading al detectar usuario para mostrar Skeletons
-      fetchInitialData(currentUser).then(() => setLoading(false));
+      fetchInitialData(currentUser).finally(() => setLoading(false));
     } else {
       setLoading(false);
     }

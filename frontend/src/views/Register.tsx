@@ -141,7 +141,7 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
 
   return (
     <div className="min-h-screen bg-secondary p-4 flex items-center justify-center">
-      <Card className="w-full max-w-2xl p-8">
+      <Card className="w-full max-w-md p-8">
         <div className="flex items-center mb-6">
           <Button variant="ghost" onClick={onBack} className="mr-2">
             <Icons.ChevronDown className="rotate-90" size={24} />

@@ -151,6 +151,7 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "http://localhost:5173",
+  "http://localhost:4173", // Puerto de vista previa de Vite
   "https://www.prontomx.com",
   "https://prontomx.com",
   process.env.FRONTEND_URL,
@@ -158,14 +159,19 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
+    // Permitir peticiones sin origen (como Postman o server-to-server)
     if (!origin) return callback(null, true);
-    if (process.env.NODE_ENV !== "production") {
-      return callback(null, true);
-    }
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
+
+    const isLocalhost =
+      origin.includes("localhost") || origin.includes("127.0.0.1");
+    const isVercel = origin.endsWith(".vercel.app"); // Permite todos los despliegues de Vercel
+    const isAllowedList = allowedOrigins.includes(origin);
+
+    if (isLocalhost || isVercel || isAllowedList) {
+      callback(null, true);
     } else {
-      return callback(new Error("Bloqueado por CORS"));
+      console.warn(`CORS Bloqueado para el origen: ${origin}`);
+      callback(new Error("Bloqueado por CORS"));
     }
   },
   methods: ["GET", "POST", "PUT", "DELETE"],
