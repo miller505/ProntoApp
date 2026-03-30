@@ -241,12 +241,11 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const customerId = order.customerId.toString();
-      const storeId = order.storeId.toString();
-      const driverId = order.driverId ? order.driverId.toString() : null;
-
       // Permitir si es participante directo (Cliente, Tienda, Repartidor asignado)
-      const isParticipant = [customerId, storeId, driverId].includes(uid);
+      const isParticipant =
+        order.customerId.toString() === uid ||
+        order.storeId.toString() === uid ||
+        (order.driverId && order.driverId.toString() === uid);
 
       if (isParticipant) {
         socket.join(orderId);
@@ -338,11 +337,12 @@ app.post("/api/login", loginLimiter, async (req, res) => {
 
 app.post("/api/auth/google", async (req, res) => {
   try {
-    const { token, role } = req.body;
+    const { token, credential, role } = req.body;
+    const finalToken = token || credential;
 
     // 1. Validar token con Google
     const googleRes = await fetch(
-      `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${token}`,
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${finalToken}`,
     );
     if (!googleRes.ok)
       return res.status(401).json({ error: "Token de Google inválido" });
@@ -795,7 +795,7 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
     const orderJSON = updatedOrder.toJSON();
 
     // 3. Notificaciones Inteligentes (SEGURIDAD)
-    // CORRECCIÓN PROFESIONAL: Usar .id (string) de los documentos poblados
+    // Usar .id (string) de los documentos poblados para asegurar el envío al socket correcto
     const cId =
       updatedOrder.customerId.id ||
       updatedOrder.customerId._id ||

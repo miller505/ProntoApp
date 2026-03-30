@@ -19,36 +19,30 @@ html {
 }
 
 body {
-  background-color: #f2f2f7;
+  background-color: #f2f2f7 !important;
   color: #1c1c1e;
   -webkit-font-smoothing: antialiased;
-  /* Si tienes tarjetas o secciones blancas que deben resaltar, asegúrate de que tengan su propia clase */
-  .bg-card {
-    background-color: #ffffff !important;
-  }
   font-family: "Inter", sans-serif;
   overscroll-behavior-y: none;
-}
-
-/* --- SOLUCIÓN: Forzar fondo gris en el contenedor y clases secundarias --- */
-#root > div,
-.min-h-screen,
-.bg-secondary,
-main {
-  background-color: #f2f2f7 !important;
-}
-
-  /* --- SOLUCIÓN: Prevenir el auto-ajuste de texto en móviles --- */
   -webkit-text-size-adjust: 100%; /* Para Chrome, Safari, Opera */
   -moz-text-size-adjust: 100%; /* Para Firefox */
   -ms-text-size-adjust: 100%; /* Para Internet Explorer */
   text-size-adjust: 100%; /* Estándar */
+}
 
-  /* PWA: Evitar el efecto de rebote (pull-to-refresh) del navegador para sensación nativa */
-  overscroll-behavior-y: none;
+/* --- SOLUCIÓN: Forzar fondo gris en el contenedor 9:16 y vistas del cliente --- */
+#root > div,
+.min-h-screen,
+.bg-secondary,
+main,
+section {
+  background-color: #f2f2f7 !important;
+}
 
-  /* Tipografía global: Inter para cuerpo */
-  font-family: "Inter", sans-serif;
+/* Tarjetas blancas para contraste real */
+.bg-card,
+.bg-white.rounded-2xl {
+  background-color: #ffffff !important;
 }
 
 /* Tipografía exclusiva para "Titulares Mega" */

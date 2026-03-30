@@ -1,5 +1,5 @@
 const CACHE_NAME = "pronto-app-v1";
-const urlsToCache = ["/logo.svg"];
+const urlsToCache = []; // No cachear assets aquí, dejar que Vite maneje el cacheo de producción
 
 self.addEventListener("install", (event) => {
   self.skipWaiting(); // Forza al SW a activarse inmediatamente tras cambios
