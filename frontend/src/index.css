@@ -19,22 +19,24 @@ html {
 }
 
 body {
-  background-color: #f2f2f7 !important;
+  background-color: #f2f2f7;
   color: #1c1c1e;
   -webkit-font-smoothing: antialiased;
-
-  /* --- SOLUCIÓN: Forzar fondo gris en el contenedor 9:16 del Dashboard --- */
-  #root > div,
-  .min-h-screen,
-  [class*="Dashboard_container"],
-  main {
-    background-color: #f2f2f7 !important;
-  }
-
   /* Si tienes tarjetas o secciones blancas que deben resaltar, asegúrate de que tengan su propia clase */
   .bg-card {
     background-color: #ffffff !important;
   }
+  font-family: "Inter", sans-serif;
+  overscroll-behavior-y: none;
+}
+
+/* --- SOLUCIÓN: Forzar fondo gris en el contenedor y clases secundarias --- */
+#root > div,
+.min-h-screen,
+.bg-secondary,
+main {
+  background-color: #f2f2f7 !important;
+}
 
   /* --- SOLUCIÓN: Prevenir el auto-ajuste de texto en móviles --- */
   -webkit-text-size-adjust: 100%; /* Para Chrome, Safari, Opera */

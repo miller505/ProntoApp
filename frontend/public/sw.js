@@ -1,5 +1,5 @@
 const CACHE_NAME = "pronto-app-v1";
-const urlsToCache = ["/", "/index.html", "/logo.svg"];
+const urlsToCache = ["/logo.svg"];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting(); // Forza al SW a activarse inmediatamente tras cambios

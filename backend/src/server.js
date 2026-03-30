@@ -342,7 +342,7 @@ app.post("/api/auth/google", async (req, res) => {
 
     // 1. Validar token con Google
     const googleRes = await fetch(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${token}`,
+      `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${token}`,
     );
     if (!googleRes.ok)
       return res.status(401).json({ error: "Token de Google inválido" });
