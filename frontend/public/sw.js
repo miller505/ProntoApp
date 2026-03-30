@@ -1,5 +1,5 @@
-const CACHE_NAME = "pronto-app-v1";
-const urlsToCache = []; // No cachear assets aquí, dejar que Vite maneje el cacheo de producción
+const CACHE_NAME = "pronto-app-v2";
+const urlsToCache = ["/logo.svg"];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting(); // Forza al SW a activarse inmediatamente tras cambios
@@ -9,7 +9,19 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim()); // Toma control de los clientes activos
+  // Limpiar cualquier cache antiguo para forzar la carga de nuevos assets
+  event.waitUntil(
+    caches
+      .keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cache) => {
+            if (cache !== CACHE_NAME) return caches.delete(cache);
+          }),
+        );
+      })
+      .then(() => self.clients.claim()),
+  );
 });
 
 self.addEventListener("fetch", (event) => {

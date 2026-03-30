@@ -35,8 +35,9 @@ body {
 .min-h-screen,
 .bg-secondary,
 main,
-section {
-  background-color: #f2f2f7 !important;
+section,
+.client-dashboard-content {
+  background-color: #f2f2f7 !important; /* Gris iOS System Gray 6 */
 }
 
 /* Tarjetas blancas para contraste real */

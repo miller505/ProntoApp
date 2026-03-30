@@ -338,12 +338,19 @@ app.post("/api/login", loginLimiter, async (req, res) => {
 app.post("/api/auth/google", async (req, res) => {
   try {
     const { token, credential, role } = req.body;
-    const finalToken = token || credential;
+    const finalToken = credential || token; // 'credential' es el ID Token estándar de Google One Tap
 
-    // 1. Validar token con Google
-    const googleRes = await fetch(
+    // Intentar validar como ID Token primero, si falla, intentar como Access Token
+    let googleRes = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${finalToken}`,
     );
+
+    if (!googleRes.ok) {
+      googleRes = await fetch(
+        `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${finalToken}`,
+      );
+    }
+
     if (!googleRes.ok)
       return res.status(401).json({ error: "Token de Google inválido" });
 

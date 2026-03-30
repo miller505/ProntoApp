@@ -20,6 +20,16 @@
     />
   </head>
   <body>
+    <script>
+      // Detectar cambios en la compilación y limpiar Service Workers antiguos
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (let registration of registrations) {
+            registration.update();
+          }
+        });
+      }
+    </script>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
   </body>
