@@ -241,11 +241,12 @@ io.on("connection", (socket) => {
         return;
       }
 
+      const customerId = order.customerId.toString();
+      const storeId = order.storeId.toString();
+      const driverId = order.driverId ? order.driverId.toString() : null;
+
       // Permitir si es participante directo (Cliente, Tienda, Repartidor asignado)
-      const isParticipant =
-        order.customerId.toString() === uid ||
-        order.storeId.toString() === uid ||
-        (order.driverId && order.driverId.toString() === uid);
+      const isParticipant = [customerId, storeId, driverId].includes(uid);
 
       if (isParticipant) {
         socket.join(orderId);
@@ -341,7 +342,7 @@ app.post("/api/auth/google", async (req, res) => {
 
     // 1. Validar token con Google
     const googleRes = await fetch(
-      `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${token}`,
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${token}`,
     );
     if (!googleRes.ok)
       return res.status(401).json({ error: "Token de Google inválido" });
@@ -794,11 +795,19 @@ app.put("/api/orders/:id/status", verifyToken, async (req, res) => {
     const orderJSON = updatedOrder.toJSON();
 
     // 3. Notificaciones Inteligentes (SEGURIDAD)
-    // CORRECCIÓN: Extraer IDs de forma segura (pueden ser objetos poblados o strings)
-    const cId = updatedOrder.customerId._id || updatedOrder.customerId;
-    const sId = updatedOrder.storeId._id || updatedOrder.storeId;
+    // CORRECCIÓN PROFESIONAL: Usar .id (string) de los documentos poblados
+    const cId =
+      updatedOrder.customerId.id ||
+      updatedOrder.customerId._id ||
+      updatedOrder.customerId;
+    const sId =
+      updatedOrder.storeId.id ||
+      updatedOrder.storeId._id ||
+      updatedOrder.storeId;
     const dId = updatedOrder.driverId
-      ? updatedOrder.driverId._id || updatedOrder.driverId
+      ? updatedOrder.driverId.id ||
+        updatedOrder.driverId._id ||
+        updatedOrder.driverId
       : null;
 
     // Siempre notificar a los participantes directos

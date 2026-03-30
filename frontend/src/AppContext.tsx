@@ -117,21 +117,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         ...updatedOrder,
         id: (updatedOrder as any)._id || updatedOrder.id,
       };
+
+      // Extraer IDs limpios para comparaciones lógicas
+      const customerId =
+        typeof normalizedOrder.customerId === "object"
+          ? (normalizedOrder.customerId as any).id
+          : normalizedOrder.customerId;
+      const storeId =
+        typeof normalizedOrder.storeId === "object"
+          ? (normalizedOrder.storeId as any).id
+          : normalizedOrder.storeId;
+
       setOrders((prevOrders: Order[]) => {
         const exists = prevOrders.some((o) => o.id === normalizedOrder.id);
         if (exists)
           return prevOrders.map((o) =>
             o.id === normalizedOrder.id ? normalizedOrder : o,
           );
-        return [normalizedOrder, ...prevOrders];
+        return [normalizedOrder, ...prevOrders].sort(
+          (a, b) => b.createdAt - a.createdAt,
+        );
       });
 
       // --- LÓGICA DE NOTIFICACIONES PUSH ---
       // 1. Cliente: Cambio de estado de SU pedido
-      if (
-        currentUser.role === "CLIENT" &&
-        normalizedOrder.customerId === currentUser.id
-      ) {
+      if (currentUser.role === "CLIENT" && customerId === currentUser.id) {
         if (normalizedOrder.status === OrderStatus.ARRIVED) {
           sendNotification(
             "¡Tu repartidor ha llegado!",
@@ -148,7 +158,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // 2. Tienda: Nueva orden recibida (Pendiente)
       if (
         currentUser.role === "STORE" &&
-        normalizedOrder.storeId === currentUser.id &&
+        storeId === currentUser.id &&
         normalizedOrder.status === OrderStatus.PENDING
       ) {
         sendNotification(

@@ -211,7 +211,7 @@ const ClientDashboard = () => {
 
   return (
     <div className="min-h-screen bg-secondary flex justify-center">
-      <div className="w-full max-w-md bg-white shadow-lg relative">
+      <div className="w-full max-w-md bg-secondary shadow-lg relative">
         {/* Content Area */}
         {view === "home" && (
           <>
