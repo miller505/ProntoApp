@@ -113,35 +113,52 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on("order_update", (updatedOrder: Order) => {
+      const orderId = (updatedOrder as any)._id || updatedOrder.id;
+      // PRESERVAMOS los objetos poblados para que la UI no pierda logos ni nombres
       const normalizedOrder = {
         ...updatedOrder,
-        id: (updatedOrder as any)._id || updatedOrder.id,
+        id: orderId,
+        status: (updatedOrder.status || "").trim(), // Limpiar espacios de la DB
       };
 
-      // Extraer IDs limpios para comparaciones lógicas
-      const customerId =
-        typeof normalizedOrder.customerId === "object"
-          ? (normalizedOrder.customerId as any).id
-          : normalizedOrder.customerId;
-      const storeId =
-        typeof normalizedOrder.storeId === "object"
-          ? (normalizedOrder.storeId as any).id
-          : normalizedOrder.storeId;
+      // Helper Robusto para obtener el ID
+      const getID = (val: any) =>
+        val && typeof val === "object"
+          ? val.id || val._id || val.toString()
+          : val;
+
+      const customerId = getID(normalizedOrder.customerId);
+      const storeId = getID(normalizedOrder.storeId);
+      const driverId = getID(normalizedOrder.driverId);
 
       setOrders((prevOrders: Order[]) => {
-        const exists = prevOrders.some((o) => o.id === normalizedOrder.id);
-        if (exists)
-          return prevOrders.map((o) =>
-            o.id === normalizedOrder.id ? normalizedOrder : o,
+        // Comparación triple para evitar fallos de _id vs id
+        const exists = prevOrders.some(
+          (o) => String(o.id || (o as any)._id) === String(orderId),
+        );
+        let next;
+        if (exists) {
+          next = prevOrders.map((o) =>
+            String(o.id || (o as any)._id) === String(orderId)
+              ? normalizedOrder
+              : o,
           );
-        return [normalizedOrder, ...prevOrders].sort(
-          (a, b) => b.createdAt - a.createdAt,
+        } else {
+          next = [normalizedOrder, ...prevOrders];
+        }
+        // CORRECCIÓN VITAL: Ordenamos usando timestamps reales, no resta de strings
+        return [...next].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         );
       });
 
       // --- LÓGICA DE NOTIFICACIONES PUSH ---
-      // 1. Cliente: Cambio de estado de SU pedido
-      if (currentUser.role === "CLIENT" && customerId === currentUser.id) {
+      if (
+        currentUser &&
+        currentUser.role === "CLIENT" &&
+        String(customerId) === String(currentUser.id)
+      ) {
         if (normalizedOrder.status === OrderStatus.ARRIVED) {
           sendNotification(
             "¡Tu repartidor ha llegado!",
@@ -157,13 +174,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       // 2. Tienda: Nueva orden recibida (Pendiente)
       if (
+        currentUser &&
         currentUser.role === "STORE" &&
-        storeId === currentUser.id &&
+        String(storeId) === String(currentUser.id) &&
         normalizedOrder.status === OrderStatus.PENDING
       ) {
         sendNotification(
           "¡Nueva Comanda!",
-          `Tienes un nuevo pedido por $${normalizedOrder.total}`,
+          `Tienes un nuevo pedido por $${normalizedOrder.subtotal}`,
         );
       }
 
@@ -171,8 +189,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Nota: El backend emite a "DRIVERS_ROOM" solo si el estado es READY y sin driver.
       if (
         currentUser.role === "DELIVERY" &&
-        normalizedOrder.status === OrderStatus.READY &&
-        !normalizedOrder.driverId
+        ((normalizedOrder.status || "").toUpperCase().trim() ===
+          "LISTO PARA RECOGER" ||
+          (normalizedOrder.status || "").toUpperCase().trim() === "READY") &&
+        !driverId
       ) {
         sendNotification(
           "Pedido Disponible",
@@ -291,7 +311,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       newSocket.close();
     };
-  }, [currentUser]); // CORRECCIÓN: Reconectar cuando cambia el usuario (Login/Logout)
+  }, [currentUser, setOrders, setProducts, setMessages, setUnreadCounts]); // Incluimos setters en dependencias para estabilidad
 
   const fetchInitialData = useCallback(async (user: any) => {
     if (!user || !user.id) return;
@@ -427,7 +447,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addReview = async (r: any) => {
     try {
       await api.post("/api/reviews", r);
-      if (currentUser) fetchInitialData(currentUser);
+      // La actualización del pedido vendrá vía WebSocket (order_update)
+      // La actualización de la tienda vendrá vía WebSocket (store_update)
     } catch (e: any) {
       toast.error(e.response?.data?.error || "Error al calificar");
     }

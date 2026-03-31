@@ -39,7 +39,7 @@ const ScrollToTopButton = () => {
   return (
     <button
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-      className="fixed bottom-24 right-4 bg-primary text-white p-3.5 rounded-full shadow-[0_4px_14px_rgba(0,0,0,0.3)] z-50 hover:bg-opacity-90 transition-all active:scale-90 animate-fade-in-up"
+      className="fixed bottom-24 right-4 bg-gray-700 text-white p-3.5 rounded-full shadow-[0_4px_14px_rgba(0,0,0,0.3)] z-50 hover:bg-opacity-90 transition-all active:scale-90 animate-fade-in-up"
       aria-label="Volver arriba"
     >
       <Icons.ArrowUp size={24} />
@@ -160,52 +160,54 @@ const ClientDashboard = () => {
 
   if (selectedStore) {
     return (
-      <>
-        <StoreView
-          store={selectedStore}
-          onBack={() => {
-            window.history.back();
-          }}
-          fetchStoreProducts={fetchStoreProducts}
-          onGoToCart={() => {
-            // Al ir al carrito, no queremos que el historial de la tienda se quede
-            window.history.replaceState(null, "", window.location.pathname);
-            setSelectedStore(null);
-            setView("cart");
-          }}
-        />
-        <Modal
-          isOpen={isPhoneModalOpen}
-          onClose={() => setIsPhoneModalOpen(false)}
-          title="Falta un paso"
-        >
-          <div className="space-y-4">
-            <p className="text-gray-600 text-sm">
-              Para que el repartidor pueda comunicarse contigo, necesitamos tu
-              número de celular.
-            </p>
-            <div className="flex gap-2 items-center">
-              <div className="px-3 py-3 bg-gray-100 rounded-2xl text-gray-500 font-bold border-2 border-transparent">
-                +52
+      <div className="min-h-screen bg-secondary flex justify-center">
+        <div className="w-full max-w-md bg-white shadow-lg relative">
+          <StoreView
+            store={selectedStore}
+            onBack={() => {
+              window.history.back();
+            }}
+            fetchStoreProducts={fetchStoreProducts}
+            onGoToCart={() => {
+              // Al ir al carrito, no queremos que el historial de la tienda se quede
+              window.history.replaceState(null, "", window.location.pathname);
+              setSelectedStore(null);
+              setView("cart");
+            }}
+          />
+          <Modal
+            isOpen={isPhoneModalOpen}
+            onClose={() => setIsPhoneModalOpen(false)}
+            title="Falta un paso"
+          >
+            <div className="space-y-4">
+              <p className="text-gray-600 text-sm">
+                Para que el repartidor pueda comunicarse contigo, necesitamos tu
+                número de celular.
+              </p>
+              <div className="flex gap-2 items-center">
+                <div className="px-3 py-3 bg-gray-100 rounded-2xl text-gray-500 font-bold border-2 border-transparent">
+                  +52
+                </div>
+                <Input
+                  placeholder="10 dígitos"
+                  value={phoneForm}
+                  onChange={(e: any) => {
+                    const val = e.target.value.replace(/[^0-9]/g, "");
+                    if (val.length <= 10) setPhoneForm(val);
+                  }}
+                  type="tel"
+                  className="flex-1"
+                />
               </div>
-              <Input
-                placeholder="10 dígitos"
-                value={phoneForm}
-                onChange={(e: any) => {
-                  const val = e.target.value.replace(/[^0-9]/g, "");
-                  if (val.length <= 10) setPhoneForm(val);
-                }}
-                type="tel"
-                className="flex-1"
-              />
+              <Button onClick={handleSavePhone} className="w-full">
+                Guardar y Continuar
+              </Button>
             </div>
-            <Button onClick={handleSavePhone} className="w-full">
-              Guardar y Continuar
-            </Button>
-          </div>
-        </Modal>
-        <ScrollToTopButton />
-      </>
+          </Modal>
+          <ScrollToTopButton />
+        </div>
+      </div>
     );
   }
 
@@ -283,7 +285,7 @@ const ClientDashboard = () => {
 
         {/* Bottom Nav */}
         {view !== "checkout" && (
-          <nav className="fixed bottom-0 w-full max-w-md bg-white/90 backdrop-blur-lg border-t border-gray-200 pb-safe pt-2 px-6 flex justify-between z-40">
+          <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/90 backdrop-blur-lg border-t border-gray-200 pb-safe pt-2 px-6 flex justify-between z-40">
             <NavBtn
               icon={<Icons.Home />}
               label="Inicio"
@@ -373,7 +375,7 @@ const FeaturedProductCard = ({
   const shouldShowCounter = showCounter && cartQuantity > 0;
 
   return (
-    <div className="snap-center shrink-0 w-36 bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col">
+    <div className="snap-center shrink-0 w-40 bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col">
       <div className="h-24 w-full relative bg-gray-100">
         <img
           src={product.image}
@@ -385,8 +387,13 @@ const FeaturedProductCard = ({
         <h4 className="font-bold text-sm line-clamp-2 mb-1 leading-tight text-gray-800">
           {product.name}
         </h4>
-        <p className="font-bold text-primary text-sm mt-auto">
-          ${product.price}
+
+        <p className="text-xs text-gray-500 line-clamp-2">
+          {product.description}
+        </p>
+
+        <p className="font-bold text-primary text-xl mt-auto">
+          ${Number(product.price || 0).toFixed(2)}
         </p>
 
         <div className="relative h-7 mt-2 w-full">
@@ -577,7 +584,7 @@ const StoreView = ({
           <input
             type="text"
             placeholder={`Buscar en ${store.storeName}...`}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-100 focus:outline-none focus:ring-2 ring-primary/20 text-sm text-iosText"
+            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white focus:outline-none focus:ring-2 ring-primary/20 text-sm text-iosText"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -585,45 +592,47 @@ const StoreView = ({
       </div>
 
       {/* --- FEATURED CAROUSEL --- */}
-      {featuredProducts.length > 0 &&
-        !searchTerm &&
-        activeCategory === "ALL" && (
-          <div className="mt-6 mb-2">
-            <div className="flex items-center gap-2 px-6 mb-3">
-              <Icons.Star
-                size={18}
-                className="text-yellow-500"
-                fill="currentColor"
-              />
-              <h2 className="font-mega text-lg text-gray-800">DESTACADOS</h2>
-            </div>
+      <div
+        className={`overflow-hidden transition-all duration-500 ease-in-out ${
+          featuredProducts.length > 0 && !searchTerm && activeCategory === "ALL"
+            ? "max-h-[500px] opacity-100 mt-6 mb-2"
+            : "max-h-0 opacity-0 pointer-events-none"
+        }`}
+      >
+        <div className="flex items-center gap-2 px-6 mb-3">
+          <Icons.Star
+            size={18}
+            className="text-yellow-500"
+            fill="currentColor"
+          />
+          <h2 className="font-mega text-lg text-gray-800">DESTACADOS</h2>
+        </div>
 
-            <div className="flex overflow-x-auto gap-4 px-6 pb-4 snap-x snap-mandatory no-scrollbar">
-              {featuredProducts.map((p) => (
-                <FeaturedProductCard
-                  key={p.id}
-                  product={p}
-                  onAdd={handleAddToCart}
-                  onRemove={removeFromCart}
-                  cartQuantity={
-                    cart.find((item) => item.product.id === p.id)?.quantity || 0
-                  }
-                />
-              ))}
-            </div>
-            <div className="h-1 bg-gray-50 mx-6 rounded-full" />
-          </div>
-        )}
+        <div className="flex overflow-x-auto gap-4 px-6 pb-4 snap-x snap-mandatory no-scrollbar">
+          {featuredProducts.map((p) => (
+            <FeaturedProductCard
+              key={p.id}
+              product={p}
+              onAdd={handleAddToCart}
+              onRemove={removeFromCart}
+              cartQuantity={
+                cart.find((item) => item.product.id === p.id)?.quantity || 0
+              }
+            />
+          ))}
+        </div>
+        <div className="h-1 bg-gray-50 mx-6 rounded-full" />
+      </div>
 
       {/* Categories Nav */}
-      <div className="sticky top-0 bg-white z-20 py-3 px-6 border-b border-gray-50">
+      <div className="sticky top-0 bg-iOSGray z-20 py-3 px-6 border-b border-gray-50">
         <div className="overflow-x-auto no-scrollbar">
           <div className="flex gap-3">
             {categories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`px-4 py-2 rounded-full text-sm font-mega uppercase whitespace-nowrap transition-colors ${activeCategory === cat ? "bg-primary text-white" : "bg-gray-100 text-gray-500"}`}
+                className={`px-4 py-2 rounded-full text-sm font-mega uppercase whitespace-nowrap transition-colors ${activeCategory === cat ? "bg-primary text-white" : "bg-white text-gray-400"}`}
               >
                 {cat === "ALL" ? "Todo" : cat}
               </button>

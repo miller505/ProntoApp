@@ -1362,10 +1362,21 @@ app.post("/api/reviews", verifyToken, async (req, res) => {
       { new: true },
     );
 
-    await Order.findByIdAndUpdate(req.body.orderId, { isReviewed: true });
+    const updatedOrder = await Order.findByIdAndUpdate(
+      req.body.orderId,
+      { isReviewed: true },
+      { new: true },
+    )
+      .populate("customerId", "firstName lastName phone addresses")
+      .populate("storeId", "storeName storeAddress logo coverImage phone");
 
+    const orderJSON = updatedOrder.toJSON();
+    io.to(updatedOrder.customerId._id.toString()).emit(
+      "order_update",
+      orderJSON,
+    );
+    io.to("MASTER_ROOM").emit("order_update", orderJSON);
     io.emit("store_update", updatedStore.toJSON());
-
     res.status(201).json(newReview);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1571,6 +1582,44 @@ app.get("/api/init", async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// --- TAREA AUTOMÁTICA: Rechazo por Inactividad (15 min) ---
+setInterval(async () => {
+  try {
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+    // Buscamos pedidos PENDIENTES que tengan más de 15 minutos
+    const expiredOrders = await Order.find({
+      status: "PENDIENTE",
+      createdAt: { $lt: fifteenMinutesAgo },
+    });
+
+    for (const order of expiredOrders) {
+      order.status = "RECHAZADO";
+      await order.save();
+
+      // Poblar y notificar a los involucrados vía Socket.IO
+      const populatedOrder = await order.populate([
+        { path: "customerId", select: "firstName lastName phone addresses" },
+        { path: "storeId", select: "storeName storeAddress logo phone" },
+      ]);
+
+      const orderJSON = populatedOrder.toJSON();
+      const cId = order.customerId._id || order.customerId;
+      const sId = order.storeId._id || order.storeId;
+
+      io.to(cId.toString()).emit("order_update", orderJSON);
+      io.to(sId.toString()).emit("order_update", orderJSON);
+      io.to("MASTER_ROOM").emit("order_update", orderJSON);
+
+      console.log(
+        `⏰ Pedido ${order._id} rechazado automáticamente por falta de respuesta del socio.`,
+      );
+    }
+  } catch (error) {
+    console.error("Error en tarea de auto-rechazo:", error);
+  }
+}, 60000); // Revisar cada 60 segundos
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {

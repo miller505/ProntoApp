@@ -59,7 +59,7 @@ export const ProductItem = ({
           </p>
         </div>
         <div className="flex justify-between items-center mt-2">
-          <span className="font-bold text-primary">
+          <span className="font-bold text-primary text-xl">
             ${Number(product.price || 0).toFixed(2)}
           </span>
           <div className="relative flex items-center justify-end h-8 w-24">

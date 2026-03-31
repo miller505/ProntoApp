@@ -74,10 +74,19 @@ const OrderDetailsModal = ({ order, isOpen, onClose, onRateClick }: any) => {
       title={`Detalles del Pedido #${order.id.slice(-4)}`}
     >
       <div className="py-4">
-        <div className="flex justify-between mb-2">
-          <span className="font-bold text-primary">
-            {store?.storeName || "Tienda"}
-          </span>
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden shrink-0">
+              <img
+                src={store?.logo || "/favicon.svg"}
+                className="w-full h-full object-cover"
+                alt="Logo"
+              />
+            </div>
+            <span className="font-bold text-primary truncate">
+              {store?.storeName || "Tienda"}
+            </span>
+          </div>
           <Badge
             color={getOrderStatusColor(order.status)}
             className="font-mega"
@@ -164,10 +173,23 @@ const OrderHistoryCard = ({ order, onCardClick, onRateClick }: any) => {
       onClick={onCardClick}
       className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
     >
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="font-bold text-sm">{store?.storeName || "Tienda"}</p>
-          <p className="text-xs text-gray-400">{formatDate(order.createdAt)}</p>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden shrink-0 border border-gray-50">
+            <img
+              src={store?.logo || "/favicon.svg"}
+              className="w-full h-full object-cover"
+              alt="Logo"
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="font-bold text-sm truncate">
+              {store?.storeName || "Tienda"}
+            </p>
+            <p className="text-xs text-gray-400">
+              {formatDate(order.createdAt)}
+            </p>
+          </div>
         </div>
         <Badge color={getOrderStatusColor(order.status)} className="font-mega">
           {(order.status || "").toUpperCase()}
@@ -302,10 +324,19 @@ export const OrdersView = ({
                   : ""
               }`}
             >
-              <div className="flex justify-between mb-2">
-                <span className="font-bold text-primary">
-                  {store?.storeName || "Tienda"}
-                </span>
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden shrink-0 border border-gray-100">
+                    <img
+                      src={store?.logo || "/favicon.svg"}
+                      className="w-full h-full object-cover"
+                      alt="Logo"
+                    />
+                  </div>
+                  <span className="font-bold text-primary truncate">
+                    {store?.storeName || "Tienda"}
+                  </span>
+                </div>
                 <Badge
                   color={getOrderStatusColor(o.status)}
                   className="font-mega"
@@ -341,6 +372,7 @@ export const OrdersView = ({
                   </Badge>
                 </div>
               </div>
+
               <div className="space-y-1 mb-3 bg-gray-50 p-3 rounded-xl">
                 {o.items.map((item, idx) => (
                   <div

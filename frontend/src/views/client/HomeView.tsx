@@ -242,6 +242,54 @@ export const HomeView = ({
   const [isSearchingProducts, setIsSearchingProducts] = useState(false);
   const { addToCart, removeFromCart, cart } = useCart();
   const [notification, setNotification] = useState("");
+  const ultraScrollRef = useRef<HTMLDivElement>(null);
+  const interactionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const scrollDirection = useRef<"forward" | "backward">("forward");
+
+  // Lógica de auto-scroll para tiendas "Black" (Ultra)
+  useEffect(() => {
+    if (loading || blackStores.length === 0) return;
+    const container = ultraScrollRef.current;
+    if (!container) return;
+
+    const autoScroll = () => {
+      if (!isPaused && container) {
+        const speed = 0.6;
+        if (scrollDirection.current === "forward") {
+          container.scrollLeft += speed;
+          // Si llegamos al final, cambiamos dirección
+          if (
+            container.scrollLeft >=
+            container.scrollWidth - container.clientWidth - 1
+          ) {
+            scrollDirection.current = "backward";
+          }
+        } else {
+          container.scrollLeft -= speed;
+          // Si llegamos al inicio, cambiamos dirección
+          if (container.scrollLeft <= 0) {
+            scrollDirection.current = "forward";
+          }
+        }
+      }
+    };
+    const interval = setInterval(autoScroll, 30); // ~33 cuadros por segundo
+    return () => clearInterval(interval);
+  }, [blackStores.length, isPaused, loading]);
+
+  const startCooldown = () => {
+    setIsPaused(true);
+    if (interactionTimerRef.current) clearTimeout(interactionTimerRef.current);
+    interactionTimerRef.current = setTimeout(() => {
+      setIsPaused(false);
+    }, 5000); // Cooldown de 5 segundos
+  };
+
+  const handleMouseEnter = () => {
+    setIsPaused(true);
+    if (interactionTimerRef.current) clearTimeout(interactionTimerRef.current);
+  };
 
   // Efecto para búsqueda en servidor (Debounce)
   useEffect(() => {
@@ -397,18 +445,22 @@ export const HomeView = ({
         <>
           {/* Ultra Section */}
           {(loading || blackStores.length > 0) && (
-            <div className="pl-4">
-              <h2 className="font-mega text-lg mb-2 flex items-center gap-2">
+            <div>
+              <h2 className="font-mega text-lg mb-2 flex items-center gap-2 px-4">
                 <Icons.Store className="text-primary" size={20} />
                 LA MEJOR OPCIÓN
               </h2>
               <div
-                className="flex overflow-x-auto gap-3 pb-2 pr-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-primary/30 scrollbar-track-transparent"
+                ref={ultraScrollRef}
+                onTouchStart={startCooldown}
+                onMouseDown={startCooldown}
+                onWheel={startCooldown}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={startCooldown}
+                className="flex overflow-x-auto gap-3 px-4 pt-4 pb-4 -mt-4 no-scrollbar"
                 style={{
                   WebkitOverflowScrolling: "touch",
-                  scrollbarWidth: "thin",
-                  scrollbarColor:
-                    "rgba(var(--primary-rgb, 59, 130, 246), 0.3) transparent",
+                  scrollbarWidth: "none",
                 }}
               >
                 {loading
@@ -431,7 +483,7 @@ export const HomeView = ({
                       <div
                         key={s.id}
                         onClick={() => onStoreSelect(s)}
-                        className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card hover:shadow-xl relative cursor-pointer group active:scale-[0.98] transition-all duration-300"
+                        className="snap-center shrink-0 w-60 bg-white rounded-3xl overflow-hidden shadow-ios-card hover:shadow-lg relative cursor-pointer group active:scale-[0.98] transition-all duration-300"
                       >
                         <div className="relative h-32 overflow-hidden">
                           <img

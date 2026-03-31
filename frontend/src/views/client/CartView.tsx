@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useApp } from "../../AppContext";
 import { useCart } from "../../contexts/CartContext";
+import { useProducts } from "../../contexts/ProductContext";
 import { Button, Input } from "../../components/UI";
 import { Icons } from "../../constants";
-import { StoreProfile } from "../../types";
+import { StoreProfile, Product } from "../../types";
 
 // --- SUB-COMPONENTE PARA CORREGIR ERROR DE HOOKS Y MEJORAR UI ---
 const CartItemCard = ({ item }: { item: any }) => {
@@ -18,7 +19,7 @@ const CartItemCard = ({ item }: { item: any }) => {
   return (
     <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
       <div className="flex justify-between items-center">
-        <div className="flex gap-4 items-center flex-1">
+        <div className="flex gap-4 items-center flex-1 min-w-0">
           <img
             src={item.product.image}
             alt={item.product.name}
@@ -32,7 +33,7 @@ const CartItemCard = ({ item }: { item: any }) => {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 ml-2">
           <button
             onClick={() => removeFromCart(item.product.id)}
             className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 active:bg-gray-200"
@@ -88,6 +89,77 @@ const CartItemCard = ({ item }: { item: any }) => {
   );
 };
 
+// --- COMPONENTE PARA LOS "ANTOJOS" CON SELECTOR DE CANTIDAD ANIMADO ---
+const AntojoItemCard = ({ product }: { product: Product }) => {
+  const { cart, addToCart, removeFromCart } = useCart();
+  const [showCounter, setShowCounter] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const cartItem = cart.find((item) => item.product.id === product.id);
+  const cartQuantity = cartItem?.quantity || 0;
+
+  const handleInteraction = (type: "add" | "remove") => {
+    if (type === "add") {
+      addToCart(product, 1);
+    } else {
+      removeFromCart(product.id);
+    }
+
+    setShowCounter(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setShowCounter(false), 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const shouldShowCounter = showCounter && cartQuantity > 0;
+
+  return (
+    <div className="snap-center shrink-0 w-32 bg-white rounded-3xl p-3 shadow-sm border border-gray-100 flex flex-col items-center">
+      <img
+        src={product.image}
+        className="w-20 h-20 rounded-2xl object-cover mb-2 bg-gray-50"
+        alt={product.name}
+      />
+      <p className="text-[10px] font-bold text-gray-800 text-center line-clamp-1 w-full px-1">
+        {product.name}
+      </p>
+      <p className="text-[11px] text-primary font-bold mb-2">
+        ${Number(product.price).toFixed(2)}
+      </p>
+      <div className="relative h-8 w-full">
+        <div
+          className={`absolute inset-0 flex items-center justify-between bg-gray-100 rounded-xl transition-all duration-300 ${shouldShowCounter ? "opacity-100 scale-100 z-10" : "opacity-0 scale-50 pointer-events-none"}`}
+        >
+          <button
+            onClick={() => handleInteraction("remove")}
+            className="flex-1 h-full text-gray-600 font-bold text-xs"
+          >
+            -
+          </button>
+          <span className="text-[10px] font-bold">{cartQuantity}</span>
+          <button
+            onClick={() => handleInteraction("add")}
+            className="flex-1 h-full text-gray-600 font-bold text-xs"
+          >
+            +
+          </button>
+        </div>
+        <button
+          onClick={() => handleInteraction("add")}
+          className={`absolute inset-0 w-full h-full bg-primary/10 text-primary rounded-xl flex items-center justify-center active:scale-95 transition-all duration-300 ${shouldShowCounter ? "opacity-0 scale-50 pointer-events-none" : "opacity-100 scale-100"}`}
+        >
+          <Icons.Plus size={14} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const CartView = ({
   setView,
   onCheckout,
@@ -96,6 +168,36 @@ export const CartView = ({
   onCheckout: () => void;
 }) => {
   const { cart, cartTotal } = useCart();
+  const { products } = useProducts();
+
+  // Identificar el ID de la tienda actual basándonos en el primer producto del carrito
+  const storeId = useMemo(() => {
+    if (cart.length === 0) return null;
+    const sid = cart[0].product.storeId;
+    return typeof sid === "object" ? (sid as any).id || (sid as any)._id : sid;
+  }, [cart]);
+
+  // Obtener los 5 más vendidos de la tienda
+  const topProducts = useMemo(() => {
+    if (!storeId) return [];
+    return products
+      .filter((p) => {
+        const psid =
+          typeof p.storeId === "object"
+            ? (p.storeId as any).id || (p.storeId as any)._id
+            : p.storeId;
+        const isInCart = cart.some(
+          (item) => String(item.product.id) === String(p.id),
+        );
+        return (
+          String(psid) === String(storeId) &&
+          p.isAvailable !== false &&
+          !isInCart
+        );
+      })
+      .sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0))
+      .slice(0, 5);
+  }, [products, storeId, cart]);
 
   if (cart.length === 0)
     return (
@@ -134,6 +236,19 @@ export const CartView = ({
       >
         Ir a Pagar
       </Button>
+
+      {topProducts.length > 0 && (
+        <div className="mt-10 animate-fade-in-up">
+          <h3 className="font-mega text-lg mb-4 text-gray-800 ml-1">
+            COMPLEMENTA TU ORDEN
+          </h3>
+          <div className="flex overflow-x-auto gap-3 pb-4 no-scrollbar -mx-4 px-4 snap-x">
+            {topProducts.map((p) => (
+              <AntojoItemCard key={p.id} product={p} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

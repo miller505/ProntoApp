@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useApp } from "../AppContext";
 import { useAuth } from "../contexts/AuthContext"; // <-- Importamos AuthContext
 import { UserRole, Colony, SubscriptionType, User } from "../types";
-import { Button, Input, Card } from "../components/UI";
+import { Button, Input, Card, SearchableSelect } from "../components/UI";
 import { Icons, ALLOWED_EMAILS } from "../constants";
 import { uploadToCloudinary } from "../api"; // Importar utilidad
 import { useGoogleLogin } from "@react-oauth/google";
@@ -52,7 +52,9 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
     }
 
     if (name === "storeStreet") {
-      if (/[^a-zA-Z0-9\s]/.test(value)) return;
+      // Punto 1: Limitar Calle a 50 caracteres y evitar caracteres especiales raros
+      if (value.length > 50) return;
+      if (/[^a-zA-Z0-9\s.#]/.test(value)) return;
     }
 
     setFormData({ ...formData, [name]: value });
@@ -324,25 +326,16 @@ export const Register = ({ onBack }: { onBack: () => void }) => {
                   required
                 />
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
-                  Colonia
-                </label>
-                <select
-                  name="storeColonyId"
-                  value={formData.storeColonyId}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-2xl bg-gray-100 border-transparent focus:bg-white focus:border-primary text-iosText"
-                  required
-                >
-                  <option value="">Selecciona una colonia</option>
-                  {colonies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Punto 3: Selector de Colonias con búsqueda */}
+              <SearchableSelect
+                label="Colonia"
+                placeholder="Selecciona una colonia"
+                value={formData.storeColonyId}
+                onChange={(val: string) =>
+                  setFormData({ ...formData, storeColonyId: val })
+                }
+                options={colonies}
+              />
             </div>
           )}
 

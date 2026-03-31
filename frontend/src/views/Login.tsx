@@ -56,16 +56,12 @@ export const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-primary relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-white/10 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-white/10 rounded-full blur-3xl animate-pulse delay-700" />
-
       {/* Logo fuera de la caja */}
       <div className="z-10 mb-4 flex flex-col items-center animate-fade-in-down">
         <img
-          src="/logowhite.svg?v=2"
+          src="/logo.svg?v=2"
           alt="Logo"
-          className="w-40 h-40 object-contain drop-shadow-xl"
+          className="w-40 h-40 object-contain"
         />
       </div>
 

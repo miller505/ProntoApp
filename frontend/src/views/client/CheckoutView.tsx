@@ -3,7 +3,13 @@ import { useApp } from "../../AppContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCart } from "../../contexts/CartContext";
 import { useOrders } from "../../contexts/OrderContext";
-import { Button, Input, Card, Badge } from "../../components/UI";
+import {
+  Button,
+  Input,
+  Card,
+  Badge,
+  SearchableSelect,
+} from "../../components/UI";
 import { Icons } from "../../constants";
 import { StoreProfile, OrderStatus } from "../../types";
 import { calculateDistance } from "../../utils";
@@ -263,7 +269,7 @@ export const CheckoutView = ({ setView }: { setView: (view: any) => void }) => {
                     <Icons.CheckCircle
                       className="text-primary"
                       size={20}
-                      fill="currentColor"
+                      fill="white"
                     />
                   )}
                 </div>
@@ -293,6 +299,7 @@ export const CheckoutView = ({ setView }: { setView: (view: any) => void }) => {
               <Input
                 label="Calle"
                 value={newAddress.street}
+                maxLength={50}
                 onChange={(e: any) =>
                   setNewAddress({ ...newAddress, street: e.target.value })
                 }
@@ -301,18 +308,19 @@ export const CheckoutView = ({ setView }: { setView: (view: any) => void }) => {
                 <Input
                   label="Número"
                   value={newAddress.number}
-                  onChange={(e: any) =>
-                    setNewAddress({ ...newAddress, number: e.target.value })
-                  }
+                  onChange={(e: any) => {
+                    const val = e.target.value.replace(/[^0-9]/g, "");
+                    setNewAddress({ ...newAddress, number: val });
+                  }}
                   maxLength={5}
                 />
                 <div className="w-full">
-                  <label className="text-xs text-gray-500 ml-1">Colonia</label>
-                  <select
-                    className="w-full p-3 bg-gray-100 rounded-2xl mt-1 text-sm outline-none"
+                  <SearchableSelect
+                    label="Colonia"
+                    placeholder="Seleccionar..."
                     value={newAddress.colonyId}
-                    onChange={(e) => {
-                      const col = colonies.find((c) => c.id === e.target.value);
+                    onChange={(val: string) => {
+                      const col = colonies.find((c) => c.id === val);
                       if (col) {
                         setNewAddress({
                           ...newAddress,
@@ -322,19 +330,14 @@ export const CheckoutView = ({ setView }: { setView: (view: any) => void }) => {
                         });
                       }
                     }}
-                  >
-                    <option value="">Seleccionar...</option>
-                    {colonies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={colonies}
+                  />
                 </div>
               </div>
               <Input
                 label="Referencias"
                 value={newAddress.reference}
+                maxLength={100}
                 onChange={(e: any) =>
                   setNewAddress({ ...newAddress, reference: e.target.value })
                 }
@@ -443,11 +446,11 @@ export const CheckoutView = ({ setView }: { setView: (view: any) => void }) => {
                   <span>${calc.subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-gray-500">
-                  <span>Envío (Distancia + Servicio)</span>
+                  <span>Tarifa de envío</span>
                   <span>${calc.deliveryFee.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold text-gray-800 pt-2 border-t border-gray-200 mt-2">
-                  <span>Total Tienda</span>
+                  <span>Total</span>
                   <span>${calc.total.toFixed(2)}</span>
                 </div>
               </div>

@@ -190,788 +190,809 @@ export const MasterDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-secondary pb-20">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <img
-            src="/logo.svg?v=2"
-            alt="Logo"
-            className="h-10 w-auto object-contain"
-          />
-          <h1 className="text-xs font-mega text-iosGray">
-            ADMINISTRACIÓN GENERAL
-          </h1>
-        </div>
-        <Button variant="ghost" onClick={logout}>
-          <Icons.LogOut size={20} />
-        </Button>
-      </header>
+    <div className="min-h-screen bg-secondary flex justify-center">
+      <div className="w-full max-w-md bg-secondary shadow-lg relative min-h-screen pb-20">
+        {/* Header */}
+        <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo.svg?v=2"
+              alt="Logo"
+              className="h-10 w-auto object-contain"
+            />
+            <h1 className="text-xs font-mega text-iosGray">
+              ADMINISTRACIÓN GENERAL
+            </h1>
+          </div>
+          <Button variant="ghost" onClick={logout}>
+            <Icons.LogOut size={20} />
+          </Button>
+        </header>
 
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
-        {/* Navigation Tabs */}
-        <div className="flex gap-2 p-1 bg-white rounded-2xl shadow-sm overflow-x-auto no-scrollbar">
-          {[
-            {
-              id: "requests",
-              label: "Solicitudes",
-              icon: <Icons.Check size={18} />,
-              count: pendingUsers.length,
-            },
-            {
-              id: "users",
-              label: "Usuarios",
-              icon: <Icons.User size={18} />,
-              count: 0,
-            },
-            {
-              id: "colonies",
-              label: "Colonias",
-              icon: <Icons.MapPin size={18} />,
-              count: 0,
-            },
-            {
-              id: "finances",
-              label: "Finanzas",
-              icon: <Icons.DollarSign size={18} />,
-              count: 0,
-            },
-            {
-              id: "monitoring",
-              label: "Monitoreo",
-              icon: <Icons.Zap size={18} />,
-              count: 0,
-            },
-            {
-              id: "community",
-              label: "Comunidad",
-              icon: <Icons.Megaphone size={18} />,
-              count: 0,
-            },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all relative ${
-                activeTab === tab.id
-                  ? "bg-primary text-white shadow-md"
-                  : "text-gray-400"
-              }`}
-            >
-              {tab.count > 0 && (
-                <span className="absolute top-1 right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
-                  {tab.count > 9 ? "9+" : tab.count}
+        <div className="p-4 space-y-6">
+          {/* Navigation Tabs */}
+          <div className="flex gap-2 p-1 bg-white rounded-2xl shadow-sm overflow-x-auto no-scrollbar">
+            {[
+              {
+                id: "requests",
+                label: "Solicitudes",
+                icon: <Icons.Check size={18} />,
+                count: pendingUsers.length,
+              },
+              {
+                id: "users",
+                label: "Usuarios",
+                icon: <Icons.User size={18} />,
+                count: 0,
+              },
+              {
+                id: "colonies",
+                label: "Colonias",
+                icon: <Icons.MapPin size={18} />,
+                count: 0,
+              },
+              {
+                id: "finances",
+                label: "Finanzas",
+                icon: <Icons.DollarSign size={18} />,
+                count: 0,
+              },
+              {
+                id: "monitoring",
+                label: "Monitoreo",
+                icon: <Icons.Zap size={18} />,
+                count: 0,
+              },
+              {
+                id: "community",
+                label: "Comunidad",
+                icon: <Icons.Megaphone size={18} />,
+                count: 0,
+              },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all relative ${
+                  activeTab === tab.id
+                    ? "bg-primary text-white shadow-md"
+                    : "text-gray-400"
+                }`}
+              >
+                {tab.count > 0 && (
+                  <span className="absolute top-1 right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
+                    {tab.count > 9 ? "9+" : tab.count}
+                  </span>
+                )}
+                {tab.icon}
+                <span className="text-[10px] font-medium mt-1">
+                  {tab.label}
                 </span>
-              )}
-              {tab.icon}
-              <span className="text-[10px] font-medium mt-1">{tab.label}</span>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
 
-        {/* --- REQUESTS PANEL --- */}
-        {activeTab === "requests" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {pendingUsers.length === 0 ? (
-              <p className="text-gray-400 text-center col-span-full py-10">
-                No hay solicitudes pendientes.
-              </p>
-            ) : (
-              pendingUsers.map((u) => (
-                <Card key={u.id} className="space-y-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-lg">
-                        {u.firstName} {u.lastName}
-                      </h3>
+          {/* --- REQUESTS PANEL --- */}
+          {activeTab === "requests" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {pendingUsers.length === 0 ? (
+                <p className="text-gray-400 text-center col-span-full py-10">
+                  No hay solicitudes pendientes.
+                </p>
+              ) : (
+                pendingUsers.map((u) => (
+                  <Card key={u.id} className="space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-lg">
+                          {u.firstName} {u.lastName}
+                        </h3>
+                        <Badge
+                          color={
+                            u.role === UserRole.STORE
+                              ? "blue"
+                              : u.role === UserRole.DELIVERY
+                                ? "yellow"
+                                : "gray"
+                          }
+                        >
+                          {u.role}
+                        </Badge>
+                      </div>
+                      {u.ineImage && (
+                        <img
+                          src={u.ineImage}
+                          alt="INE"
+                          className="w-16 h-10 object-cover rounded bg-gray-200 cursor-pointer hover:opacity-80"
+                          onClick={() => setViewImage(u.ineImage || "")}
+                        />
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500 space-y-1">
+                      <p>Email: {u.email}</p>
+                      <p>Tel: +52 {u.phone}</p>
+                      {u.role === UserRole.STORE && (
+                        <div className="mt-2 bg-gray-50 p-2 rounded">
+                          <p className="font-semibold">
+                            {(u as StoreProfile).storeName}
+                          </p>
+                          <p>
+                            Calle: {(u as StoreProfile).storeAddress.street} #
+                            {(u as StoreProfile).storeAddress.number}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="danger"
+                        className="flex-1 py-2 text-sm disabled:opacity-50"
+                        onClick={() => {
+                          if (confirm(`¿Rechazar solicitud de ${u.firstName}?`))
+                            handleDeleteUser(u.id);
+                        }}
+                        disabled={loadingAction !== null}
+                      >
+                        {loadingAction === `delete-${u.id}`
+                          ? "Procesando..."
+                          : "Rechazar"}
+                      </Button>
+                      <Button
+                        variant="primary"
+                        className="flex-1 py-2 text-sm disabled:opacity-50"
+                        onClick={() => handleApprove(u)}
+                        disabled={loadingAction !== null}
+                      >
+                        {loadingAction === `approve-${u.id}`
+                          ? "Aceptando..."
+                          : "Aceptar"}
+                      </Button>
+                    </div>
+                  </Card>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* --- USERS PANEL --- */}
+          {activeTab === "users" && (
+            <div className="space-y-6">
+              <div className="flex gap-4 flex-col md:flex-row">
+                <div className="flex-1 relative">
+                  <Icons.Search
+                    className="absolute left-4 top-3.5 text-gray-400"
+                    size={20}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Buscar usuario..."
+                    className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white shadow-sm focus:outline-none focus:ring-2 ring-primary/20"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                  {[
+                    "ALL",
+                    UserRole.STORE,
+                    UserRole.CLIENT,
+                    UserRole.DELIVERY,
+                  ].map((r) => {
+                    const getRoleLabel = (role: string) => {
+                      const roleLabels: any = {
+                        ALL: "Todos",
+                        [UserRole.STORE]: "Tienda",
+                        [UserRole.CLIENT]: "Cliente",
+                        [UserRole.DELIVERY]: "Repartidor",
+                      };
+                      return roleLabels[role] || role;
+                    };
+                    return (
+                      <button
+                        key={r}
+                        onClick={() => setFilterRole(r)}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${
+                          filterRole === r
+                            ? "bg-gray-800 text-white"
+                            : "bg-white text-gray-600"
+                        }`}
+                      >
+                        {getRoleLabel(r)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredUsers.map((u) => (
+                  <div
+                    key={u.id}
+                    onClick={(e) => handleUserClick(u)}
+                    className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 shrink-0 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-sm overflow-hidden">
+                        {u.role === UserRole.STORE &&
+                        (u as StoreProfile).logo ? (
+                          <img
+                            src={(u as StoreProfile).logo}
+                            className="w-full h-full object-cover"
+                            alt="Logo"
+                          />
+                        ) : (
+                          <>
+                            {u.firstName[0]}
+                            {u.lastName[0]}
+                          </>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-iosText truncate text-sm leading-tight">
+                          {u.firstName} {u.lastName}
+                        </h4>
+                        <span className="text-xs text-gray-400 truncate block">
+                          {u.email}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
                       <Badge
                         color={
                           u.role === UserRole.STORE
                             ? "blue"
                             : u.role === UserRole.DELIVERY
                               ? "yellow"
-                              : "gray"
+                              : "green"
                         }
+                        className="text-[10px] px-1.5 py-0 shrink-0 font-mega uppercase"
                       >
-                        {u.role}
+                        {u.role === UserRole.STORE
+                          ? "Tienda"
+                          : u.role === UserRole.DELIVERY
+                            ? "Repartidor"
+                            : "Cliente"}
                       </Badge>
+
+                      {u.role === UserRole.STORE && (
+                        <>
+                          {/* Subscription Badge */}
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase ${getSubscriptionBadgeStyle(
+                              (u as StoreProfile).subscription,
+                            )}`}
+                          >
+                            {(u as StoreProfile).subscription || "STANDARD"}
+                          </span>
+
+                          {/* Direct Subscription Selector */}
+                          <div
+                            onClick={(e) => e.stopPropagation()} // Evitar abrir modal
+                            className="ml-auto"
+                          >
+                            <select
+                              className="text-[10px] py-1 px-1 rounded bg-gray-50 border border-gray-200 focus:outline-none focus:border-primary cursor-pointer"
+                              value={(u as StoreProfile).subscription}
+                              onChange={(e) =>
+                                handleChangeSubscription(
+                                  u as StoreProfile,
+                                  e.target.value as SubscriptionType,
+                                )
+                              }
+                            >
+                              <option value="STANDARD">Standard</option>
+                              <option value="PREMIUM">Premium</option>
+                              <option value="BLACK">Black</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    {u.ineImage && (
-                      <img
-                        src={u.ineImage}
-                        alt="INE"
-                        className="w-16 h-10 object-cover rounded bg-gray-200 cursor-pointer hover:opacity-80"
-                        onClick={() => setViewImage(u.ineImage || "")}
-                      />
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-500 space-y-1">
-                    <p>Email: {u.email}</p>
-                    <p>Tel: +52 {u.phone}</p>
                     {u.role === UserRole.STORE && (
-                      <div className="mt-2 bg-gray-50 p-2 rounded">
-                        <p className="font-semibold">
-                          {(u as StoreProfile).storeName}
-                        </p>
-                        <p>
-                          Calle: {(u as StoreProfile).storeAddress.street} #
-                          {(u as StoreProfile).storeAddress.number}
-                        </p>
+                      <div className="mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-400 truncate">
+                        {(u as StoreProfile).storeName}
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      variant="danger"
-                      className="flex-1 py-2 text-sm disabled:opacity-50"
-                      onClick={() => {
-                        if (confirm(`¿Rechazar solicitud de ${u.firstName}?`))
-                          handleDeleteUser(u.id);
-                      }}
-                      disabled={loadingAction !== null}
-                    >
-                      {loadingAction === `delete-${u.id}`
-                        ? "Procesando..."
-                        : "Rechazar"}
-                    </Button>
-                    <Button
-                      variant="primary"
-                      className="flex-1 py-2 text-sm disabled:opacity-50"
-                      onClick={() => handleApprove(u)}
-                      disabled={loadingAction !== null}
-                    >
-                      {loadingAction === `approve-${u.id}`
-                        ? "Aceptando..."
-                        : "Aceptar"}
-                    </Button>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* --- USERS PANEL --- */}
-        {activeTab === "users" && (
-          <div className="space-y-6">
-            <div className="flex gap-4 flex-col md:flex-row">
-              <div className="flex-1 relative">
-                <Icons.Search
-                  className="absolute left-4 top-3.5 text-gray-400"
-                  size={20}
-                />
-                <input
-                  type="text"
-                  placeholder="Buscar usuario..."
-                  className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white shadow-sm focus:outline-none focus:ring-2 ring-primary/20"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                {[
-                  "ALL",
-                  UserRole.STORE,
-                  UserRole.CLIENT,
-                  UserRole.DELIVERY,
-                ].map((r) => {
-                  const getRoleLabel = (role: string) => {
-                    const roleLabels: any = {
-                      ALL: "Todos",
-                      [UserRole.STORE]: "Tienda",
-                      [UserRole.CLIENT]: "Cliente",
-                      [UserRole.DELIVERY]: "Repartidor",
-                    };
-                    return roleLabels[role] || role;
-                  };
-                  return (
-                    <button
-                      key={r}
-                      onClick={() => setFilterRole(r)}
-                      className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${
-                        filterRole === r
-                          ? "bg-gray-800 text-white"
-                          : "bg-white text-gray-600"
-                      }`}
-                    >
-                      {getRoleLabel(r)}
-                    </button>
-                  );
-                })}
+                ))}
               </div>
             </div>
+          )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredUsers.map((u) => (
-                <div
-                  key={u.id}
-                  onClick={(e) => handleUserClick(u)}
-                  className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 shrink-0 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-sm">
-                      {u.firstName[0]}
-                      {u.lastName[0]}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="font-bold text-iosText truncate text-sm leading-tight">
-                        {u.firstName} {u.lastName}
-                      </h4>
-                      <span className="text-xs text-gray-400 truncate block">
-                        {u.email}
+          {/* --- COLONIES PANEL --- */}
+          {activeTab === "colonies" && (
+            <ColoniesPanel
+              colonies={colonies}
+              onAdd={addColony}
+              onUpdate={updateColony}
+              onDelete={deleteColony}
+              settings={settings}
+              onUpdateSettings={updateSettings}
+            />
+          )}
+
+          {/* --- FINANCES PANEL --- */}
+          {activeTab === "finances" && <FinancePanel orders={orders} />}
+
+          {/* --- MONITORING PANEL --- */}
+          {activeTab === "monitoring" && (
+            <MonitoringPanel orders={orders} users={users} />
+          )}
+
+          {/* --- COMMUNITY PANEL --- */}
+          {activeTab === "community" && (
+            <CommunityPanel
+              users={users}
+              messages={communityMessages}
+              onAdd={addCommunityMessage}
+              onUpdate={updateCommunityMessage}
+              onDelete={deleteCommunityMessage}
+            />
+          )}
+
+          {/* Edit User Modal */}
+          <Modal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            title={`${isEditMode ? "Editar" : "Detalles de"} ${
+              editingUser?.role === UserRole.STORE
+                ? "Tienda"
+                : editingUser?.role === UserRole.DELIVERY
+                  ? "Repartidor"
+                  : "Cliente"
+            }`}
+          >
+            <div className="space-y-4">
+              {/* --- MODO LECTURA --- */}
+              {!isEditMode && editingUser && (
+                <div className="space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <div className="flex justify-between">
+                      <span className="text-xs text-gray-400">Nombre</span>
+                      <span className="font-bold">
+                        {editingUser.firstName} {editingUser.lastName}
                       </span>
                     </div>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-2">
-                    <Badge
-                      color={
-                        u.role === UserRole.STORE
-                          ? "blue"
-                          : u.role === UserRole.DELIVERY
-                            ? "yellow"
-                            : "green"
-                      }
-                      className="text-[10px] px-1.5 py-0 shrink-0 font-mega uppercase"
-                    >
-                      {u.role === UserRole.STORE
-                        ? "Tienda"
-                        : u.role === UserRole.DELIVERY
-                          ? "Repartidor"
-                          : "Cliente"}
-                    </Badge>
-
-                    {u.role === UserRole.STORE && (
+                    <div className="flex justify-between mt-2">
+                      <span className="text-xs text-gray-400">Email</span>
+                      <span className="font-medium">{editingUser.email}</span>
+                    </div>
+                    <div className="flex justify-between mt-2">
+                      <span className="text-xs text-gray-400">Teléfono</span>
+                      <span className="font-medium">{editingUser.phone}</span>
+                    </div>
+                    {editingUser.role === UserRole.STORE && (
                       <>
-                        {/* Subscription Badge */}
-                        <span
-                          className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase ${getSubscriptionBadgeStyle(
-                            (u as StoreProfile).subscription,
-                          )}`}
-                        >
-                          {(u as StoreProfile).subscription || "STANDARD"}
-                        </span>
-
-                        {/* Direct Subscription Selector */}
-                        <div
-                          onClick={(e) => e.stopPropagation()} // Evitar abrir modal
-                          className="ml-auto"
-                        >
+                        <div className="h-px bg-gray-200 my-2"></div>
+                        <div className="flex justify-between">
+                          <span className="text-xs text-gray-400">Tienda</span>
+                          <span className="font-bold">
+                            {(editingUser as StoreProfile).storeName}
+                          </span>
+                        </div>
+                        <div className="flex justify-between mt-2">
+                          <span className="text-xs text-gray-400">
+                            Suscripción
+                          </span>
                           <select
-                            className="text-[10px] py-1 px-1 rounded bg-gray-50 border border-gray-200 focus:outline-none focus:border-primary cursor-pointer"
-                            value={(u as StoreProfile).subscription}
+                            className="text-xs p-1 rounded border-gray-200"
+                            value={(editingUser as StoreProfile).subscription}
                             onChange={(e) =>
                               handleChangeSubscription(
-                                u as StoreProfile,
+                                editingUser as StoreProfile,
                                 e.target.value as SubscriptionType,
                               )
                             }
                           >
-                            <option value="STANDARD">Standard</option>
-                            <option value="PREMIUM">Premium</option>
-                            <option value="BLACK">Black</option>
+                            <option value="STANDARD">STANDARD</option>
+                            <option value="PREMIUM">PREMIUM</option>
+                            <option value="BLACK">BLACK</option>
                           </select>
+                        </div>
+
+                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+                          <span className="text-xs text-gray-400">
+                            Próximo Pago
+                          </span>
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex gap-2">
+                              <input
+                                type="date"
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:ring-1 ring-primary outline-none"
+                                value={tempExpiryDate}
+                                onChange={(e) =>
+                                  setTempExpiryDate(e.target.value)
+                                }
+                              />
+                              <button
+                                onClick={async () => {
+                                  if (!tempExpiryDate)
+                                    return alert("Selecciona una fecha");
+                                  setLoadingAction(`subd-${editingUser.id}`);
+                                  try {
+                                    const newDate = new Date(
+                                      tempExpiryDate + "T23:59:59",
+                                    );
+                                    await updateUser({
+                                      ...editingUser,
+                                      subscriptionExpiresAt:
+                                        newDate.toISOString(),
+                                      isMasterUpdate: true,
+                                    } as any);
+                                    setEditingUser({
+                                      ...editingUser,
+                                      subscriptionExpiresAt:
+                                        newDate.toISOString(),
+                                    } as any);
+                                    alert("Fecha de pago actualizada");
+                                  } finally {
+                                    setLoadingAction(null);
+                                  }
+                                }}
+                                disabled={
+                                  loadingAction === `subd-${editingUser.id}`
+                                }
+                                className="text-[10px] bg-primary text-white px-3 py-1 rounded-lg font-bold hover:bg-primary/90 disabled:opacity-50"
+                              >
+                                {loadingAction === `subd-${editingUser.id}`
+                                  ? "..."
+                                  : "SET"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+                          <span className="text-xs text-gray-500">
+                            ¿Rebajar a Cliente?
+                          </span>
+                          <button
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  "¿Seguro que deseas convertir esta tienda en cliente? Su sesión caducará y no podrán vender.",
+                                )
+                              ) {
+                                api
+                                  .put(`/api/users/${editingUser.id}`, {
+                                    ...editingUser,
+                                    role: UserRole.CLIENT,
+                                    isMasterUpdate: true,
+                                  })
+                                  .then(() => {
+                                    setIsEditModalOpen(false);
+                                    window.location.reload();
+                                  });
+                              }
+                            }}
+                            className="text-[10px] text-red-600 font-bold border border-red-200 px-2 py-1 rounded hover:bg-red-50"
+                          >
+                            Desactivar Tienda
+                          </button>
                         </div>
                       </>
                     )}
-                  </div>
-                  {u.role === UserRole.STORE && (
-                    <div className="mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-400 truncate">
-                      {(u as StoreProfile).storeName}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* --- COLONIES PANEL --- */}
-        {activeTab === "colonies" && (
-          <ColoniesPanel
-            colonies={colonies}
-            onAdd={addColony}
-            onUpdate={updateColony}
-            onDelete={deleteColony}
-            settings={settings}
-            onUpdateSettings={updateSettings}
-          />
-        )}
-
-        {/* --- FINANCES PANEL --- */}
-        {activeTab === "finances" && <FinancePanel orders={orders} />}
-
-        {/* --- MONITORING PANEL --- */}
-        {activeTab === "monitoring" && (
-          <MonitoringPanel orders={orders} users={users} />
-        )}
-
-        {/* --- COMMUNITY PANEL --- */}
-        {activeTab === "community" && (
-          <CommunityPanel
-            users={users}
-            messages={communityMessages}
-            onAdd={addCommunityMessage}
-            onUpdate={updateCommunityMessage}
-            onDelete={deleteCommunityMessage}
-          />
-        )}
-
-        {/* Edit User Modal */}
-        <Modal
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          title={`${isEditMode ? "Editar" : "Detalles de"} ${
-            editingUser?.role === UserRole.STORE
-              ? "Tienda"
-              : editingUser?.role === UserRole.DELIVERY
-                ? "Repartidor"
-                : "Cliente"
-          }`}
-        >
-          <div className="space-y-4">
-            {/* --- MODO LECTURA --- */}
-            {!isEditMode && editingUser && (
-              <div className="space-y-4">
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <div className="flex justify-between">
-                    <span className="text-xs text-gray-400">Nombre</span>
-                    <span className="font-bold">
-                      {editingUser.firstName} {editingUser.lastName}
-                    </span>
-                  </div>
-                  <div className="flex justify-between mt-2">
-                    <span className="text-xs text-gray-400">Email</span>
-                    <span className="font-medium">{editingUser.email}</span>
-                  </div>
-                  <div className="flex justify-between mt-2">
-                    <span className="text-xs text-gray-400">Teléfono</span>
-                    <span className="font-medium">{editingUser.phone}</span>
-                  </div>
-                  {editingUser.role === UserRole.STORE && (
-                    <>
-                      <div className="h-px bg-gray-200 my-2"></div>
-                      <div className="flex justify-between">
-                        <span className="text-xs text-gray-400">Tienda</span>
-                        <span className="font-bold">
-                          {(editingUser as StoreProfile).storeName}
-                        </span>
-                      </div>
-                      <div className="flex justify-between mt-2">
-                        <span className="text-xs text-gray-400">
-                          Suscripción
-                        </span>
-                        <select
-                          className="text-xs p-1 rounded border-gray-200"
-                          value={(editingUser as StoreProfile).subscription}
-                          onChange={(e) =>
-                            handleChangeSubscription(
-                              editingUser as StoreProfile,
-                              e.target.value as SubscriptionType,
-                            )
-                          }
-                        >
-                          <option value="STANDARD">STANDARD</option>
-                          <option value="PREMIUM">PREMIUM</option>
-                          <option value="BLACK">BLACK</option>
-                        </select>
-                      </div>
-
-                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
-                        <span className="text-xs text-gray-400">
-                          Próximo Pago
-                        </span>
-                        <div className="flex flex-col items-end gap-1">
-                          <div className="flex gap-2">
-                            <input
-                              type="date"
-                              className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:ring-1 ring-primary outline-none"
-                              value={tempExpiryDate}
-                              onChange={(e) =>
-                                setTempExpiryDate(e.target.value)
-                              }
-                            />
-                            <button
-                              onClick={async () => {
-                                if (!tempExpiryDate)
-                                  return alert("Selecciona una fecha");
-                                setLoadingAction(`subd-${editingUser.id}`);
-                                try {
-                                  const newDate = new Date(
-                                    tempExpiryDate + "T23:59:59",
-                                  );
-                                  await updateUser({
-                                    ...editingUser,
-                                    subscriptionExpiresAt:
-                                      newDate.toISOString(),
-                                    isMasterUpdate: true,
-                                  } as any);
-                                  setEditingUser({
-                                    ...editingUser,
-                                    subscriptionExpiresAt:
-                                      newDate.toISOString(),
-                                  } as any);
-                                  alert("Fecha de pago actualizada");
-                                } finally {
-                                  setLoadingAction(null);
-                                }
-                              }}
-                              disabled={
-                                loadingAction === `subd-${editingUser.id}`
-                              }
-                              className="text-[10px] bg-primary text-white px-3 py-1 rounded-lg font-bold hover:bg-primary/90 disabled:opacity-50"
-                            >
-                              {loadingAction === `subd-${editingUser.id}`
-                                ? "..."
-                                : "SET"}
-                            </button>
-                          </div>
+                    {editingUser.role === UserRole.CLIENT &&
+                      (editingUser as any).storeName && (
+                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+                          <span className="text-xs text-gray-500">
+                            ¿Reactivar como Tienda?
+                          </span>
+                          <button
+                            onClick={() => {
+                              updateUser({
+                                ...editingUser,
+                                role: UserRole.STORE,
+                                isMasterUpdate: true,
+                              } as any);
+                              setIsEditModalOpen(false);
+                            }}
+                            className="text-[10px] text-green-600 font-bold border border-green-200 px-2 py-1 rounded hover:bg-green-50"
+                          >
+                            Activar Tienda
+                          </button>
                         </div>
-                      </div>
-
-                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
-                        <span className="text-xs text-gray-500">
-                          ¿Rebajar a Cliente?
-                        </span>
-                        <button
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                "¿Seguro que deseas convertir esta tienda en cliente? Su sesión caducará y no podrán vender.",
-                              )
-                            ) {
-                              api
-                                .put(`/api/users/${editingUser.id}`, {
-                                  ...editingUser,
-                                  role: UserRole.CLIENT,
-                                  isMasterUpdate: true,
-                                })
-                                .then(() => {
-                                  setIsEditModalOpen(false);
-                                  window.location.reload();
-                                });
-                            }
-                          }}
-                          className="text-[10px] text-red-600 font-bold border border-red-200 px-2 py-1 rounded hover:bg-red-50"
-                        >
-                          Desactivar Tienda
-                        </button>
-                      </div>
-                    </>
-                  )}
-                  {editingUser.role === UserRole.CLIENT &&
-                    (editingUser as any).storeName && (
-                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
-                        <span className="text-xs text-gray-500">
-                          ¿Reactivar como Tienda?
-                        </span>
-                        <button
-                          onClick={() => {
-                            updateUser({
-                              ...editingUser,
-                              role: UserRole.STORE,
-                              isMasterUpdate: true,
-                            } as any);
-                            setIsEditModalOpen(false);
-                          }}
-                          className="text-[10px] text-green-600 font-bold border border-green-200 px-2 py-1 rounded hover:bg-green-50"
-                        >
-                          Activar Tienda
-                        </button>
-                      </div>
-                    )}
-                </div>
-
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mt-4">
-                  <h4 className="font-bold text-gray-700 text-sm mb-2">
-                    Estadísticas{" "}
-                    {isLoadingStats && (
-                      <span className="text-xs text-primary font-normal">
-                        (Cargando...)
-                      </span>
-                    )}
-                  </h4>
-                  {editingUserStats && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-xs text-gray-400">
-                          Pedidos Históricos
-                        </span>
-                        <span className="font-bold">
-                          {editingUserStats.totalOrders}
-                        </span>
-                      </div>
-                      {editingUser.role === UserRole.STORE && (
-                        <>
-                          <div className="flex justify-between border-t border-gray-200 pt-2 mt-2">
-                            <span className="text-xs text-gray-400">
-                              Ventas Semana
-                            </span>
-                            <span className="font-bold text-green-600">
-                              ${editingUserStats.weeklyRevenue.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-xs text-gray-400">
-                              Pedidos Semana
-                            </span>
-                            <span className="font-bold">
-                              {editingUserStats.weeklyOrders}
-                            </span>
-                          </div>
-                          {editingUserStats.weeklyChart &&
-                            editingUserStats.weeklyChart.length > 0 && (
-                              <div className="mt-3 pt-3 border-t border-gray-200">
-                                <p className="text-[10px] text-gray-400 mb-2">
-                                  Gráfico 7 días (Ventas $)
-                                </p>
-                                <div className="flex items-end gap-1 h-16 w-full">
-                                  {editingUserStats.weeklyChart.map(
-                                    (d: any, idx: number) => {
-                                      const max = Math.max(
-                                        ...editingUserStats.weeklyChart.map(
-                                          (x: any) => x.total,
-                                        ),
-                                        1,
-                                      );
-                                      return (
-                                        <div
-                                          key={idx}
-                                          className="flex flex-col justify-end items-center flex-1 group relative h-full"
-                                        >
-                                          <div
-                                            style={{
-                                              height: `${(d.total / max) * 100}%`,
-                                              minHeight:
-                                                d.total > 0 ? "4px" : "0",
-                                            }}
-                                            className="w-full bg-blue-300 rounded-t-sm group-hover:bg-blue-500 transition-colors"
-                                          />
-                                          {d.total > 0 && (
-                                            <span className="absolute -top-4 text-[8px] font-bold opacity-0 group-hover:opacity-100 z-10 bg-white rounded shadow-sm px-1 py-0.5 border">
-                                              ${Math.round(d.total)}
-                                            </span>
-                                          )}
-                                        </div>
-                                      );
-                                    },
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                        </>
                       )}
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mt-4">
+                    <h4 className="font-bold text-gray-700 text-sm mb-2">
+                      Estadísticas{" "}
+                      {isLoadingStats && (
+                        <span className="text-xs text-primary font-normal">
+                          (Cargando...)
+                        </span>
+                      )}
+                    </h4>
+                    {editingUserStats && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-xs text-gray-400">
+                            Pedidos Históricos
+                          </span>
+                          <span className="font-bold">
+                            {editingUserStats.totalOrders}
+                          </span>
+                        </div>
+                        {editingUser.role === UserRole.STORE && (
+                          <>
+                            <div className="flex justify-between border-t border-gray-200 pt-2 mt-2">
+                              <span className="text-xs text-gray-400">
+                                Ventas Semana
+                              </span>
+                              <span className="font-bold text-green-600">
+                                ${editingUserStats.weeklyRevenue.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-400">
+                                Pedidos Semana
+                              </span>
+                              <span className="font-bold">
+                                {editingUserStats.weeklyOrders}
+                              </span>
+                            </div>
+                            {editingUserStats.weeklyChart &&
+                              editingUserStats.weeklyChart.length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                  <p className="text-[10px] text-gray-400 mb-2">
+                                    Gráfico 7 días (Ventas $)
+                                  </p>
+                                  <div className="flex items-end gap-1 h-16 w-full">
+                                    {editingUserStats.weeklyChart.map(
+                                      (d: any, idx: number) => {
+                                        const max = Math.max(
+                                          ...editingUserStats.weeklyChart.map(
+                                            (x: any) => x.total,
+                                          ),
+                                          1,
+                                        );
+                                        return (
+                                          <div
+                                            key={idx}
+                                            className="flex flex-col justify-end items-center flex-1 group relative h-full"
+                                          >
+                                            <div
+                                              style={{
+                                                height: `${(d.total / max) * 100}%`,
+                                                minHeight:
+                                                  d.total > 0 ? "4px" : "0",
+                                              }}
+                                              className="w-full bg-blue-300 rounded-t-sm group-hover:bg-blue-500 transition-colors"
+                                            />
+                                            {d.total > 0 && (
+                                              <span className="absolute -top-4 text-[8px] font-bold opacity-0 group-hover:opacity-100 z-10 bg-white rounded shadow-sm px-1 py-0.5 border">
+                                                ${Math.round(d.total)}
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      },
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {editingUser.ineImage && (
+                    <div>
+                      <span className="text-xs text-gray-400 mb-1 block">
+                        Documento de Identidad
+                      </span>
+                      <img
+                        src={editingUser.ineImage}
+                        alt="INE"
+                        className="w-full h-32 object-cover rounded-xl bg-gray-100"
+                      />
                     </div>
                   )}
-                </div>
 
-                {editingUser.ineImage && (
-                  <div>
-                    <span className="text-xs text-gray-400 mb-1 block">
-                      Documento de Identidad
-                    </span>
-                    <img
-                      src={editingUser.ineImage}
-                      alt="INE"
-                      className="w-full h-32 object-cover rounded-xl bg-gray-100"
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      variant="danger"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "¿Eliminar este usuario permanentemente?",
+                          )
+                        ) {
+                          handleDeleteUser(editingUser.id);
+                          setIsEditModalOpen(false);
+                        }
+                      }}
+                      className="flex-1"
+                    >
+                      <Icons.Trash2 size={16} /> Eliminar
+                    </Button>
+                    <Button
+                      onClick={() => setIsEditMode(true)}
+                      className="flex-[2]"
+                    >
+                      <Icons.Edit2 size={16} /> Editar Información
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* --- MODO EDICIÓN --- */}
+              {isEditMode && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input
+                      label="Nombre"
+                      value={editFormData.firstName}
+                      onChange={(e: any) =>
+                        setEditFormData({
+                          ...editFormData,
+                          firstName: e.target.value,
+                        })
+                      }
+                    />
+                    <Input
+                      label="Apellido"
+                      value={editFormData.lastName}
+                      onChange={(e: any) =>
+                        setEditFormData({
+                          ...editFormData,
+                          lastName: e.target.value,
+                        })
+                      }
                     />
                   </div>
-                )}
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="danger"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          "¿Eliminar este usuario permanentemente?",
-                        )
-                      ) {
-                        handleDeleteUser(editingUser.id);
-                        setIsEditModalOpen(false);
-                      }
-                    }}
-                    className="flex-1"
-                  >
-                    <Icons.Trash2 size={16} /> Eliminar
-                  </Button>
-                  <Button
-                    onClick={() => setIsEditMode(true)}
-                    className="flex-[2]"
-                  >
-                    <Icons.Edit2 size={16} /> Editar Información
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* --- MODO EDICIÓN --- */}
-            {isEditMode && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
                   <Input
-                    label="Nombre"
-                    value={editFormData.firstName}
+                    label="Email"
+                    type="email"
+                    value={editFormData.email}
                     onChange={(e: any) =>
                       setEditFormData({
                         ...editFormData,
-                        firstName: e.target.value,
+                        email: e.target.value,
                       })
                     }
                   />
                   <Input
-                    label="Apellido"
-                    value={editFormData.lastName}
+                    label="Teléfono"
+                    value={editFormData.phone}
                     onChange={(e: any) =>
                       setEditFormData({
                         ...editFormData,
-                        lastName: e.target.value,
+                        phone: e.target.value,
                       })
                     }
                   />
-                </div>
-                <Input
-                  label="Email"
-                  type="email"
-                  value={editFormData.email}
-                  onChange={(e: any) =>
-                    setEditFormData({ ...editFormData, email: e.target.value })
-                  }
-                />
-                <Input
-                  label="Teléfono"
-                  value={editFormData.phone}
-                  onChange={(e: any) =>
-                    setEditFormData({ ...editFormData, phone: e.target.value })
-                  }
-                />
-                <div className="relative">
-                  <Input
-                    label="Contraseña"
-                    type="text"
-                    placeholder="Dejar vacío para no cambiar"
-                    value={editFormData.password || ""}
-                    onChange={(e: any) =>
-                      setEditFormData({
-                        ...editFormData,
-                        password: e.target.value,
-                      })
-                    }
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Escribe una nueva contraseña solo si deseas cambiarla.
-                  </p>
-                </div>
-                {editingUser?.role === UserRole.STORE && (
-                  <>
+                  <div className="relative">
                     <Input
-                      label="Nombre de Tienda"
-                      value={editFormData.storeName}
+                      label="Contraseña"
+                      type="text"
+                      placeholder="Dejar vacío para no cambiar"
+                      value={editFormData.password || ""}
                       onChange={(e: any) =>
                         setEditFormData({
                           ...editFormData,
-                          storeName: e.target.value,
+                          password: e.target.value,
                         })
                       }
                     />
-                    <Input
-                      label="Calle"
-                      value={editFormData.storeAddress?.street}
-                      onChange={(e: any) =>
-                        setEditFormData({
-                          ...editFormData,
-                          storeAddress: {
-                            ...editFormData.storeAddress,
-                            street: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                    <Input
-                      label="Número"
-                      value={editFormData.storeAddress?.number}
-                      onChange={(e: any) =>
-                        setEditFormData({
-                          ...editFormData,
-                          storeAddress: {
-                            ...editFormData.storeAddress,
-                            number: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                    <div className="mb-4 w-full">
-                      <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
-                        Colonia
-                      </label>
-                      <select
-                        className="w-full px-4 py-3 rounded-2xl bg-gray-100 border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none transition-colors text-iosText"
-                        value={editFormData.storeAddress?.colonyId || ""}
-                        onChange={(e) =>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Escribe una nueva contraseña solo si deseas cambiarla.
+                    </p>
+                  </div>
+                  {editingUser?.role === UserRole.STORE && (
+                    <>
+                      <Input
+                        label="Nombre de Tienda"
+                        value={editFormData.storeName}
+                        onChange={(e: any) =>
+                          setEditFormData({
+                            ...editFormData,
+                            storeName: e.target.value,
+                          })
+                        }
+                      />
+                      <Input
+                        label="Calle"
+                        value={editFormData.storeAddress?.street}
+                        onChange={(e: any) =>
                           setEditFormData({
                             ...editFormData,
                             storeAddress: {
                               ...editFormData.storeAddress,
-                              colonyId: e.target.value,
+                              street: e.target.value,
                             },
                           })
                         }
-                      >
-                        <option value="">Selecciona una colonia</option>
-                        {colonies.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
+                      />
+                      <Input
+                        label="Número"
+                        value={editFormData.storeAddress?.number}
+                        onChange={(e: any) =>
+                          setEditFormData({
+                            ...editFormData,
+                            storeAddress: {
+                              ...editFormData.storeAddress,
+                              number: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                      <div className="mb-4 w-full">
+                        <label className="block text-sm font-medium text-gray-500 mb-1 ml-1">
+                          Colonia
+                        </label>
+                        <select
+                          className="w-full px-4 py-3 rounded-2xl bg-gray-100 border-2 border-transparent focus:bg-white focus:border-primary focus:outline-none transition-colors text-iosText"
+                          value={editFormData.storeAddress?.colonyId || ""}
+                          onChange={(e) =>
+                            setEditFormData({
+                              ...editFormData,
+                              storeAddress: {
+                                ...editFormData.storeAddress,
+                                colonyId: e.target.value,
+                              },
+                            })
+                          }
+                        >
+                          <option value="">Selecciona una colonia</option>
+                          {colonies.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+                  {editingUser?.ineImage && (
+                    <div className="border-t pt-4">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">
+                        Identificación (INE)
+                      </p>
+                      <img
+                        src={editingUser.ineImage}
+                        alt="INE"
+                        className="w-full rounded-lg border border-gray-200"
+                      />
                     </div>
-                  </>
-                )}
-                {editingUser?.ineImage && (
-                  <div className="border-t pt-4">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">
-                      Identificación (INE)
-                    </p>
-                    <img
-                      src={editingUser.ineImage}
-                      alt="INE"
-                      className="w-full rounded-lg border border-gray-200"
-                    />
+                  )}
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setIsEditMode(false)}
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleSaveEdit}
+                      className="flex-[2]"
+                      disabled={loadingAction !== null}
+                    >
+                      {loadingAction ? "Guardando..." : "Guardar Cambios"}
+                    </Button>
                   </div>
-                )}
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() => setIsEditMode(false)}
-                    className="flex-1"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={handleSaveEdit}
-                    className="flex-[2]"
-                    disabled={loadingAction !== null}
-                  >
-                    {loadingAction ? "Guardando..." : "Guardar Cambios"}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </Modal>
+                </>
+              )}
+            </div>
+          </Modal>
 
-        {/* Image Viewer Modal */}
-        <Modal
-          isOpen={!!viewImage}
-          onClose={() => setViewImage(null)}
-          title="Documento Adjunto"
-        >
-          <img
-            src={viewImage || ""}
-            alt="Documento"
-            className="w-full h-auto rounded-lg"
-          />
-        </Modal>
+          {/* Image Viewer Modal */}
+          <Modal
+            isOpen={!!viewImage}
+            onClose={() => setViewImage(null)}
+            title="Documento Adjunto"
+          >
+            <img
+              src={viewImage || ""}
+              alt="Documento"
+              className="w-full h-auto rounded-lg"
+            />
+          </Modal>
+        </div>
       </div>
     </div>
   );
